@@ -19,7 +19,21 @@ using **the visitor's own Anthropic API key**. Fully static — no backend.
    HTML. (Output dir = repo root; framework = "Other".)
 3. Done. `index.html` is served by default.
 
-> The app loads React + Babel from unpkg at runtime, so the host needs no build step.
+> The app loads React + Babel from **cdnjs** at runtime, so the host needs no build step.
+> (cdnjs is also the only CDN allowed inside the Claude artifact sandbox — see below.)
+
+## Run it FREE as a Claude artifact (no API key)
+
+`ContentIntel-preview.html` / `index-publish.html` are the **self-contained** build
+(research inlined, no external files). Paste the file's contents into a Claude chat
+and publish it as an artifact. Inside Claude the app calls `window.claude.complete`,
+so **every check runs real AI for free — no API key, no fetch, nothing to pay.**
+
+Sandbox rules this build already satisfies: scripts load from **cdnjs only**,
+`window.claude.complete` is called with a **string** prompt, and all `localStorage`
+use is wrapped in try/catch (it's blocked in the sandbox, so settings just don't
+persist there — analysis still works). Images can't be forwarded inside the sandbox,
+so thumbnail checks judge from text there; the self-hosted BYO-key build handles images.
 
 ## How users run checks (BYO key)
 

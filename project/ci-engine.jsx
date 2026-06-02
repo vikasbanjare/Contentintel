@@ -91,7 +91,8 @@ async function callClaude({ system, userText, image, model, maxTokens = 1800 }) 
         image ? "(An image was attached but can't be forwarded in this preview — judge from the text/description.)" : "",
         userText,
       ].filter(Boolean).join("\n");
-      const out = await window.claude.complete({ messages: [{ role: "user", content: prompt }] });
+      // Claude artifact API: takes a single STRING prompt, returns a STRING.
+      const out = await window.claude.complete(prompt);
       return { text: typeof out === "string" ? out : String(out || ""), usage: null };
     }
     throw new Error("NO_KEY");
