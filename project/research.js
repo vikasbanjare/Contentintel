@@ -8,7 +8,7 @@
 
    PRIVATE EDITING
    ---------------
-   Open the site with ?admin=contentintel (remembered on your browser after the
+   Open the site with ?admin=vikas-intel-2026 (remembered on your browser after the
    first visit). The Research tab is invisible to everyone else. Edits you
    "Save (private)" persist only in YOUR browser. "Download research.js" bakes
    them in for all users — commit the file + redeploy.

@@ -40,7 +40,7 @@ then `python3 build.py`.
 There's an editor that **only you** can see. Other people you share the link with
 never see the Research tab or the lock icon.
 
-**Unlock it (once per browser):** open the site with `?admin=contentintel`. The app
+**Unlock it (once per browser):** open the site with `?admin=vikas-intel-2026`. The app
 remembers it on that browser, so the lock icon appears top-right from then on.
 (`Lock & exit` in the editor hides it again — handy on shared screens.)
 
