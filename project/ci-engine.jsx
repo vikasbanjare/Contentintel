@@ -1,0 +1,309 @@
+// ContentIntel — engine: BYO-key auth, real Claude calls, token estimate,
+// generic report renderer, analysis hook. (Client-side, no backend.)
+
+const { MOODS: EM } = window;
+
+// ── Config (editable) ────────────────────────────────────────────────────────
+// Prices are per 1,000,000 tokens (USD) and are APPROXIMATE — adjust to match
+// Anthropic's current pricing. They only drive the on-screen cost estimate.
+const CI_MODELS = [
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 — fastest & cheapest", inP: 1.0,  outP: 5.0  },
+  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6 — balanced (default)", inP: 3.0,  outP: 15.0 },
+  { id: "claude-opus-4-8",           label: "Opus 4.8 — most thorough",        inP: 15.0, outP: 75.0 },
+];
+const CI_DEFAULT_MODEL = "claude-sonnet-4-6";
+const CI_OUTPUT_GUESS = 900; // tokens assumed for the report when estimating cost
+
+const ADMIN_PASS = "contentintel"; // change me — gate for the Research editor
+
+// ── Local storage (key + model live only in the user's browser) ──────────────
+const LS_KEY = "ci_anthropic_key";
+const LS_MODEL = "ci_model";
+const getKey   = () => { try { return localStorage.getItem(LS_KEY) || ""; } catch (e) { return ""; } };
+const setKeyLS = (k) => { try { k ? localStorage.setItem(LS_KEY, k) : localStorage.removeItem(LS_KEY); } catch (e) {} };
+const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAULT_MODEL; } catch (e) { return CI_DEFAULT_MODEL; } };
+const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
+const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
+
+// ── Research access (falls back to a tiny default so nothing ever breaks) ────
+const DEFAULT_RESEARCH = {
+  script:    { label: "Script",    systemGuidance: "Evaluate the script's hook, retention and CTA. Be specific and give rewrites.", rubric: [{ name: "Hook", what: "" }, { name: "Retention", what: "" }, { name: "CTA", what: "" }], notes: "" },
+  thumbnail: { label: "Thumbnail", systemGuidance: "Judge whether the thumbnail earns the click in a feed.", rubric: [{ name: "Clarity", what: "" }, { name: "Face", what: "" }, { name: "Contrast", what: "" }], notes: "" },
+  title:     { label: "Title",     systemGuidance: "Judge click-worthiness, clarity, truncation. Give 10 alternatives.", rubric: [{ name: "Click chance", what: "" }, { name: "Curiosity", what: "" }, { name: "Clarity", what: "" }], notes: "" },
+  ads:       { label: "Ads",       systemGuidance: "Check limits, truncation, scroll-stopping power.", rubric: [{ name: "Scroll-stop", what: "" }, { name: "Copy", what: "" }, { name: "CTA fit", what: "" }], notes: "" },
+};
+function getResearch(type) {
+  const live = (typeof window !== "undefined" && window.__CI_RESEARCH_OVERRIDE) || window.CI_RESEARCH;
+  return (live && live[type]) || DEFAULT_RESEARCH[type] || {};
+}
+
+// ── Token estimate (rough: ~4 chars/token) ───────────────────────────────────
+function estTokens(...strings) {
+  const chars = strings.filter(Boolean).join(" ").length;
+  return Math.max(1, Math.ceil(chars / 4));
+}
+function fmtTokens(n) {
+  return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "") + "k" : String(n);
+}
+function estCost(inTok, outTok, model) {
+  const m = modelInfo(model);
+  return (inTok / 1e6) * m.inP + (outTok / 1e6) * m.outP;
+}
+function fmtCost(usd) {
+  if (usd < 0.01) return "<$0.01";
+  return "$" + usd.toFixed(2);
+}
+
+// ── The real call — direct browser → Anthropic (BYO key) ─────────────────────
+async function callClaude({ system, userText, image, model, maxTokens = 1800 }) {
+  const key = getKey();
+  if (!key) throw new Error("NO_KEY");
+  const content = image
+    ? [{ type: "image", source: { type: "base64", media_type: image.mime, data: image.data } },
+       { type: "text", text: userText }]
+    : userText;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, system, messages: [{ role: "user", content }] }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
+    if (res.status === 401) throw new Error("Invalid API key. Check it in Settings.");
+    if (res.status === 429) throw new Error("Rate limited or out of credit on this key.");
+    throw new Error(detail || ("Request failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("");
+  return { text, usage: data.usage || null };
+}
+
+// ── Prompt builder + JSON report parsing ─────────────────────────────────────
+const REPORT_SHAPE =
+`Return ONLY valid JSON (no markdown, no prose) in exactly this shape:
+{
+  "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
+  "scores": [ { "name": "string", "score": 0-100, "why": "plain-English reason" } ],
+  "sections": [
+     { "type": "issues",    "title": "string", "items": [ { "level": "green|yellow|red", "text": "string" } ] },
+     { "type": "copy",      "title": "string", "desc": "optional", "blocks": [ { "label": "Copy", "text": "string", "mono": false } ] },
+     { "type": "kv",        "title": "string", "rows": [ { "k": "label", "v": "value", "level": "green|yellow|red (optional)" } ] },
+     { "type": "checklist", "title": "string", "items": [ { "state": "yes|no|mid", "text": "string" } ] },
+     { "type": "text",      "title": "string", "body": "string" }
+  ],
+  "bottomLine": "one honest paragraph: what to fix and the single highest-impact change"
+}
+Use as many or as few sections as useful. Quote the user's actual words. Every criticism gets a copy-ready fix.`;
+
+function buildSystem(type) {
+  const r = getResearch(type);
+  const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
+  return [
+    `You are ContentIntel — a blunt, specific pre-publish ${r.label || type} checker for short-form creators.`,
+    `Use ONLY the following research/methodology as your evaluation framework:`,
+    `"""`, r.systemGuidance || "", `"""`,
+    rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
+    r.notes ? `Extra: ${r.notes}` : "",
+    REPORT_SHAPE,
+  ].filter(Boolean).join("\n\n");
+}
+
+function parseReport(text) {
+  let t = (text || "").trim();
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) t = fence[1].trim();
+  const s = t.indexOf("{"), e = t.lastIndexOf("}");
+  if (s !== -1 && e !== -1) t = t.slice(s, e + 1);
+  return JSON.parse(t);
+}
+
+// ── useAnalysis — shared runner for every checker tab ────────────────────────
+// state: idle | loading | done | error
+// when done with report=null → the tab shows its built-in SAMPLE (no key path)
+function useAnalysis(type) {
+  const [state, setState] = React.useState("idle");
+  const [report, setReport] = React.useState(null);
+  const [usage, setUsage] = React.useState(null);
+  const [err, setErr] = React.useState("");
+
+  async function run({ userText, image, maxTokens }) {
+    setErr(""); setReport(null); setUsage(null); setState("loading");
+    if (!getKey()) { // sample mode — keep the canned demo report
+      setTimeout(() => setState("done"), 850);
+      return;
+    }
+    try {
+      const { text, usage } = await callClaude({ system: buildSystem(type), userText, image, maxTokens });
+      const json = parseReport(text);
+      setReport(json); setUsage(usage); setState("done");
+    } catch (e) {
+      if (String(e.message) === "NO_KEY") { setTimeout(() => setState("done"), 600); return; }
+      setErr(e.message || "Something went wrong."); setState("error");
+    }
+  }
+  return { state, report, usage, err, run, reset: () => setState("idle") };
+}
+
+// ── AnalyzeButton — Run button that shows the token estimate ─────────────────
+function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model }) {
+  const inTok = estIn + 0;
+  const total = inTok + CI_OUTPUT_GUESS;
+  const cost = estCost(inTok, CI_OUTPUT_GUESS, model);
+  const hasKey = !!getKey();
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+      <GlowButton mood={mood} size="lg" onClick={onClick} style={{ justifyContent: "center" }}>
+        {loading ? (
+          <>
+            <span style={{ display: "inline-block", width: 13, height: 13, border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%" }} className="spin" />
+            Analyzing…
+          </>
+        ) : (
+          <>
+            {label} <span style={{ opacity: 0.7, fontWeight: 500 }}>· ~{fmtTokens(total)} tokens</span> →
+          </>
+        )}
+      </GlowButton>
+      <span className="ci-est">
+        est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}
+        {!hasKey && <span style={{ color: "var(--text-4)" }}> · sample only — add your key</span>}
+      </span>
+    </div>
+  );
+}
+
+// ── UsageBadge — actual tokens after a real run ──────────────────────────────
+function UsageBadge({ usage, model }) {
+  if (!usage) return null;
+  const inT = usage.input_tokens || 0, outT = usage.output_tokens || 0;
+  const cost = estCost(inT, outT, model);
+  return (
+    <div className="ci-usage">
+      ✓ Real analysis · used {fmtTokens(inT)} in + {fmtTokens(outT)} out = <b>{fmtTokens(inT + outT)} tokens</b> · ~{fmtCost(cost)}
+    </div>
+  );
+}
+
+// ── ErrorCard ────────────────────────────────────────────────────────────────
+function ErrorCard({ msg, onOpenKey }) {
+  return (
+    <div className="ci-block" style={{ marginTop: 14, border: "1px solid rgba(245,120,140,0.3)", background: "linear-gradient(120deg, rgba(240,90,110,0.1), rgba(240,90,110,0.03))" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+        <span className="ci-dot red" /> <b style={{ fontSize: 14 }}>Couldn't run the analysis</b>
+      </div>
+      <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.5 }}>{msg}</div>
+      <button className="ci-copybtn" style={{ height: 32, marginTop: 12 }} onClick={onOpenKey}>Open Settings</button>
+    </div>
+  );
+}
+
+// ── ReportView — renders the generic JSON report from Claude ─────────────────
+function ReportView({ report, mood }) {
+  const m = EM[mood] || EM.navy;
+  if (!report || typeof report !== "object") return null;
+  const v = report.verdict || {};
+  return (
+    <div className="ci-results" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+      {v.level && <TrafficLight level={v.level} title={v.title || "Verdict"} text={v.text || ""} />}
+
+      {Array.isArray(report.scores) && report.scores.length > 0 && (
+        <Block title="Scores" mood={mood}>
+          {report.scores.map((s, i) => <ScoreItem key={i} mood={mood} name={s.name} score={Math.round(s.score)} why={s.why} />)}
+        </Block>
+      )}
+
+      {Array.isArray(report.sections) && report.sections.map((sec, i) => {
+        if (!sec) return null;
+        if (sec.type === "issues")
+          return <Block key={i} title={sec.title} mood={mood}>{(sec.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>;
+        if (sec.type === "copy")
+          return <Block key={i} title={sec.title} desc={sec.desc} mood={mood}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {(sec.blocks || []).map((b, j) => <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono} />)}
+            </div>
+          </Block>;
+        if (sec.type === "checklist")
+          return <Block key={i} title={sec.title} mood={mood}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Block>;
+        if (sec.type === "kv")
+          return <Block key={i} title={sec.title} mood={mood}>
+            {(sec.rows || []).map((r, j) => (
+              <div key={j} style={{ display: "grid", gridTemplateColumns: r.level ? "20px 150px 1fr" : "150px 1fr", gap: 12, alignItems: "center", padding: "11px 0", borderTop: j ? "1px solid var(--stroke-1)" : "none", fontSize: 13 }}>
+                {r.level && <span className={"ci-dot " + r.level} />}
+                <span style={{ color: "var(--text-3)", fontWeight: 500 }}>{r.k}</span>
+                <span style={{ color: "var(--text-1)", lineHeight: 1.5 }}>{r.v}</span>
+              </div>
+            ))}
+          </Block>;
+        if (sec.type === "text")
+          return <Block key={i} title={sec.title} mood={mood}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Block>;
+        return null;
+      })}
+
+      {report.bottomLine && (
+        <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+          <Eyebrow mood={mood} glow>Bottom line</Eyebrow>
+          <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10, color: "var(--text-1)" }}>{report.bottomLine}</div>
+        </Block>
+      )}
+    </div>
+  );
+}
+
+// ── KeyModal — settings: paste key + pick model ──────────────────────────────
+function KeyModal({ open, onClose }) {
+  const [key, setKey] = React.useState(getKey());
+  const [model, setModel] = React.useState(getModel());
+  const [show, setShow] = React.useState(false);
+  React.useEffect(() => { if (open) { setKey(getKey()); setModel(getModel()); } }, [open]);
+  if (!open) return null;
+  function save() { setKeyLS(key.trim()); setModelLS(model); onClose(true); }
+  function clear() { setKeyLS(""); setKey(""); }
+  return (
+    <div className="ci-modal-scrim" onClick={() => onClose(false)}>
+      <div className="ci-modal" onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <h3 className="display" style={{ fontSize: 22, margin: 0 }}>Settings</h3>
+          <button className="ci-iconbtn" style={{ width: 30, height: 30 }} onClick={() => onClose(false)}>✕</button>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "4px 0 18px" }}>
+          ContentIntel runs on <b>your own</b> Anthropic API key. It's stored only in this browser (localStorage) and sent directly to Anthropic — never to us.
+        </p>
+
+        <label className="ci-label">Anthropic API key</label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input className="ci-input" type={show ? "text" : "password"} value={key} onChange={e => setKey(e.target.value)} placeholder="sk-ant-…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <button className="ci-copybtn" style={{ height: 44 }} onClick={() => setShow(s => !s)}>{show ? "Hide" : "Show"}</button>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
+          No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
+        </div>
+
+        <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
+        <select className="ci-input" value={model} onChange={e => setModel(e.target.value)} style={{ appearance: "auto" }}>
+          {CI_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+        </select>
+        <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
+          Pricing (approx, per 1M tokens): in ${modelInfo(model).inP} / out ${modelInfo(model).outP}. Edit in code if Anthropic's prices change.
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
+          <GlowButton mood="navy" onClick={save}>Save</GlowButton>
+          {getKey() && <button className="ci-copybtn" style={{ height: 38 }} onClick={clear}>Remove key</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, {
+  CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, ADMIN_PASS,
+  getKey, setKeyLS, getModel, setModelLS, modelInfo, getResearch,
+  estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
+  useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
+});

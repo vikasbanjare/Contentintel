@@ -11,6 +11,9 @@ function CIApp() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [tab, setTab] = React.useState('home');
   const [focusMode, setFocusMode] = React.useState(false);
+  const [keyOpen, setKeyOpen] = React.useState(false);
+  const [hasKey, setHasKey] = React.useState(!!window.getKey());
+  const [admin, setAdmin] = React.useState(window.isAdmin());
 
   React.useEffect(() => {
     const root = document.documentElement;
@@ -40,17 +43,28 @@ function CIApp() {
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
+  function openKey() { setKeyOpen(true); }
+  function closeKey(changed) { setKeyOpen(false); if (changed) setHasKey(!!window.getKey()); }
+  function onAdmin() {
+    if (admin) { nav('research'); return; }
+    if (window.promptAdmin()) { setAdmin(true); nav('research'); }
+  }
+  function exitResearch() { setAdmin(window.isAdmin()); nav('home'); }
+
   let View = null;
-  if (tab === 'home') View = <HomeView onNav={nav} />;
-  else if (tab === 'script') View = <ScriptTab />;
-  else if (tab === 'thumbnail') View = <ThumbnailTab />;
-  else if (tab === 'title') View = <TitleTab />;
-  else if (tab === 'ads') View = <AdsTab />;
+  if (tab === 'home') View = <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
+  else if (tab === 'script') View = <ScriptTab onOpenKey={openKey} />;
+  else if (tab === 'thumbnail') View = <ThumbnailTab onOpenKey={openKey} />;
+  else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;
+  else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
   else if (tab === 'history') View = <HistoryTab />;
+  else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
 
   return (
     <div className="ci-app">
-      <TopNav active={tab} onNav={nav} mood={activeMood} focusMode={focusMode} onToggleFocus={() => setFocusMode(f => !f)} />
+      <TopNav active={tab} onNav={nav} mood={activeMood} focusMode={focusMode} onToggleFocus={() => setFocusMode(f => !f)}
+        onOpenKey={openKey} onAdmin={onAdmin} hasKey={hasKey} admin={admin} />
+      <KeyModal open={keyOpen} onClose={closeKey} />
 
       <div className="ci-scroll" style={{ position: 'relative', minHeight: 'calc(100vh - 60px)' }}>
         {/* ambient bloom for non-home tabs */}

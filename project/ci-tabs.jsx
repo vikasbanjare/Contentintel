@@ -6,20 +6,51 @@ const {
   WorkHead: TWH, LoadingResults: TLR, QScore: TQS, Check: TCk,
 } = window;
 
-function useCheck() {
-  const [state, setState] = React.useState('idle');
-  const run = () => { setState('loading'); setTimeout(() => setState('done'), 1000); };
-  return [state, run];
+// Read an uploaded image file → { mime, data(base64, no prefix), preview }
+function readImage(file, cb) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const url = reader.result;
+    const data = String(url).split(',')[1] || '';
+    cb({ mime: file.type || 'image/png', data, preview: url, name: file.name });
+  };
+  reader.readAsDataURL(file);
+}
+
+function ImageDrop({ image, onPick, label }) {
+  const id = React.useRef('drop-' + Math.random().toString(36).slice(2, 7)).current;
+  return (
+    <label htmlFor={id} className="ci-drop" style={{ minHeight: 150, flexDirection: 'column', gap: 8, overflow: 'hidden', padding: image ? 0 : 14 }}>
+      <input id={id} type="file" accept="image/*" style={{ display: 'none' }}
+        onChange={e => readImage(e.target.files[0], onPick)} />
+      {image
+        ? <img src={image.preview} alt="thumbnail preview" style={{ width: '100%', height: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 11 }} />
+        : <>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
+            <span>{label}</span>
+          </>}
+    </label>
+  );
 }
 
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
-function ThumbnailTab() {
+function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
   const m = TM[mood];
   const [compare, setCompare] = React.useState(false);
   const [title, setTitle] = React.useState('Which AI Wins in 2026? GPT-4 vs Claude vs Gemini');
   const [kind, setKind] = React.useState('Tech');
-  const [state, run] = useCheck();
+  const [imgA, setImgA] = React.useState(null);
+  const [imgB, setImgB] = React.useState(null);
+  const { state, report, usage, err, run } = window.useAnalysis('thumbnail');
+
+  const userText =
+    `Video title: ${title || '(none given)'}\nContent type: ${kind}\n` +
+    (compare ? 'Two thumbnails are attached — compare them and say which wins.\n' : '') +
+    `Analyze the attached thumbnail image and judge whether it will earn the click.`;
+  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (imgA ? 1400 : 0); // image ≈ ~1.4k tokens
+  function check() { run({ userText, image: imgA, maxTokens: 2000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -29,16 +60,8 @@ function ThumbnailTab() {
       <TB mood={mood}>
         <div style={{ marginBottom: 14 }}><TTg on={compare} onChange={setCompare} mood={mood}>Compare two thumbnails</TTg></div>
         <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12 }}>
-          <button className="ci-drop" style={{ minHeight: 150, flexDirection: 'column', gap: 8 }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
-            <span>Drop your image here — any size, JPG or PNG</span>
-          </button>
-          {compare && (
-            <button className="ci-drop" style={{ minHeight: 150, flexDirection: 'column', gap: 8 }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
-              <span>Drop the second image</span>
-            </button>
-          )}
+          <ImageDrop image={imgA} onPick={setImgA} label="Drop your image here — any size, JPG or PNG" />
+          {compare && <ImageDrop image={imgB} onPick={setImgB} label="Drop the second image" />}
         </div>
         <div style={{ marginTop: 16 }}>
           <label className="ci-label">What's the video title? (helps us check if thumb + title work together)</label>
@@ -47,13 +70,22 @@ function ThumbnailTab() {
         <div style={{ marginTop: 14 }}>
           <TCG label="Content" options={['Finance', 'Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food']} value={kind} onChange={setKind} />
         </div>
-        <div style={{ marginTop: 16 }}><TRB mood={mood} onClick={run} loading={state === 'loading'}>Check my thumbnail →</TRB></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my thumbnail" /></div>
+        {window.getKey() && !imgA && <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8 }}>Tip: upload an image above to analyze your real thumbnail (otherwise you'll get a sample).</div>}
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
+      {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
 
-      {state === 'done' && (
+      {state === 'done' && report && (
+        <div><window.UsageBadge usage={usage} /><window.ReportView report={report} mood={mood} /></div>
+      )}
+
+      {state === 'done' && !report && (
         <div className="ci-results" style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="ci-sample-note" onClick={onOpenKey}>
+            <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key and upload an image to analyze your real thumbnail → <span style={{ textDecoration: 'underline' }}>Connect key</span>
+          </div>
           <TTL level="yellow" title="Decent, but missing key elements"
             text="Good structure and colors — but no human face is hurting your click-through rate." />
 
@@ -122,16 +154,26 @@ function ThumbnailTab() {
 window.ThumbnailTab = ThumbnailTab;
 
 // ── TITLE ────────────────────────────────────────────────────────────────────
-function TitleTab() {
+function TitleTab({ onOpenKey }) {
   const mood = 'cyan';
   const m = TM[mood];
   const [compare, setCompare] = React.useState(false);
   const [title, setTitle] = React.useState('5 SIP Mistakes Beginners Make');
+  const [titleB, setTitleB] = React.useState('');
+  const [about, setAbout] = React.useState('');
   const [lang, setLang] = React.useState('Hinglish');
   const [platform, setPlatform] = React.useState('YouTube');
   const [aud, setAud] = React.useState('Working people');
-  const [state, run] = useCheck();
+  const { state, report, usage, err, run } = window.useAnalysis('title');
   const chars = title.length;
+
+  const userText =
+    `Language: ${lang}\nPlatform: ${platform}\nAudience: ${aud}\n` +
+    (about.trim() ? `Video is about: ${about}\n` : '') +
+    `TITLE: ${title}` + (compare && titleB.trim() ? `\nTITLE B: ${titleB}` : '') +
+    `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`;
+  const estIn = window.estTokens(window.buildSystem('title'), userText);
+  function check() { run({ userText, maxTokens: 2200 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -154,10 +196,10 @@ function TitleTab() {
       <TB mood={mood}>
         <div style={{ marginBottom: 14 }}><TTg on={compare} onChange={setCompare} mood={mood}>Compare two titles</TTg></div>
         <input className="ci-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your title here…" style={{ fontSize: 16 }} />
-        {compare && <input className="ci-input" placeholder="Second title…" style={{ marginTop: 10, fontSize: 16 }} />}
+        {compare && <input className="ci-input" value={titleB} onChange={e => setTitleB(e.target.value)} placeholder="Second title…" style={{ marginTop: 10, fontSize: 16 }} />}
         <div style={{ marginTop: 14 }}>
           <label className="ci-label">What's the video about? (optional — helps us judge if title matches content)</label>
-          <input className="ci-input" placeholder="One line about the video…" />
+          <input className="ci-input" value={about} onChange={e => setAbout(e.target.value)} placeholder="One line about the video…" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
           <TCG label="Language" options={['Hinglish', 'Hindi', 'English']} value={lang} onChange={setLang} />
@@ -171,13 +213,21 @@ function TitleTab() {
             <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good — under 60' : 'Long — may truncate'}
           </span>
         </div>
-        <div style={{ marginTop: 16 }}><TRB mood={mood} onClick={run} loading={state === 'loading'}>Check my title →</TRB></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title" /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
+      {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
 
-      {state === 'done' && (
+      {state === 'done' && report && (
+        <div><window.UsageBadge usage={usage} /><window.ReportView report={report} mood={mood} /></div>
+      )}
+
+      {state === 'done' && !report && (
         <div className="ci-results" style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="ci-sample-note" onClick={onOpenKey}>
+            <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key to analyze your real title → <span style={{ textDecoration: 'underline' }}>Connect key</span>
+          </div>
           <TTL level="yellow" title="Close — a few tweaks will lift it" text="Clear and readable, but the hook word and keyword position need work." />
 
           <TB title="Scores" mood={mood}>
@@ -236,7 +286,7 @@ function CopyBlockButton({ text }) {
 }
 
 // ── ADS ──────────────────────────────────────────────────────────────────────
-function AdsTab() {
+function AdsTab({ onOpenKey }) {
   const mood = 'violet';
   const m = TM[mood];
   const [platform, setPlatform] = React.useState('Meta');
@@ -244,10 +294,16 @@ function AdsTab() {
   const [headline, setHeadline] = React.useState('Built to Outlast Your PR');
   const [cta, setCta] = React.useState('Shop Now');
   const [goal, setGoal] = React.useState('Conversions');
-  const [state, run] = useCheck();
+  const { state, report, usage, err, run } = window.useAnalysis('ads');
 
   const META_PRIMARY = 125, META_HEAD = 27;
   const pOver = primary.length > META_PRIMARY, hOver = headline.length > META_HEAD;
+
+  const userText = `Platform: ${platform}\nObjective: ${goal}\nCTA button: ${cta}\n\n` +
+    `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
+    `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
+  const estIn = window.estTokens(window.buildSystem('ads'), userText);
+  function check() { run({ userText, maxTokens: 2000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -288,13 +344,21 @@ function AdsTab() {
           </div>
         )}
 
-        <div style={{ marginTop: 16 }}><TRB mood={mood} onClick={run} loading={state === 'loading'}>Check my ad →</TRB></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad" /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
+      {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
 
-      {state === 'done' && (
+      {state === 'done' && report && (
+        <div><window.UsageBadge usage={usage} /><window.ReportView report={report} mood={mood} /></div>
+      )}
+
+      {state === 'done' && !report && (
         <div className="ci-results" style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="ci-sample-note" onClick={onOpenKey}>
+            <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key to analyze your real ad → <span style={{ textDecoration: 'underline' }}>Connect key</span>
+          </div>
           <TTL level="red" title="Not ready — your hook is hidden" text="Your strongest line falls after the 'See More' cutoff. Most people won't read it." />
 
           <TB title="Scores" mood={mood}>

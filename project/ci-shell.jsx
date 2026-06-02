@@ -1,6 +1,6 @@
 // ContentIntel — shell: TopNav, tab icons, Home (video hero + feature showcase)
-
-const { MOODS } = window;
+// NOTE: MOODS is the global `const MOODS` declared in ui.jsx (shared across the
+// classic text/babel scripts). We must NOT redeclare it here or it collides.
 
 const VIDEO_SRC = (typeof window !== 'undefined' && window.__resources && window.__resources.heroVideo)
   || "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260314_131748_f2ca2a28-fed7-44c8-b9a9-bd9acdd5ec31.mp4";
@@ -28,7 +28,7 @@ function CITabIcon({ name }) {
 }
 window.CITabIcon = CITabIcon;
 
-function TopNav({ active, onNav, mood, focusMode, onToggleFocus }) {
+function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAdmin, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
   return (
     <nav className="ci-nav">
@@ -56,6 +56,19 @@ function TopNav({ active, onNav, mood, focusMode, onToggleFocus }) {
 
       <div style={{ flex: 1 }} />
 
+      <button className="ci-keybtn" title="API key & model settings" onClick={onOpenKey}>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="5.5" cy="8" r="2.5"/><path d="M8 8h5.5M11.5 8v2.2M13.5 8v1.6"/></svg>
+        <span>{hasKey ? "Key connected" : "Add API key"}</span>
+        <span className={"ci-keydot " + (hasKey ? "on" : "off")} />
+      </button>
+
+      <button className="ci-iconbtn" title={admin ? "Research editor (admin)" : "Admin"} onClick={onAdmin}
+        style={admin ? { color: m.accentFrom, borderColor: m.accentGlow } : {}}>
+        {admin
+          ? <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 016 0"/></svg>
+          : <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V4.8a3 3 0 015.8-1"/></svg>}
+      </button>
+
       <button className="ci-iconbtn" title="Toggle focus mode" onClick={onToggleFocus}>
         {focusMode
           ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4"/></svg>
@@ -72,7 +85,7 @@ function TopNav({ active, onNav, mood, focusMode, onToggleFocus }) {
 window.TopNav = TopNav;
 
 // ── HOME ────────────────────────────────────────────────────────────────────
-function HomeView({ onNav }) {
+function HomeView({ onNav, onOpenKey, hasKey }) {
   const mood = 'burgundy';
   const m = MOODS[mood];
 
@@ -116,6 +129,12 @@ function HomeView({ onNav }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 30 }}>
               <GlowButton mood={mood} size="lg" onClick={() => onNav('script')}>Check your content →</GlowButton>
               <button className="btn ghost" style={{ height: 48, padding: '0 20px', fontSize: 14, background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(10px)' }} onClick={() => onNav('thumbnail')}>See a sample report</button>
+            </div>
+            <div onClick={onOpenKey} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, marginTop: 20, cursor: 'pointer', fontSize: 12.5, color: 'var(--text-2)' }}>
+              <span className={'ci-keydot ' + (hasKey ? 'on' : 'off')} />
+              {hasKey
+                ? <span>Running on your own Anthropic key — analyses are live.</span>
+                : <span>Runs on <b>your own</b> Anthropic API key (stored only in your browser). <span style={{ color: m.accentFrom, textDecoration: 'underline' }}>Connect key</span></span>}
             </div>
           </div>
         </div>

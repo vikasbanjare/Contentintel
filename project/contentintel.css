@@ -435,6 +435,78 @@
     radial-gradient(ellipse at 70% 30%, rgba(255,77,141,0.18), transparent 55%);
 }
 
+/* ── BYO-key, token estimate, modal, admin ─────────────────────────────────── */
+.ci-keybtn {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 13px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--stroke-1);
+  color: var(--text-2);
+  font-family: var(--font-ui, 'Manrope');
+  font-size: 12.5px; font-weight: 500;
+  cursor: pointer; white-space: nowrap;
+  transition: all 0.18s;
+}
+.ci-keybtn:hover { background: var(--surface-2); color: var(--text-1); transform: translateY(-1px); }
+.ci-keydot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ci-keydot.on  { background: #8FD86A; box-shadow: 0 0 8px rgba(143,216,106,0.8); }
+.ci-keydot.off { background: var(--text-4); }
+
+/* token estimate next to Analyze button */
+.ci-est {
+  font-family: var(--font-mono, 'JetBrains Mono');
+  font-size: 11.5px;
+  color: var(--text-3);
+  line-height: 1.4;
+}
+
+/* actual usage badge after a real run */
+.ci-usage {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-mono, 'JetBrains Mono');
+  font-size: 12px;
+  color: #8FD86A;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(143,216,106,0.08);
+  border: 1px solid rgba(143,216,106,0.25);
+  margin-bottom: 14px;
+}
+.ci-usage b { color: var(--text-1); }
+
+/* sample-report notice (clickable → opens key modal) */
+.ci-sample-note {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(240,200,90,0.07);
+  border: 1px dashed rgba(245,210,120,0.35);
+  font-size: 12.5px; color: var(--text-2); line-height: 1.45;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.ci-sample-note:hover { background: rgba(240,200,90,0.12); }
+
+/* settings / key modal */
+.ci-modal-scrim {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(5,6,10,0.66);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  display: grid; place-items: center;
+  padding: 24px;
+  animation: ci-fade 0.2s ease;
+}
+@keyframes ci-fade { from { opacity: 0; } to { opacity: 1; } }
+.ci-modal {
+  width: 100%; max-width: 460px;
+  background: rgba(16,18,26,0.96);
+  border: 1px solid var(--stroke-2);
+  border-radius: 20px;
+  padding: 26px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
 /* entrance motion — TRANSFORM ONLY. Opacity is never animated, so content is
    always fully visible (opacity:1) even if the animation timeline stalls at 0
    in a throttled / non-painting / PDF-export context. A stall just holds a

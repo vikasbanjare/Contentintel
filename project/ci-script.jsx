@@ -24,7 +24,7 @@ Patience rakho. Time do. Compounding ka magic dekho.
 
 Toh yeh thi SIP ki basic jaankari. Umeed hai samajh aaya hoga.`;
 
-function ScriptTab() {
+function ScriptTab({ onOpenKey }) {
   const mood = 'navy';
   const m = SM[mood];
 
@@ -35,28 +35,35 @@ function ScriptTab() {
   const [kind, setKind] = React.useState('Finance');
   const [who, setWho] = React.useState('Working people');
   const [where, setWhere] = React.useState('Reels');
-  const [state, setState] = React.useState('idle'); // idle | loading | done
   const [rewrite, setRewrite] = React.useState({ open: false, dir: '', loading: false, out: null });
+
+  const { state, report, usage, err, run } = window.useAnalysis('script');
 
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const seconds = Math.round(words / 2.5); // ~150 wpm
   const lengthOk = where === 'Reels' || where === 'Shorts' ? seconds <= 35 : true;
 
-  function check() {
-    setState('loading');
-    setTimeout(() => setState('done'), 1100);
-  }
+  const userText =
+    `Language: ${lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${words} (~${seconds}s)\n\n` +
+    `SCRIPT (Version A):\n${text}` + (compare && textB.trim() ? `\n\nSCRIPT (Version B):\n${textB}` : '');
+  const estIn = window.estTokens(window.buildSystem('script'), userText);
+
+  function check() { run({ userText, maxTokens: 2200 }); }
 
   async function doRewrite() {
     setRewrite(r => ({ ...r, loading: true, out: null }));
     try {
-      const out = await window.claude.complete({
-        messages: [{ role: 'user', content:
-          `Rewrite this ${where} video script in ${lang}. Direction: ${rewrite.dir || 'stronger hook, tighter middle, clear CTA'}. Keep it natural and conversational. Return ONLY the rewritten script, no preamble.\n\nScript:\n${text}` }]
+      const { text: out } = await window.callClaude({
+        system: 'You are an expert short-form scriptwriter. Return ONLY the rewritten script, no preamble.',
+        userText: `Rewrite this ${where} video script in ${lang}. Direction: ${rewrite.dir || 'stronger hook, tighter middle, clear CTA'}. Keep it natural and conversational.\n\nScript:\n${text}`,
+        maxTokens: 1200,
       });
       setRewrite(r => ({ ...r, loading: false, out: (out || '').trim() }));
     } catch (e) {
-      setRewrite(r => ({ ...r, loading: false, out: 'Could not reach the rewriter just now — try again in a moment.' }));
+      const msg = String(e.message) === 'NO_KEY'
+        ? 'Add your Anthropic API key (top-right) to use the live rewriter.'
+        : 'Could not reach the rewriter — ' + (e.message || 'try again in a moment.');
+      setRewrite(r => ({ ...r, loading: false, out: msg }));
     }
   }
 
@@ -106,16 +113,30 @@ function ScriptTab() {
           </span>
         </div>
 
-        <div style={{ marginTop: 16, display: 'flex' }}>
-          <SRB mood={mood} onClick={check} loading={state === 'loading'}>Check my script →</SRB>
+        <div style={{ marginTop: 16 }}>
+          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script" />
         </div>
       </SB>
 
       {/* RESULTS */}
       {state === 'loading' && <div style={{ marginTop: 14 }}><SLR rows={3} /></div>}
+      {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
 
-      {state === 'done' && (
+      {/* Real AI report (when a key is connected) */}
+      {state === 'done' && report && (
+        <div>
+          <window.UsageBadge usage={usage} />
+          <window.ReportView report={report} mood={mood} />
+        </div>
+      )}
+
+      {/* Sample report (no key / fallback) */}
+      {state === 'done' && !report && (
         <div className="ci-results" style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          <div className="ci-sample-note" onClick={onOpenKey}>
+            <span className="ci-dot yellow" /> This is a <b>sample report</b>. Add your Anthropic API key to analyze <i>your</i> script for real → <span style={{ textDecoration: 'underline' }}>Connect key</span>
+          </div>
 
           <TrafficLight level="yellow" title="Needs work"
             text="Fix the issues marked in red before posting. Your topic is strong — the opening and middle need attention." />
