@@ -1918,6 +1918,11 @@ const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAU
 const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
 const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
 
+// True when running inside a Claude preview/artifact (Anthropic provides free AI there).
+const hasSandbox = () => { try { return typeof window !== "undefined" && window.claude && typeof window.claude.complete === "function"; } catch (e) { return false; } };
+// Can we run a REAL analysis right now? Either the user's own key OR the free Claude sandbox.
+const canRun = () => !!getKey() || hasSandbox();
+
 // ── Research access (falls back to a tiny default so nothing ever breaks) ────
 const DEFAULT_RESEARCH = {
   script:    { label: "Script",    systemGuidance: "Evaluate the script's hook, retention and CTA. Be specific and give rewrites.", rubric: [{ name: "Hook", what: "" }, { name: "Retention", what: "" }, { name: "CTA", what: "" }], notes: "" },
@@ -1971,7 +1976,19 @@ function fmtCost(usd) {
 // ── The real call — direct browser → Anthropic (BYO key) ─────────────────────
 async function callClaude({ system, userText, image, model, maxTokens = 1800 }) {
   const key = getKey();
-  if (!key) throw new Error("NO_KEY");
+  // No personal key? If we're inside a Claude preview/artifact, use its free AI.
+  if (!key) {
+    if (hasSandbox()) {
+      const prompt = [
+        system, "",
+        image ? "(An image was attached but can't be forwarded in this preview — judge from the text/description.)" : "",
+        userText,
+      ].filter(Boolean).join("\n");
+      const out = await window.claude.complete({ messages: [{ role: "user", content: prompt }] });
+      return { text: typeof out === "string" ? out : String(out || ""), usage: null };
+    }
+    throw new Error("NO_KEY");
+  }
   const content = image
     ? [{ type: "image", source: { type: "base64", media_type: image.mime, data: image.data } },
        { type: "text", text: userText }]
@@ -2050,7 +2067,7 @@ function useAnalysis(type) {
 
   async function run({ userText, image, maxTokens }) {
     setErr(""); setReport(null); setUsage(null); setState("loading");
-    if (!getKey()) { // sample mode — keep the canned demo report
+    if (!canRun()) { // sample mode — no key and not in a Claude preview
       setTimeout(() => setState("done"), 850);
       return;
     }
@@ -2072,6 +2089,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
   const total = inTok + CI_OUTPUT_GUESS;
   const cost = estCost(inTok, CI_OUTPUT_GUESS, model);
   const hasKey = !!getKey();
+  const free = !hasKey && hasSandbox(); // free Claude preview AI
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
       <GlowButton mood={mood} size="lg" onClick={onClick} style={{ justifyContent: "center" }}>
@@ -2088,7 +2106,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
       </GlowButton>
       <span className="ci-est">
         est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}
-        {!hasKey && <span style={{ color: "var(--text-4)" }}> · sample only — add your key</span>}
+        {free && <span style={{ color: "var(--text-4)" }}> · free preview AI</span>}
+        {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only — add your key</span>}
       </span>
     </div>
   );

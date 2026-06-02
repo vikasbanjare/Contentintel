@@ -80,3 +80,13 @@ for out in ["ContentIntel.html", "index.html"]:
 
 shutil.copyfile(PROJ / "research.js", ROOT / "research.js")
 print("copied research.js to repo root")
+
+# Self-contained preview build: research inlined (no external file). Paste this
+# into a Claude chat as an artifact to test the FULL app with free preview AI.
+research_inline = read("research.js")
+PREVIEW = HTML.replace(
+    '<script src="research.js"></script>',
+    f'<script>\n{research_inline}\n</script>',
+)
+(ROOT / "ContentIntel-preview.html").write_text(PREVIEW, encoding="utf-8")
+print("wrote", "ContentIntel-preview.html", f"({len(PREVIEW):,} bytes)")
