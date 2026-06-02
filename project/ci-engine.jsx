@@ -32,10 +32,31 @@ const DEFAULT_RESEARCH = {
   title:     { label: "Title",     systemGuidance: "Judge click-worthiness, clarity, truncation. Give 10 alternatives.", rubric: [{ name: "Click chance", what: "" }, { name: "Curiosity", what: "" }, { name: "Clarity", what: "" }], notes: "" },
   ads:       { label: "Ads",       systemGuidance: "Check limits, truncation, scroll-stopping power.", rubric: [{ name: "Scroll-stop", what: "" }, { name: "Copy", what: "" }, { name: "CTA fit", what: "" }], notes: "" },
 };
+function liveResearch() {
+  return (typeof window !== "undefined" && window.__CI_RESEARCH_OVERRIDE) || window.CI_RESEARCH || {};
+}
 function getResearch(type) {
-  const live = (typeof window !== "undefined" && window.__CI_RESEARCH_OVERRIDE) || window.CI_RESEARCH;
+  const live = liveResearch();
   return (live && live[type]) || DEFAULT_RESEARCH[type] || {};
 }
+
+// Private, browser-only research draft (the owner's "keep adding" layer).
+// Loaded at startup as an override so it never ships to other visitors until
+// the owner downloads research.js and redeploys.
+const LS_RESEARCH = "ci_research_local";
+function loadLocalResearch() {
+  try { const raw = localStorage.getItem(LS_RESEARCH); if (raw) window.__CI_RESEARCH_OVERRIDE = JSON.parse(raw); } catch (e) {}
+}
+function saveLocalResearch(obj) {
+  try { localStorage.setItem(LS_RESEARCH, JSON.stringify(obj)); } catch (e) {}
+  window.__CI_RESEARCH_OVERRIDE = obj;
+}
+function clearLocalResearch() {
+  try { localStorage.removeItem(LS_RESEARCH); } catch (e) {}
+  window.__CI_RESEARCH_OVERRIDE = null;
+}
+function hasLocalResearch() { try { return !!localStorage.getItem(LS_RESEARCH); } catch (e) { return false; } }
+loadLocalResearch();
 
 // ── Token estimate (rough: ~4 chars/token) ───────────────────────────────────
 function estTokens(...strings) {
@@ -103,10 +124,12 @@ Use as many or as few sections as useful. Quote the user's actual words. Every c
 
 function buildSystem(type) {
   const r = getResearch(type);
+  const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
   return [
     `You are ContentIntel — a blunt, specific pre-publish ${r.label || type} checker for short-form creators.`,
-    `Use ONLY the following research/methodology as your evaluation framework:`,
+    core ? `SHARED RESEARCH CONTEXT (applies to every check):\n"""\n${core}\n"""` : "",
+    `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
     r.notes ? `Extra: ${r.notes}` : "",
@@ -303,7 +326,8 @@ function KeyModal({ open, onClose }) {
 
 Object.assign(window, {
   CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, ADMIN_PASS,
-  getKey, setKeyLS, getModel, setModelLS, modelInfo, getResearch,
+  getKey, setKeyLS, getModel, setModelLS, modelInfo, getResearch, liveResearch,
+  loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
 });

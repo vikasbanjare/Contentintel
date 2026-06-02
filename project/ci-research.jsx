@@ -36,10 +36,12 @@ function serializeResearch(obj) {
 function ResearchTab({ onClose }) {
   const mood = "navy";
   const m = window.MOODS[mood];
-  const TYPES = ["script", "thumbnail", "title", "ads"];
+  const SECTIONS = ["core", "script", "thumbnail", "title", "ads"];
+  const LABELS = { core: "Global · all checks", script: "Script", thumbnail: "Thumbnail", title: "Title", ads: "Ads" };
 
   const [data, setData] = React.useState(() => JSON.parse(JSON.stringify(currentResearch())));
-  const [active, setActive] = React.useState("script");
+  const [active, setActive] = React.useState("core");
+  const [priv, setPriv] = React.useState(window.hasLocalResearch());
   const [raw, setRaw] = React.useState(false);
   const [rawText, setRawText] = React.useState("");
   const [msg, setMsg] = React.useState("");
@@ -63,13 +65,21 @@ function ResearchTab({ onClose }) {
     setData(d => ({ ...d, [type]: { ...(d[type] || {}), rubric: ((d[type] || {}).rubric || []).filter((_, i) => i !== idx) } }));
   }
 
-  function applyLive() {
+  function savePrivate() {
     let next = data;
     if (raw) {
       try { next = JSON.parse(rawText); setData(next); } catch (e) { setMsg("Invalid JSON: " + e.message); return; }
     }
-    window.__CI_RESEARCH_OVERRIDE = next;
-    setMsg("Applied for this session — analyses now use these edits. Download to make it permanent.");
+    window.saveLocalResearch(next);
+    setPriv(true);
+    setMsg("Saved privately to this browser — your analyses use it now. Other visitors are unaffected until you Download + redeploy.");
+    setTimeout(() => setMsg(""), 5000);
+  }
+  function clearPrivate() {
+    window.clearLocalResearch();
+    setData(JSON.parse(JSON.stringify(window.CI_RESEARCH || {})));
+    setPriv(false);
+    setMsg("Cleared your private draft — back to the published research.js.");
     setTimeout(() => setMsg(""), 4000);
   }
   function download() {
@@ -93,10 +103,10 @@ function ResearchTab({ onClose }) {
     <div className="ci-work wide" style={{ "--ci-accent": m.accentFrom, "--ci-glow": m.accentGlow }}>
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
         <div>
-          <Eyebrow mood={mood} glow>Admin · research</Eyebrow>
+          <Eyebrow mood={mood} glow>Admin · research {priv && "· private draft active"}</Eyebrow>
           <h2 className="ci-h2">Improve the research</h2>
           <p className="ci-sub" style={{ marginTop: 8 }}>
-            This is your private editing surface. Edit the methodology Claude uses, click <b>Apply</b> to test it live, then <b>Download research.js</b> and commit it. The rest of the app never changes.
+            Your private editing surface — invisible to anyone you share the link with. Add findings anytime; <b>Save (private)</b> keeps them in your browser and uses them in your own analyses straight away. When you want everyone to benefit, <b>Download research.js</b>, commit it and redeploy. The app code never changes.
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -105,28 +115,36 @@ function ResearchTab({ onClose }) {
         </div>
       </div>
 
-      <div className="ci-block" style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, padding: "12px 16px" }}>
-        <span className="ci-dot yellow" />
+      <div className="ci-block" style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14, padding: "12px 16px" }}>
+        <span className="ci-dot yellow" style={{ marginTop: 4 }} />
         <span style={{ fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>
-          Static-site note: this lock only hides the editor. The live site changes only when you commit <b>research.js</b> — so your research can't be altered by visitors.
+          <b>How privacy works:</b> the Research tab + lock icon are hidden from normal visitors (they appear only after you unlock via <code>?admin=…</code> on your own browser). Drafts you <b>Save (private)</b> live only in your browser and never reach other users. Only <b>Download research.js → commit</b> publishes to everyone. Note: once published, research.js ships to the browser, so don't store secrets here — it's evaluation methodology, not credentials.
         </span>
       </div>
 
       {!raw ? (
         <>
           <div className="ci-chiprow" style={{ marginBottom: 14 }}>
-            {TYPES.map(t => (
-              <button key={t} className={"pill" + (active === t ? " active" : "")} onClick={() => setActive(t)} style={{ height: 32, textTransform: "capitalize" }}>{t}</button>
+            {SECTIONS.map(t => (
+              <button key={t} className={"pill" + (active === t ? " active" : "")} onClick={() => setActive(t)} style={{ height: 32 }}>{LABELS[t]}</button>
             ))}
           </div>
 
-          <Block title={`${active} · methodology`} desc="Paste your research here. This becomes Claude's evaluation framework for this check." mood={mood}>
+          {active === "core" ? (
+            <Block title="Global research context" desc="Shared by EVERY check — your neuroforecasting foundation + Indian-context calibration. This is prepended to every analysis." mood={mood}>
+              <textarea className="ci-textarea" style={{ minHeight: 380, fontFamily: "var(--font-mono)", fontSize: 12.5, lineHeight: 1.6 }}
+                value={data.core || ""} onChange={e => setData(d => ({ ...d, core: e.target.value }))}
+                placeholder="Paste the research that should inform all four checks…" />
+            </Block>
+          ) : (
+          <>
+          <Block title={`${LABELS[active]} · methodology`} desc="This becomes Claude's evaluation framework for this specific check." mood={mood}>
             <textarea className="ci-textarea" style={{ minHeight: 260, fontFamily: "var(--font-mono)", fontSize: 12.5, lineHeight: 1.6 }}
               value={seg.systemGuidance || ""} onChange={e => setField(active, "systemGuidance", e.target.value)}
               placeholder="Frameworks, data points, do's and don'ts, examples…" />
           </Block>
 
-          <Block title={`${active} · scoring rubric`} desc="The dimensions Claude grades 0–100" mood={mood}
+          <Block title={`${LABELS[active]} · scoring rubric`} desc="The dimensions Claude grades 0–100" mood={mood}
             right={<button className="ci-copybtn" style={{ height: 28 }} onClick={() => addRubric(active)}>+ Add</button>}>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(seg.rubric || []).map((r, i) => (
@@ -139,9 +157,11 @@ function ResearchTab({ onClose }) {
             </div>
           </Block>
 
-          <Block title={`${active} · extra notes`} mood={mood}>
+          <Block title={`${LABELS[active]} · extra notes`} mood={mood}>
             <input className="ci-input" value={seg.notes || ""} onChange={e => setField(active, "notes", e.target.value)} placeholder="Optional extra instruction appended to the prompt" />
           </Block>
+          </>
+          )}
         </>
       ) : (
         <Block title="Raw research JSON" desc="Edit the whole object directly" mood={mood}>
@@ -151,9 +171,10 @@ function ResearchTab({ onClose }) {
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 16, flexWrap: "wrap" }}>
-        <GlowButton mood={mood} onClick={applyLive}>Apply for this session</GlowButton>
-        <GlowButton mood="burgundy" onClick={download}>↓ Download research.js</GlowButton>
-        {msg && <span style={{ fontSize: 12.5, color: "var(--text-2)" }}>{msg}</span>}
+        <GlowButton mood={mood} onClick={savePrivate}>Save (private to this browser)</GlowButton>
+        <GlowButton mood="burgundy" onClick={download}>↓ Download research.js (publish to all)</GlowButton>
+        {priv && <button className="ci-copybtn" style={{ height: 38 }} onClick={clearPrivate}>Clear private draft</button>}
+        {msg && <span style={{ fontSize: 12.5, color: "var(--text-2)", maxWidth: 360, lineHeight: 1.4 }}>{msg}</span>}
       </div>
     </div>
   );

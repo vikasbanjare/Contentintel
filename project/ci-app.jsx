@@ -45,11 +45,15 @@ function CIApp() {
 
   function openKey() { setKeyOpen(true); }
   function closeKey(changed) { setKeyOpen(false); if (changed) setHasKey(!!window.getKey()); }
-  function onAdmin() {
-    if (admin) { nav('research'); return; }
-    if (window.promptAdmin()) { setAdmin(true); nav('research'); }
-  }
+  function onAdmin() { nav('research'); }
   function exitResearch() { setAdmin(window.isAdmin()); nav('home'); }
+
+  // If unlocked via ?admin=… on this browser, jump straight to the editor.
+  React.useEffect(() => {
+    try {
+      if (window.isAdmin() && new URLSearchParams(location.search).get('admin')) { setAdmin(true); setTab('research'); }
+    } catch (e) {}
+  }, []);
 
   let View = null;
   if (tab === 'home') View = <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;

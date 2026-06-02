@@ -62,12 +62,12 @@ function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAd
         <span className={"ci-keydot " + (hasKey ? "on" : "off")} />
       </button>
 
-      <button className="ci-iconbtn" title={admin ? "Research editor (admin)" : "Admin"} onClick={onAdmin}
-        style={admin ? { color: m.accentFrom, borderColor: m.accentGlow } : {}}>
-        {admin
-          ? <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 016 0"/></svg>
-          : <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V4.8a3 3 0 015.8-1"/></svg>}
-      </button>
+      {admin && (
+        <button className="ci-iconbtn" title="Research editor (admin only)" onClick={onAdmin}
+          style={{ color: m.accentFrom, borderColor: m.accentGlow }}>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 016 0"/></svg>
+        </button>
+      )}
 
       <button className="ci-iconbtn" title="Toggle focus mode" onClick={onToggleFocus}>
         {focusMode
