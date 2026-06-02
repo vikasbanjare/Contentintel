@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ContentFloh — Print</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Bricolage+Grotesque:wght@600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <style>
+    :root {
+      --font-display: 'Space Grotesk', system-ui, sans-serif;
+      --font-ui: 'Manrope', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --display-tracking: -0.025em;
+      --display-case: none;
+      --ui-size: 14px;
+    }
+    html, body { margin: 0; padding: 0; background: #07090E; color: #f2f4fa; }
+    body { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
+
+    .print-deck {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      padding: 24px;
+      background: #1a1410;
+    }
+
+    .print-page {
+      width: 1280px;
+      height: 820px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 14px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+      page-break-after: always;
+      break-after: page;
+      margin: 0 auto;
+      background: #07090E;
+    }
+    .print-page.tall { height: 900px; }
+
+    .print-label {
+      position: absolute;
+      top: 12px; left: 16px;
+      z-index: 10;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      padding: 4px 8px;
+      background: rgba(7,9,14,0.55);
+      backdrop-filter: blur(8px);
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    @page {
+      size: 1328px 868px;
+      margin: 0;
+    }
+
+    @media print {
+      html, body { background: #07090E !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .print-deck { padding: 0; gap: 0; background: #07090E; }
+      .print-page {
+        margin: 0;
+        border-radius: 0;
+        box-shadow: none;
+        width: 1280px;
+        height: 820px;
+        page-break-after: always;
+        break-after: page;
+        break-inside: avoid;
+      }
+      .print-page.tall { height: 900px; }
+      @page { size: 1328px 868px; margin: 24px; }
+      .print-page.tall { page: tall; }
+      @page tall { size: 1328px 948px; margin: 24px; }
+      .print-label { display: none; }
+      .bloom-orb, .pulse-dot, .spin, .float-y { animation: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="ui.jsx"></script>
+  <script type="text/babel" src="screens.jsx"></script>
+  <script type="text/babel" src="screens2.jsx"></script>
+
+  <script type="text/babel">
+    const PAGES = [
+      { id: 'home-burgundy', label: '01 · Home — Burgundy', comp: window.HomeBurgundy, tall: false },
+      { id: 'home-navy',     label: '02 · Home — Navy',     comp: window.HomeNavy,     tall: false },
+      { id: 'home-violet',   label: '03 · Home — Violet',   comp: window.HomeViolet,   tall: false },
+      { id: 'script',        label: '04 · Script Generator', comp: window.ScriptGeneratorScreen, tall: false },
+      { id: 'variations',    label: '05 · Variation Engine', comp: window.VariationsScreen, tall: false },
+      { id: 'abtest',        label: '06 · A/B Test',         comp: window.ABTestScreen, tall: false },
+      { id: 'thumbs',        label: '07 · Thumbnail Lab',    comp: window.ThumbnailLabScreen, tall: false },
+      { id: 'projects',      label: '08 · Projects',         comp: window.ProjectsScreen, tall: true },
+      { id: 'analytics',     label: '09 · Results',          comp: window.AnalyticsScreen, tall: true },
+      { id: 'asset',         label: '10 · Asset Detail',     comp: window.AssetDetailScreen, tall: true },
+      { id: 'onboarding',    label: '11 · Onboarding',       comp: window.OnboardingScreen, tall: true },
+      { id: 'compare',       label: '12 · Compare',          comp: window.CompareScreen, tall: true },
+    ];
+
+    function PrintDeck() {
+      return (
+        <div className="print-deck">
+          {PAGES.map(p => {
+            const C = p.comp;
+            return (
+              <div key={p.id} className={'print-page' + (p.tall ? ' tall' : '')}>
+                <div className="print-label">{p.label}</div>
+                <C />
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<PrintDeck />);
+
+    // Auto-print after fonts + JSX scripts finish
+    (async () => {
+      try { await document.fonts.ready; } catch (e) {}
+      // Wait for all React renders + babel inline transforms
+      await new Promise(r => setTimeout(r, 1200));
+      window.print();
+    })();
+  </script>
+</body>
+</html>
