@@ -124,6 +124,16 @@ Everything below — scores, fixes and especially the regeneration prompt — mu
 
 STEP 1 — CLASSIFY against the DESIGN LIBRARY provided below: name which LAYOUT archetype and which COLOR scheme this thumbnail uses (or "unclear/none"), and note whether that choice fits the niche. If the user pre-selected a target layout or colour scheme, evaluate against THAT target.
 
+STEP 1b — APPLY PATTERNS CONDITIONALLY (this is what must make the analysis better than a generic prompt, not worse):
+- The niche playbooks in the DESIGN LIBRARY are NICHE-SPECIFIC. Apply one ONLY if THIS thumbnail clearly belongs to that niche (e.g. an Indian business case-study, a finance interview, a stock-tips video).
+- If the thumbnail does NOT match any trained niche (e.g. cooking, travel, gaming, beauty, lifestyle, tech reviews), IGNORE the niche playbooks entirely and judge + regenerate from the UNIVERSAL principles, the thumbnail's ACTUAL content, and the brand. Do NOT import niche devices that don't belong.
+- NEVER add a device just because it is common in the library. The yellow highlight box, the ₹Crore number, the founder cut-out and the curved arrow are NICHE devices — use them only when the niche/brand genuinely calls for them. Default to nothing; earn every element from the actual content.
+COLOUR SOURCING — strict priority order (this fixes the "always yellow" problem):
+1. If the user provided BRAND COLOURS, the palette, highlight box and number MUST be built from those colours — they OVERRIDE every niche default, including yellow.
+2. Otherwise use the featured brand's / subject's own palette and a niche-appropriate scheme.
+3. Otherwise pick a high-contrast scheme that genuinely fits the topic and mood.
+Do NOT default to yellow text or a yellow highlight for non-finance/business content. The highlight colour is a choice, not a habit.
+
 A. THE SQUINT / HALF-SECOND TEST: at thumbnail size and a glance, is there ONE instantly clear focal point and ONE clear idea? If the eye doesn't know where to land, it fails — say so first.
 
 B. VISUAL HIERARCHY & COMPOSITION:
@@ -285,8 +295,8 @@ Preserve the real subject/brand/claim shown; match the emotional register to the
     regenGuidance:
 `When you output a regeneration prompt for a thumbnail:
 - It MUST be an improved version of the user's ACTUAL thumbnail (same subject, topic, brand, number) — never a generic new image.
-- Apply the matching niche playbook above (layout, colour scheme, text frame, signature devices).
-- If the user supplied BRAND COLOURS, build the palette around them (background, highlight box / number, accents) so the result is on-brand; keep strong contrast and legibility.
+- Apply the matching niche playbook ONLY if the thumbnail truly belongs to that niche. If it doesn't match any trained niche, do NOT borrow that niche's devices — design from the universal principles + the actual content + the brand.
+- COLOUR PRIORITY: if the user supplied BRAND COLOURS, build the entire palette from them (background, highlight box, number, accents) — they OVERRIDE every niche default INCLUDING yellow. Never reflexively use a yellow highlight; pick the highlight colour from the brand or the content, with strong contrast and legibility.
 - If the user said WHAT TO ADD / EMPHASISE, honour it specifically (e.g. add a face, enlarge the number, add a curved arrow, add the brand logo, cut the text).
 - Make the prompt copy-paste ready for an image generator: state subject, expression, layout, exact text + the highlight treatment, colours (with hex if given), lighting, background and composition.
 - Also give a one-line "what changed and why" so the user understands the fix.`,

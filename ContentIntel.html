@@ -2057,7 +2057,7 @@ function buildSystem(type) {
   if (r.layouts && r.layouts.length)      libParts.push(`LAYOUT ARCHETYPES (classify this content as one, or "unclear"):\n${cat(r.layouts)}`);
   if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
   if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
-  if (r.provenPatterns)                    libParts.push(`PROVEN PATTERNS (niche-scoped playbooks — apply the one that matches this thumbnail's niche):\n${r.provenPatterns}`);
+  if (r.provenPatterns)                    libParts.push(`PROVEN PATTERNS — niche-scoped playbooks. Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${r.provenPatterns}`);
   if (r.regenGuidance)                     libParts.push(`REGENERATION-PROMPT RULES:\n${r.regenGuidance}`);
   if (r.abTesting)                         libParts.push(`A/B TESTING:\n${r.abTesting}`);
   const library = libParts.length ? `DESIGN LIBRARY — classify against and judge by these:\n"""\n${libParts.join("\n\n")}\n"""` : "";
