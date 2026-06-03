@@ -2058,6 +2058,8 @@ function buildSystem(type) {
   if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
   if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
   if (r.provenPatterns)                    libParts.push(`PROVEN PATTERNS (niche-scoped playbooks — apply the one that matches this thumbnail's niche):\n${r.provenPatterns}`);
+  if (r.regenGuidance)                     libParts.push(`REGENERATION-PROMPT RULES:\n${r.regenGuidance}`);
+  if (r.abTesting)                         libParts.push(`A/B TESTING:\n${r.abTesting}`);
   const library = libParts.length ? `DESIGN LIBRARY — classify against and judge by these:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
     `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
@@ -2310,6 +2312,7 @@ const TABS = [
   { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb' },
   { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title' },
   { id: 'ads',       label: 'Ads',       mood: 'violet',   icon: 'ads' },
+  { id: 'playbook',  label: 'Playbook',  mood: 'ember',    icon: 'playbook' },
   { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
 
@@ -2321,6 +2324,7 @@ function CITabIcon({ name }) {
     case 'title':   return <svg {...s} viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h7M3 11.5h9"/></svg>;
     case 'ads':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 6.5v3l8 3.5v-10l-8 3.5z"/><path d="M2.5 6.5H5v3H2.5zM12 5.5a3 3 0 010 5"/></svg>;
     case 'history': return <svg {...s} viewBox="0 0 16 16"><path d="M8 4.5V8l2.5 1.5"/><circle cx="8" cy="8" r="5.5"/></svg>;
+    case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':    return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     default: return null;
   }
@@ -3120,6 +3124,16 @@ function ImageDrop({ image, onPick, label }) {
   );
 }
 
+// Brand kit — persisted in the visitor's browser so they set colours once.
+const LS_BRAND = 'ci_brandkit';
+function loadBrandKit() {
+  try { return JSON.parse(localStorage.getItem(LS_BRAND)) || { colors: [], note: '' }; }
+  catch (e) { return { colors: [], note: '' }; }
+}
+function saveBrandKit(b) { try { localStorage.setItem(LS_BRAND, JSON.stringify(b)); } catch (e) {} }
+
+const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Add brand logo', 'More contrast', 'Less text', 'Yellow highlight box', 'Shocked expression'];
+
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
 function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
@@ -3133,6 +3147,15 @@ function ThumbnailTab({ onOpenKey }) {
   const [imgB, setImgB] = React.useState(null);
   const [descA, setDescA] = React.useState('');
   const [descB, setDescB] = React.useState('');
+  // Brand kit + regeneration guidance
+  const [brand, setBrand] = React.useState(loadBrandKit);
+  const [emphasis, setEmphasis] = React.useState([]);
+  const [addNote, setAddNote] = React.useState('');
+  React.useEffect(() => { saveBrandKit(brand); }, [brand]);
+  const setColor = (i, v) => setBrand(b => ({ ...b, colors: b.colors.map((c, j) => j === i ? v : c) }));
+  const addColor = () => setBrand(b => b.colors.length >= 5 ? b : ({ ...b, colors: [...b.colors, '#FFE14D'] }));
+  const delColor = (i) => setBrand(b => ({ ...b, colors: b.colors.filter((_, j) => j !== i) }));
+  const toggleEmph = (c) => setEmphasis(e => e.includes(c) ? e.filter(x => x !== c) : [...e, c]);
   const { state, report, usage, err, run } = window.useAnalysis('thumbnail');
 
   // Layout + colour options come straight from the research design library (single source of truth).
@@ -3145,14 +3168,22 @@ function ThumbnailTab({ onOpenKey }) {
     (layout !== 'Auto-detect' ? `Target layout archetype: ${layout}\n` : '') +
     (scheme !== 'Auto-detect' ? `Target colour scheme: ${scheme}\n` : '') +
     ((layout === 'Auto-detect' && scheme === 'Auto-detect') ? 'Auto-detect the layout archetype and colour scheme and judge their fit.\n' : '');
-  const userText = compare
+  const brandColors = (brand.colors || []).filter(Boolean);
+  const guidance = [
+    brandColors.length ? `Brand colours: ${brandColors.join(', ')} — build the regenerated thumbnail's palette around these (background / highlight box / number / accents) so it is on-brand, keeping strong contrast.` : '',
+    brand.note ? `Brand notes: ${brand.note}` : '',
+    emphasis.length ? `What to add / emphasise in the regeneration: ${emphasis.join('; ')}.` : '',
+    addNote.trim() ? `Also for the regeneration: ${addNote.trim()}` : '',
+  ].filter(Boolean).join('\n');
+  const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
+  const userText = (compare
     ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL A (= Image 1): ${descA.trim() || '(see attached Image 1)'}\n` +
       `THUMBNAIL B (= Image 2): ${descB.trim() || '(see attached Image 2)'}\n\n` +
       `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
     : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
-      `Judge whether this thumbnail will earn the click.`;
+      `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
   // Vision now works for BOTH single and compare (two images) when a key is present.
   const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
   const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + imgs.length * 1400;
@@ -3208,6 +3239,44 @@ function ThumbnailTab({ onOpenKey }) {
         <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 8 }}>
           Leave on <b>Auto-detect</b> to have the AI classify your thumbnail, or pick a target to grade against it.
         </div>
+
+        {/* Brand kit + regeneration guidance */}
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--stroke-1)' }}>
+          <label className="ci-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            🎨 Brand colours <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— the regen stays on-brand (saved on this device)</span>
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+            {(brand.colors || []).map((c, i) => (
+              <div key={i} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <input type="color" value={c} onChange={e => setColor(i, e.target.value)}
+                  style={{ width: 38, height: 38, border: '1px solid var(--stroke-1)', borderRadius: 9, background: 'none', cursor: 'pointer', padding: 2 }} />
+                <button onClick={() => delColor(i)} title="Remove"
+                  style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+              </div>
+            ))}
+            {(brand.colors || []).length < 5 && (
+              <button className="ci-copybtn" style={{ height: 38 }} onClick={addColor}>+ Add colour</button>
+            )}
+          </div>
+          <input className="ci-input" style={{ marginTop: 10 }} value={brand.note || ''} onChange={e => setBrand(b => ({ ...b, note: e.target.value }))}
+            placeholder="Optional brand note — e.g. 'always show our logo bottom-right, use Montserrat-style bold font'" />
+
+          <label className="ci-label" style={{ marginTop: 16 }}>✨ Regeneration — what should we add or emphasise?</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+            {EMPHASIS_CHIPS.map(c => {
+              const on = emphasis.includes(c);
+              return (
+                <button key={c} onClick={() => toggleEmph(c)} className="pill"
+                  style={{ height: 32, borderColor: on ? m.accentGlow : 'var(--stroke-1)', color: on ? m.accentFrom : 'var(--text-2)', background: on ? `${m.accentFrom}1a` : 'transparent' }}>
+                  {on ? '✓ ' : '+ '}{c}
+                </button>
+              );
+            })}
+          </div>
+          <input className="ci-input" style={{ marginTop: 10 }} value={addNote} onChange={e => setAddNote(e.target.value)}
+            placeholder="Anything else for the new version… e.g. 'make the number ₹500 Cr huge, add a shocked face on the right'" />
+        </div>
+
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
       </TB>
 
@@ -3598,6 +3667,180 @@ function HistoryTab() {
   );
 }
 window.HistoryTab = HistoryTab;
+
+</script>
+<script type="text/babel" data-presets="react">
+/* ===== ci-playbook.jsx ===== */
+// ContentIntel — Thumbnail Playbook (public page).
+// Renders the thumbnail research library (design principles, layout archetypes,
+// colour schemes, per-niche proven patterns, example regen prompts, A/B tests)
+// as a browsable, on-brand guide. Data comes from research.js, so it stays in
+// sync with whatever the owner trains.
+
+// Map a colour-scheme name to a representative CSS swatch.
+function schemeSwatch(name) {
+  const M = {
+    'Sky-blue growth': 'linear-gradient(135deg,#7cc6ff,#1e6fd6)',
+    'Navy grid + growth graph': 'linear-gradient(135deg,#0b1f3a,#1f9d6b)',
+    'Stock-chart green/red': 'linear-gradient(135deg,#19c37d,#e23b3b)',
+    'Brand-matched': 'conic-gradient(from 210deg,#ff5e3a,#ffd400,#19c37d,#2bd2ff,#7b61ff,#ff5e3a)',
+    'High-contrast complementary': 'linear-gradient(135deg,#ff7a3c,#1fb6c9)',
+    'Bold saturated primary': 'linear-gradient(135deg,#ff3b30,#ffd400 55%,#2b6cff)',
+    'Dark + neon accent': 'linear-gradient(135deg,#0a0a12,#39ff14)',
+    'Bright + white space': 'linear-gradient(135deg,#ffffff,#dfe7f5)',
+    'Warm dramatic': 'linear-gradient(135deg,#ff5e3a,#b3001b)',
+    'Cool / tech': 'linear-gradient(135deg,#2bd2ff,#1455c4)',
+    'Monochrome + single accent': 'linear-gradient(135deg,#2a2a2a,#9aa0a6 70%,#ff3b30)',
+    'Dark premium / photographic': 'linear-gradient(135deg,#0c0f16,#3a4356)',
+  };
+  return M[name] || 'linear-gradient(135deg,#3a3f4a,#8a93a6)';
+}
+
+// Split provenPatterns (one string, blocks separated by blank lines) into
+// { title, body } cards. First line = heading.
+function splitPlaybook(text) {
+  return String(text || '').split(/\n\s*\n/).map(b => b.trim()).filter(Boolean).map(block => {
+    const nl = block.indexOf('\n');
+    return nl === -1 ? { title: block, body: '' } : { title: block.slice(0, nl).trim(), body: block.slice(nl + 1).trim() };
+  });
+}
+
+const PLAYBOOK_REGEN_EXAMPLES = [
+  {
+    label: 'Business case-study',
+    text: "Improve THIS thumbnail: keep the founder photo, cut them out cleanly on the right third with rim light, smiling at camera. Background: the company's real storefront on a bright sky-blue sky with a faint upward green growth line. Bottom-left, two lines: '₹900 Crore' in big serif-italic white + 'Cloud Kitchen Factory' in bold sans. Draw a hand-drawn curved white arrow from the number to the founder. Add a small black '100K+ VIEWS' pill top-right. Keep the real brand logo as a tilted badge near the subject.",
+  },
+  {
+    label: 'Personal-finance interview',
+    text: "Improve THIS thumbnail: expert guest cut out on the left, host on the right, podcast mics in front, dark navy background with a faint market chart. Centre-top: 'You Only Need This' in white, then '1 FUND!' in a yellow highlight pill (black text), then 'To Retire Early'. Add a small 'HOW?' reaction box beside the host and a curved arrow. Keep both real faces and the real claim.",
+  },
+  {
+    label: 'On-brand (your colours)',
+    text: "Improve THIS thumbnail using my brand colours #0A2540 (background) and #FFE14D (highlight). Keep the subject and topic. Put the key number in a #FFE14D rounded box with black text; use #0A2540 for the backdrop with a subtle grid; white body text with a soft shadow; add my logo bottom-right. Maintain strong contrast and a single clear focal point.",
+  },
+];
+
+function PlaybookTab() {
+  const mood = 'ember';
+  const m = window.MOODS[mood];
+  const r = window.getResearch('thumbnail') || {};
+  const layouts = r.layouts || [];
+  const schemes = r.colorSchemes || [];
+  const principles = String(r.designPrinciples || '').split('\n').map(s => s.replace(/^[-•]\s*/, '').trim()).filter(s => s && !/^\(/.test(s));
+  const playbooks = splitPlaybook(r.provenPatterns);
+  const abExamples = [
+    'Face vs no-face — same text, one with a large reacting face, one product-only. Hypothesis: a face lifts CTR for personality-led niches.',
+    'Hook frame — “₹500 Cr” big-number vs “India’s Delivery King” authority vs “Why did it fail?” question. Hypothesis: number wins for credibility, question wins for curiosity.',
+    'Expression — calm-confident vs shocked/wide-eyed. Hypothesis: shock wins for scam/outrage topics, calm wins for premium/business.',
+    'Highlight — key word in a yellow box vs plain bold. Hypothesis: the yellow box raises legibility + click pull at small sizes.',
+    'Colour — your brand palette vs high-contrast complementary (teal/orange). Hypothesis: contrast pops more in a busy feed.',
+  ];
+
+  const Stat = ({ n, label }) => (
+    <div style={{ textAlign: 'center', padding: '4px 14px' }}>
+      <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 26, color: m.accentFrom }}>{n}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{label}</div>
+    </div>
+  );
+
+  return (
+    <div className="ci-work wide" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
+      <window.WorkHead mood={mood} eyebrow="Thumbnail Playbook"
+        title="What actually makes thumbnails get clicked"
+        sub="Patterns reverse-engineered from hundreds of top-performing thumbnails — the layouts, colours, text frames and devices that repeat across the best, plus copy-ready regeneration prompts and A/B tests." />
+
+      <window.Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbB}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: 10 }}>
+          <Stat n={playbooks.length} label="niche playbooks" />
+          <Stat n={layouts.length} label="layout archetypes" />
+          <Stat n={schemes.length} label="colour schemes" />
+          <Stat n={principles.length} label="design principles" />
+        </div>
+      </window.Block>
+
+      {principles.length > 0 && (
+        <window.Block title="Core design principles" desc="The rules the best thumbnails follow at a glance" mood={mood}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 10 }}>
+            {principles.map((p, i) => (
+              <div key={i} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.5 }}>
+                <span style={{ color: m.accentFrom, marginTop: 1 }}>◈</span><span>{p}</span>
+              </div>
+            ))}
+          </div>
+        </window.Block>
+      )}
+
+      <window.Block title="Layout archetypes" desc="Pick the structure that fits your story" mood={mood}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))', gap: 12 }}>
+          {layouts.map((l, i) => (
+            <div key={i} style={{ padding: 14, borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--stroke-1)' }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)', marginBottom: 5 }}>{l.name}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5 }}>{l.what}</div>
+            </div>
+          ))}
+        </div>
+      </window.Block>
+
+      <window.Block title="Colour schemes" desc="What pops in a crowded, muted feed" mood={mood}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12 }}>
+          {schemes.map((s, i) => (
+            <div key={i} style={{ borderRadius: 12, overflow: 'hidden', background: 'var(--surface-2)', border: '1px solid var(--stroke-1)' }}>
+              <div style={{ height: 54, background: schemeSwatch(s.name) }} />
+              <div style={{ padding: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--text-1)', marginBottom: 4 }}>{s.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>{s.what}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </window.Block>
+
+      {playbooks.length > 0 && (
+        <window.Block title="Proven patterns by niche" desc="The repeatable formulas — apply the one that matches your channel" mood={mood}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {playbooks.map((p, i) => (
+              <details key={i} style={{ borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--stroke-1)', padding: '12px 14px' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: 13.5, color: 'var(--text-1)', lineHeight: 1.45 }}>{p.title}</summary>
+                {p.body && <div style={{ whiteSpace: 'pre-wrap', fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.6, marginTop: 10 }}>{p.body}</div>}
+              </details>
+            ))}
+          </div>
+        </window.Block>
+      )}
+
+      <window.Block title="Example regeneration prompts" desc="Copy, tweak the specifics, paste into any image generator" mood={mood}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {PLAYBOOK_REGEN_EXAMPLES.map((ex, i) => (
+            <window.CopyBlock key={i} label={ex.label} text={ex.text} mono={false} />
+          ))}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>
+          Tip: in the <b>Thumbnail check</b> tab, add your brand colours and what to emphasise — the analyzer writes a regen prompt grounded in your actual thumbnail and your palette.
+        </div>
+      </window.Block>
+
+      <window.Block title="A/B testing — what to try" desc="Change ONE variable per test so the winner is attributable" mood={mood}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {abExamples.map((t, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+              <span style={{ fontWeight: 800, color: m.accentFrom, fontFamily: 'var(--font-display)' }}>{String.fromCharCode(65 + i)}</span>
+              <span>{t}</span>
+            </div>
+          ))}
+        </div>
+      </window.Block>
+
+      <window.Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+        <window.Eyebrow mood={mood} glow>Put it to work</window.Eyebrow>
+        <div style={{ fontSize: 15, lineHeight: 1.6, marginTop: 10, color: 'var(--text-1)' }}>
+          Open the <b>Thumbnail</b> tab, drop your design, set your brand colours, and run a check — you'll get a score against these patterns plus a regeneration prompt built from your own thumbnail.
+        </div>
+      </window.Block>
+    </div>
+  );
+}
+
+Object.assign(window, { PlaybookTab });
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -4210,6 +4453,7 @@ function CIApp() {
   else if (tab === 'thumbnail') View = <ThumbnailTab onOpenKey={openKey} />;
   else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
+  else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
   else if (tab === 'train') View = admin ? <TrainTab onClose={exitResearch} onNav={nav} onOpenKey={openKey} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;

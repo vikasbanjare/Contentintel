@@ -280,6 +280,21 @@ GENERAL INDIAN BUSINESS / SOCIAL-COMMENTARY EXPLAINER (cross-creator hooks, mixe
 - A CINEMATIC EDITORIAL PORTRAIT (single serious face, dramatic light, minimal restrained type) is the premium/journalistic alternative to the loud look.
 Preserve the real subject/brand/claim shown; match the emotional register to the actual topic.`,
 
+    // Steers EVERY regeneration prompt (admin-editable). The brand-colour and
+    // "what to add" inputs from the UI are merged in on top of this at runtime.
+    regenGuidance:
+`When you output a regeneration prompt for a thumbnail:
+- It MUST be an improved version of the user's ACTUAL thumbnail (same subject, topic, brand, number) — never a generic new image.
+- Apply the matching niche playbook above (layout, colour scheme, text frame, signature devices).
+- If the user supplied BRAND COLOURS, build the palette around them (background, highlight box / number, accents) so the result is on-brand; keep strong contrast and legibility.
+- If the user said WHAT TO ADD / EMPHASISE, honour it specifically (e.g. add a face, enlarge the number, add a curved arrow, add the brand logo, cut the text).
+- Make the prompt copy-paste ready for an image generator: state subject, expression, layout, exact text + the highlight treatment, colours (with hex if given), lighting, background and composition.
+- Also give a one-line "what changed and why" so the user understands the fix.`,
+
+    // Output guidance for A/B testing (used by the result + the Playbook page).
+    abTesting:
+`Always end a single-thumbnail review with an "A/B TEST PLAN": 2–3 concrete, ONE-VARIABLE-AT-A-TIME variants worth testing, each with the hypothesis. Examples of variables to isolate: face vs no-face; calm-confident vs shocked expression; big-number hook vs "India's ___ King" frame vs curiosity-question; serif-italic vs bold-sans; yellow highlight box vs none; arrow vs no arrow; brand-colour background vs high-contrast complementary. Change ONE thing per variant so the winner is attributable.`,
+
   },
 
   // ── TITLE ─────────────────────────────────────────────────────────────────

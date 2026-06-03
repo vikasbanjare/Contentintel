@@ -11,6 +11,7 @@ const TABS = [
   { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb' },
   { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title' },
   { id: 'ads',       label: 'Ads',       mood: 'violet',   icon: 'ads' },
+  { id: 'playbook',  label: 'Playbook',  mood: 'ember',    icon: 'playbook' },
   { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
 
@@ -22,6 +23,7 @@ function CITabIcon({ name }) {
     case 'title':   return <svg {...s} viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h7M3 11.5h9"/></svg>;
     case 'ads':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 6.5v3l8 3.5v-10l-8 3.5z"/><path d="M2.5 6.5H5v3H2.5zM12 5.5a3 3 0 010 5"/></svg>;
     case 'history': return <svg {...s} viewBox="0 0 16 16"><path d="M8 4.5V8l2.5 1.5"/><circle cx="8" cy="8" r="5.5"/></svg>;
+    case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':    return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     default: return null;
   }

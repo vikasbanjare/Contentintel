@@ -34,6 +34,16 @@ function ImageDrop({ image, onPick, label }) {
   );
 }
 
+// Brand kit — persisted in the visitor's browser so they set colours once.
+const LS_BRAND = 'ci_brandkit';
+function loadBrandKit() {
+  try { return JSON.parse(localStorage.getItem(LS_BRAND)) || { colors: [], note: '' }; }
+  catch (e) { return { colors: [], note: '' }; }
+}
+function saveBrandKit(b) { try { localStorage.setItem(LS_BRAND, JSON.stringify(b)); } catch (e) {} }
+
+const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Add brand logo', 'More contrast', 'Less text', 'Yellow highlight box', 'Shocked expression'];
+
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
 function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
@@ -47,6 +57,15 @@ function ThumbnailTab({ onOpenKey }) {
   const [imgB, setImgB] = React.useState(null);
   const [descA, setDescA] = React.useState('');
   const [descB, setDescB] = React.useState('');
+  // Brand kit + regeneration guidance
+  const [brand, setBrand] = React.useState(loadBrandKit);
+  const [emphasis, setEmphasis] = React.useState([]);
+  const [addNote, setAddNote] = React.useState('');
+  React.useEffect(() => { saveBrandKit(brand); }, [brand]);
+  const setColor = (i, v) => setBrand(b => ({ ...b, colors: b.colors.map((c, j) => j === i ? v : c) }));
+  const addColor = () => setBrand(b => b.colors.length >= 5 ? b : ({ ...b, colors: [...b.colors, '#FFE14D'] }));
+  const delColor = (i) => setBrand(b => ({ ...b, colors: b.colors.filter((_, j) => j !== i) }));
+  const toggleEmph = (c) => setEmphasis(e => e.includes(c) ? e.filter(x => x !== c) : [...e, c]);
   const { state, report, usage, err, run } = window.useAnalysis('thumbnail');
 
   // Layout + colour options come straight from the research design library (single source of truth).
@@ -59,14 +78,22 @@ function ThumbnailTab({ onOpenKey }) {
     (layout !== 'Auto-detect' ? `Target layout archetype: ${layout}\n` : '') +
     (scheme !== 'Auto-detect' ? `Target colour scheme: ${scheme}\n` : '') +
     ((layout === 'Auto-detect' && scheme === 'Auto-detect') ? 'Auto-detect the layout archetype and colour scheme and judge their fit.\n' : '');
-  const userText = compare
+  const brandColors = (brand.colors || []).filter(Boolean);
+  const guidance = [
+    brandColors.length ? `Brand colours: ${brandColors.join(', ')} — build the regenerated thumbnail's palette around these (background / highlight box / number / accents) so it is on-brand, keeping strong contrast.` : '',
+    brand.note ? `Brand notes: ${brand.note}` : '',
+    emphasis.length ? `What to add / emphasise in the regeneration: ${emphasis.join('; ')}.` : '',
+    addNote.trim() ? `Also for the regeneration: ${addNote.trim()}` : '',
+  ].filter(Boolean).join('\n');
+  const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
+  const userText = (compare
     ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL A (= Image 1): ${descA.trim() || '(see attached Image 1)'}\n` +
       `THUMBNAIL B (= Image 2): ${descB.trim() || '(see attached Image 2)'}\n\n` +
       `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
     : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
-      `Judge whether this thumbnail will earn the click.`;
+      `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
   // Vision now works for BOTH single and compare (two images) when a key is present.
   const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
   const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + imgs.length * 1400;
@@ -122,6 +149,44 @@ function ThumbnailTab({ onOpenKey }) {
         <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 8 }}>
           Leave on <b>Auto-detect</b> to have the AI classify your thumbnail, or pick a target to grade against it.
         </div>
+
+        {/* Brand kit + regeneration guidance */}
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--stroke-1)' }}>
+          <label className="ci-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            🎨 Brand colours <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— the regen stays on-brand (saved on this device)</span>
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+            {(brand.colors || []).map((c, i) => (
+              <div key={i} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <input type="color" value={c} onChange={e => setColor(i, e.target.value)}
+                  style={{ width: 38, height: 38, border: '1px solid var(--stroke-1)', borderRadius: 9, background: 'none', cursor: 'pointer', padding: 2 }} />
+                <button onClick={() => delColor(i)} title="Remove"
+                  style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+              </div>
+            ))}
+            {(brand.colors || []).length < 5 && (
+              <button className="ci-copybtn" style={{ height: 38 }} onClick={addColor}>+ Add colour</button>
+            )}
+          </div>
+          <input className="ci-input" style={{ marginTop: 10 }} value={brand.note || ''} onChange={e => setBrand(b => ({ ...b, note: e.target.value }))}
+            placeholder="Optional brand note — e.g. 'always show our logo bottom-right, use Montserrat-style bold font'" />
+
+          <label className="ci-label" style={{ marginTop: 16 }}>✨ Regeneration — what should we add or emphasise?</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+            {EMPHASIS_CHIPS.map(c => {
+              const on = emphasis.includes(c);
+              return (
+                <button key={c} onClick={() => toggleEmph(c)} className="pill"
+                  style={{ height: 32, borderColor: on ? m.accentGlow : 'var(--stroke-1)', color: on ? m.accentFrom : 'var(--text-2)', background: on ? `${m.accentFrom}1a` : 'transparent' }}>
+                  {on ? '✓ ' : '+ '}{c}
+                </button>
+              );
+            })}
+          </div>
+          <input className="ci-input" style={{ marginTop: 10 }} value={addNote} onChange={e => setAddNote(e.target.value)}
+            placeholder="Anything else for the new version… e.g. 'make the number ₹500 Cr huge, add a shocked face on the right'" />
+        </div>
+
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
       </TB>
 

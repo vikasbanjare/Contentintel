@@ -164,6 +164,8 @@ function buildSystem(type) {
   if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
   if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
   if (r.provenPatterns)                    libParts.push(`PROVEN PATTERNS (niche-scoped playbooks — apply the one that matches this thumbnail's niche):\n${r.provenPatterns}`);
+  if (r.regenGuidance)                     libParts.push(`REGENERATION-PROMPT RULES:\n${r.regenGuidance}`);
+  if (r.abTesting)                         libParts.push(`A/B TESTING:\n${r.abTesting}`);
   const library = libParts.length ? `DESIGN LIBRARY — classify against and judge by these:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
     `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
