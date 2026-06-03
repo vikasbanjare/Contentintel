@@ -102,7 +102,7 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
   const content = imgs.length
     ? [
         ...imgs.flatMap((im, i) => [
-          ...(imgs.length > 1 ? [{ type: "text", text: (i === 0 ? "THUMBNAIL A:" : "THUMBNAIL B:") }] : []),
+          ...(imgs.length > 1 ? [{ type: "text", text: `Image ${i + 1}:` }] : []),
           { type: "image", source: { type: "base64", media_type: im.mime, data: im.data } },
         ]),
         { type: "text", text: userText },

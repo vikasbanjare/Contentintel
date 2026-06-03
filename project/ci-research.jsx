@@ -33,7 +33,7 @@ function serializeResearch(obj) {
     "window.CI_RESEARCH = " + JSON.stringify(obj, null, 2) + ";\n";
 }
 
-function ResearchTab({ onClose }) {
+function ResearchTab({ onClose, onNav }) {
   const mood = "navy";
   const m = window.MOODS[mood];
   const SECTIONS = ["core", "script", "thumbnail", "title", "ads"];
@@ -110,6 +110,7 @@ function ResearchTab({ onClose }) {
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          {onNav && <button className="ci-copybtn" style={{ height: 34 }} onClick={() => onNav("train")}>🧠 Train from thumbnails →</button>}
           <button className="ci-copybtn" style={{ height: 34 }} onClick={toggleRaw}>{raw ? "Form view" : "Raw JSON"}</button>
           <button className="ci-copybtn" style={{ height: 34 }} onClick={() => { exitAdmin(); onClose(); }}>Lock & exit</button>
         </div>

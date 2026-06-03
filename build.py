@@ -20,6 +20,7 @@ JSX_FILES = [
     "ci-script.jsx",
     "ci-tabs.jsx",
     "ci-research.jsx",
+    "ci-train.jsx",
     "ci-app.jsx",
 ]
 

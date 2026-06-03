@@ -61,8 +61,8 @@ function ThumbnailTab({ onOpenKey }) {
     ((layout === 'Auto-detect' && scheme === 'Auto-detect') ? 'Auto-detect the layout archetype and colour scheme and judge their fit.\n' : '');
   const userText = compare
     ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
-      `THUMBNAIL A: ${descA.trim() || '(see attached image A)'}\n` +
-      `THUMBNAIL B: ${descB.trim() || '(see attached image B)'}\n\n` +
+      `THUMBNAIL A (= Image 1): ${descA.trim() || '(see attached Image 1)'}\n` +
+      `THUMBNAIL B (= Image 2): ${descB.trim() || '(see attached Image 2)'}\n\n` +
       `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
     : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
