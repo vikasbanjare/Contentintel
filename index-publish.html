@@ -1008,6 +1008,8 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
       { name: "Full-bleed face", what: "A single close-up face fills the frame with an exaggerated expression; little or no text. Maximum emotion." },
       { name: "Subject + object/result", what: "Person reacting to or holding a clear object or end-result (the product, the money, the card, the dish). Shows the payoff." },
       { name: "Versus / duel", what: "Two subjects, logos or products facing off (e.g. challenger vs incumbent). Strong for rivalry, comparison and news stories." },
+      { name: "Chart / data-viz hero", what: "A prominent line/area/bar chart with figures is the focal point (growth curve, gains/losses, before→after numbers). The 'finance/data' look; pairs with a small face." },
+      { name: "Triptych / 3-panel", what: "Three labelled panels or logos side by side (e.g. OIL | INTERNET | AI, or A vs B vs C). Compresses a comparison or an era-timeline into one glance." },
       { name: "Before / after split", what: "Frame split into two contrasting states. Strong for transformations, comparisons, tutorials." },
       { name: "Text-dominant", what: "A large typographic statement is the hero; imagery is secondary. Good for ideas, news, finance, education." },
       { name: "Product / object hero", what: "The object centered on a clean or dramatic background (e.g. on a pile of cash). Good for tech, products, reviews — often no face." },
@@ -1017,7 +1019,9 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
     ],
     colorSchemes: [
       { name: "Sky-blue growth", what: "Bright daylight blue + clouds + a faint upward line-graph. Reads optimism/success — dominant in business/startup case-study thumbnails." },
-      { name: "Brand-matched", what: "Palette pulled from the featured company's own brand colour (pink, blue grid, warm cream). Ties the thumb to a recognisable brand." },
+      { name: "Navy grid + growth graph", what: "Dark navy background with a faint grid and a white/green upward line or area chart. The 'data/finance' look; makes white text and a cut-out face pop." },
+      { name: "Stock-chart green/red", what: "Green-up / red-down chart with +/- figures. Instantly signals gains vs losses, winners vs losers, comparisons." },
+      { name: "Brand-matched", what: "Palette pulled from the featured company's own brand colour (Fevicol blue, Netflix red/black, Airbnb coral, pink weddings). Ties the thumb to a recognisable brand." },
       { name: "High-contrast complementary", what: "Opposites that vibrate: teal/orange, blue/yellow, purple/yellow. The strongest in-feed pop." },
       { name: "Bold saturated primary", what: "Loud reds/yellows/blues at high saturation. Energetic, MrBeast-style." },
       { name: "Dark + neon accent", what: "Near-black background with ONE glowing accent (cyan, lime, magenta). Tech, gaming, drama." },
@@ -1027,7 +1031,7 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
       { name: "Monochrome + single accent", what: "One desaturated palette with a single saturated highlight on the focal point. Elegant, focuses the eye." },
     ],
     designPrinciples:
-`Refined from analysis of top-performing thumbnails (Batch 1: Indian business/startup case-studies).
+`Refined from analysis of top-performing thumbnails (n=89: Indian business/startup case-studies).
 - One focal point that survives the squint test at ~120px; everything else is support.
 - Strong figure-ground separation (rim light, blur, cut-out outline) so the subject pops off the background.
 - ≤3 competing elements; negative space is a feature, not wasted room.
@@ -1045,13 +1049,18 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
     // performers. The analyzer applies the matching playbook when the
     // thumbnail's niche fits; otherwise it uses the general principles above.
     provenPatterns:
-`BUSINESS / STARTUP / FINANCE CASE-STUDY EXPLAINER (e.g. Indian company-story channels) — proven high-CTR formula (Batch 1, n=15):
-1. LAYOUT: real founder/CEO cut out on the right third, smiling with eye contact, over the company's REAL store/product/logo scene on a bright sky-blue (or brand-matched) background with a faint upward growth graph.
-2. HOOK TEXT bottom-left, two lines: a huge money number in serif-italic ("900 Crore", "₹160 CR") + a 2–3 word bold-sans descriptor ("Cloud Kitchen Factory"). Or an "India's ___ King/Empire" authority line.
-3. A hand-drawn curved white arrow from the number to the founder/hero object.
-4. Optional black "100K+ VIEWS" social-proof pill top-right; small channel logo top-left.
-5. TONE: confident and aspirational, not shock-face. For rivalry/news stories use a Versus/duel layout with serious faces and a status badge.
-When you judge or regenerate a thumbnail in THIS niche, score it against this formula and make the regen prompt follow it (while preserving the real founder, brand and number actually shown).`,
+`BUSINESS / STARTUP / FINANCE CASE-STUDY EXPLAINER (e.g. Indian company-story channels) — proven high-CTR house style (analysed n=89):
+1. LAYOUT: real founder/CEO or a RECOGNISABLE figure (e.g. Ambani, Musk, Tata, a celebrity) cut out on the right third — smiling + eye contact for success stories, serious/intense for conflict/news. Background = the company's real store/product/logo OR a navy grid with an upward growth graph (sky-blue daylight also common). A tilted BRAND-LOGO badge sits near the subject.
+2. HOOK TEXT on the left / bottom-left, two lines. Pick ONE proven frame:
+   • BIG NUMBER (most common, ~60%): a huge ₹/Crore/Lakh-Crore figure as the largest element + a 2–3 word descriptor ("12,000 Crore / Fashion Empire").
+   • "INDIA'S ___ [KING / GENIUS / EMPIRE]" authority/identity frame ("India's Logistics Genius").
+   • CONFLICT frame: "The man who beat ___", "Crushing ___", "Defeating ___?", "95% FAILED".
+   Emphasis word in serif ITALIC (Genius, KING, Empire, Masterplan, Dominance, Disruption); descriptor in bold sans; one accent-colour word (red/green) for pop. 3–5 words per block. A crown graphic can literalise "King".
+3. A hand-drawn curved arrow (white on dark, black on light) from the number/text to the founder or the brand-logo badge — both directs the eye and opens a "who/what is this?" gap.
+4. Optional black "100K+/400K+ VIEWS" social-proof pill top-right; small channel logo top-left/bottom.
+5. VARIANTS used for the right story: Versus/duel (two figures or logos, e.g. Modi vs Trump, UPI vs eRupee), Chart/data-viz hero (a growth/gains-vs-losses chart with figures), Triptych/3-panel (OIL | INTERNET | AI), Product/object hero on cash (price-reveal shock, e.g. "This Costs ₹4,50,000??").
+6. TONE: confident and aspirational by default; intense for rivalry/news; shocked/curious for price reveals. A minimalist premium style ("It's not just a Phone") exists but is used sparingly.
+When you judge or regenerate a thumbnail in THIS niche, score it against this formula and make the regen prompt follow it — while PRESERVING the real founder/figure, brand and number actually shown. (Note: patterns describe the house style; without CTR data they are not yet ranked by performance.)`,
 
   },
 
