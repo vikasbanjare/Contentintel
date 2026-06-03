@@ -53,6 +53,8 @@ function ThumbnailTab({ onOpenKey }) {
   const [kind, setKind] = React.useState('Lifestyle');
   const [layout, setLayout] = React.useState('Auto-detect');
   const [scheme, setScheme] = React.useState('Auto-detect');
+  const [nicheSel, setNicheSel] = React.useState('Auto-detect');
+  const [strict, setStrict] = React.useState(true);
   const [imgA, setImgA] = React.useState(null);
   const [imgB, setImgB] = React.useState(null);
   const [descA, setDescA] = React.useState('');
@@ -72,6 +74,7 @@ function ThumbnailTab({ onOpenKey }) {
   const TLib = window.getResearch('thumbnail') || {};
   const layoutOpts = ['Auto-detect', ...((TLib.layouts || []).map(x => x.name))];
   const schemeOpts = ['Auto-detect', ...((TLib.colorSchemes || []).map(x => x.name))];
+  const nicheOpts = ['Auto-detect', ...((window.nicheNames && window.nicheNames('thumbnail')) || []), 'None (universal)'];
 
   const hasVision = !!window.getKey(); // image vision only works with an API key; the free Claude AI is text-only
   const targetLine =
@@ -96,8 +99,10 @@ function ThumbnailTab({ onOpenKey }) {
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
   // Vision now works for BOTH single and compare (two images) when a key is present.
   const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
-  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + imgs.length * 1400;
-  function check() { run({ userText, images: imgs, maxTokens: compare ? 6000 : 4200 }); }
+  // Niche routing + edit mode are baked into the system prompt (one source of truth).
+  const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict });
+  const estIn = window.estTokens(system, userText) + imgs.length * 1400;
+  function check() { run({ userText, images: imgs, maxTokens: compare ? 6000 : 4200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -150,6 +155,13 @@ function ThumbnailTab({ onOpenKey }) {
           Leave on <b>Auto-detect</b> to have the AI classify your thumbnail, or pick a target to grade against it.
         </div>
 
+        <div style={{ marginTop: 16 }}>
+          <label className="ci-label">Niche playbook <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— pick yours for a tailored playbook, or “None” for a clean, unbiased review</span></label>
+          <select className="ci-input" value={nicheSel} onChange={e => setNicheSel(e.target.value)} style={{ appearance: 'auto' }}>
+            {nicheOpts.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+
         {/* Brand kit + regeneration guidance */}
         <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--stroke-1)' }}>
           <label className="ci-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -185,6 +197,12 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
           <input className="ci-input" style={{ marginTop: 10 }} value={addNote} onChange={e => setAddNote(e.target.value)}
             placeholder="Anything else for the new version… e.g. 'make the number ₹500 Cr huge, add a shocked face on the right'" />
+          <div style={{ marginTop: 14 }}>
+            <TTg on={strict} onChange={setStrict} mood={mood}>Strict edit — keep my image as-is, change only what I ask</TTg>
+            <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 6 }}>
+              {strict ? 'Preserves your face, text, fonts and colours. Turn off to allow a bolder redesign.' : 'Bold redesign allowed — layout & colours may change (people, topic and exact text stay).'}
+            </div>
+          </div>
         </div>
 
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>

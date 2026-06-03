@@ -154,17 +154,38 @@ Rules:
 - The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
 - Write in the same language and script as the user's content.`;
 
-function buildSystem(type) {
+// Split provenPatterns (blocks separated by blank lines) and derive niche names.
+function splitPlaybookBlocks(text) {
+  return String(text || "").split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+}
+function nicheName(block) {
+  const nl = block.indexOf("\n");
+  const head = (nl === -1 ? block : block.slice(0, nl)).trim();
+  return head.split(/\s+\(|\s+—|\s+-\s/)[0].trim();
+}
+function nicheNames(type = "thumbnail") {
+  return splitPlaybookBlocks((getResearch(type) || {}).provenPatterns).map(nicheName);
+}
+
+// opts: { niche: "Auto-detect" | "<niche name>" | "None (universal)", relax: bool }
+function buildSystem(type, opts = {}) {
   const r = getResearch(type);
   const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
+  // Niche routing — inject ONLY the relevant playbook to stop cross-niche bias.
+  let provenText = r.provenPatterns || "";
+  const niche = opts.niche;
+  if (provenText && niche && niche !== "Auto-detect") {
+    if (niche === "None (universal)") provenText = "";
+    else provenText = splitPlaybookBlocks(provenText).filter(b => nicheName(b) === niche).join("\n\n");
+  }
   // Optional structured design library (currently used by the thumbnail check).
   const cat = (arr) => (arr || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
   const libParts = [];
   if (r.layouts && r.layouts.length)      libParts.push(`LAYOUT ARCHETYPES (classify this content as one, or "unclear"):\n${cat(r.layouts)}`);
   if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
   if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
-  if (r.provenPatterns)                    libParts.push(`PROVEN PATTERNS — niche-scoped playbooks. Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${r.provenPatterns}`);
+  if (provenText)                          libParts.push(`PROVEN PATTERNS — niche-scoped playbook(s). Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${provenText}`);
   if (r.regenGuidance)                     libParts.push(`REGENERATION-PROMPT RULES:\n${r.regenGuidance}`);
   if (r.abTesting)                         libParts.push(`A/B TESTING:\n${r.abTesting}`);
   const library = libParts.length ? `DESIGN LIBRARY — reference for SCORING & classification ONLY. It is NOT a source of new elements, palette, people, brands or style for the regeneration, and it must NEVER override what is actually in the user's content. Apply a niche playbook only when the content clearly belongs to that niche; otherwise ignore it entirely:\n"""\n${libParts.join("\n\n")}\n"""` : "";
@@ -175,6 +196,7 @@ function buildSystem(type) {
     `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     library,
+    opts.relax ? `EDIT FREEDOM: the user enabled BOLD REDESIGN — you MAY change layout, composition and colours more boldly for a stronger thumbnail. But STILL keep the same person(s) and their count, the same topic, and the EXACT text & typography, unless the user explicitly asked to change them.` : "",
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
     r.notes ? `Extra: ${r.notes}` : "",
     REPORT_SHAPE,
@@ -243,14 +265,14 @@ function useAnalysis(type) {
   const [usage, setUsage] = React.useState(null);
   const [err, setErr] = React.useState("");
 
-  async function run({ userText, image, maxTokens }) {
+  async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setState("loading");
     if (!canRun()) { // sample mode — no key and not in a Claude preview
       setTimeout(() => setState("done"), 850);
       return;
     }
     try {
-      const { text, usage } = await callClaude({ system: buildSystem(type), userText, image, maxTokens });
+      const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
         // Model didn't return clean JSON — show its analysis as plain text rather than failing.
@@ -457,4 +479,5 @@ Object.assign(window, {
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
+  nicheNames, splitPlaybookBlocks,
 });
