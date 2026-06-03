@@ -97,7 +97,7 @@ function ThumbnailTab({ onOpenKey }) {
   // Vision now works for BOTH single and compare (two images) when a key is present.
   const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
   const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + imgs.length * 1400;
-  function check() { run({ userText, images: imgs, maxTokens: 3000 }); }
+  function check() { run({ userText, images: imgs, maxTokens: compare ? 6000 : 4200 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>

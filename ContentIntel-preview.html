@@ -995,7 +995,7 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
       { name: "Curiosity gap (thumb+title)", what: "One promise with an open loop; no answer given away; no mismatch." },
       { name: "Pattern interrupt", what: "Visibly different from competing thumbnails in this niche." },
     ],
-    notes: "Lead with the squint test, name the single highest-impact fix, and give 1–2 grounded regen prompts.",
+    notes: "Keep the report FOCUSED and NON-REDUNDANT — never make the same point in two sections, and skip any section that would only restate another. For a SINGLE thumbnail, output in this order and nothing filler: (1) verdict, (2) the per-dimension scores, (3) ONE 'Biggest fix' that would raise the score most, (4) 2-4 concrete issues each with a copy-ready fix, (5) ONE grounded regeneration prompt that improves THIS thumbnail and explicitly applies the user's BRAND COLOURS and 'what to add / emphasise' requests, ending with a one-line 'expected score impact', (6) a short 2-3 variant A/B test plan. If the user gave brand colours or what-to-add, they MUST visibly shape the regen prompt. Lead with the squint test in the verdict.",
 
     // ── DESIGN LIBRARY ───────────────────────────────────────────────────────
     // STARTER patterns from established thumbnail design. Refined from the
@@ -2434,19 +2434,57 @@ function buildSystem(type) {
   ].filter(Boolean).join("\n\n");
 }
 
-// Robust: tolerate code fences, surrounding prose, and trailing commas.
-// Returns null (never throws) when the text isn't usable JSON.
+// Repair truncated/unbalanced JSON: close any open string and brackets so a
+// cut-off model response still parses (we lose only the incomplete tail).
+function repairJson(s) {
+  const stack = [];
+  let inStr = false, esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+    } else {
+      if (c === '"') inStr = true;
+      else if (c === "{") stack.push("}");
+      else if (c === "[") stack.push("]");
+      else if (c === "}" || c === "]") stack.pop();
+    }
+  }
+  let out = s;
+  if (inStr) out += '"';           // close a dangling string
+  out = out.replace(/,\s*$/, "");  // drop a dangling comma
+  for (let i = stack.length - 1; i >= 0; i--) out += stack[i];
+  return out;
+}
+
+// Robust: tolerate code fences, surrounding prose, trailing commas AND
+// truncated responses. Returns null (never throws) when nothing is usable.
 function parseReport(text) {
   let t = (text || "").trim();
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence) t = fence[1].trim();
-  const s = t.indexOf("{"), e = t.lastIndexOf("}");
-  if (s !== -1 && e !== -1) t = t.slice(s, e + 1);
-  try { return JSON.parse(t); }
-  catch (e1) {
-    try { return JSON.parse(t.replace(/,\s*([}\]])/g, "$1")); } catch (e2) {}
-    return null;
+  const s = t.indexOf("{");
+  if (s === -1) return null;
+  t = t.slice(s); // from first "{" to the end — don't trim the tail (handle cut-offs)
+  const tryParse = (x) => { try { return JSON.parse(x); } catch (e) { return undefined; } };
+  let r = tryParse(t);
+  if (r !== undefined) return r;
+  r = tryParse(t.replace(/,\s*([}\]])/g, "$1")); // drop trailing commas
+  if (r !== undefined) return r;
+  r = tryParse(repairJson(t));                   // close a truncated tail
+  if (r !== undefined) return r;
+  // Last resort: walk back to earlier "}" boundaries, repairing each time, so a
+  // long report that was cut mid-section still renders everything that completed.
+  let idx = t.length;
+  for (let n = 0; n < 50 && idx > 0; n++) {
+    idx = t.lastIndexOf("}", idx - 1);
+    if (idx === -1) break;
+    r = tryParse(repairJson(t.slice(0, idx + 1)));
+    if (r !== undefined) return r;
   }
+  return null;
 }
 
 // ── useAnalysis — shared runner for every checker tab ────────────────────────
@@ -3547,7 +3585,7 @@ function ThumbnailTab({ onOpenKey }) {
   // Vision now works for BOTH single and compare (two images) when a key is present.
   const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
   const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + imgs.length * 1400;
-  function check() { run({ userText, images: imgs, maxTokens: 3000 }); }
+  function check() { run({ userText, images: imgs, maxTokens: compare ? 6000 : 4200 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>

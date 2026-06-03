@@ -171,7 +171,7 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
       { name: "Curiosity gap (thumb+title)", what: "One promise with an open loop; no answer given away; no mismatch." },
       { name: "Pattern interrupt", what: "Visibly different from competing thumbnails in this niche." },
     ],
-    notes: "Lead with the squint test, name the single highest-impact fix, and give 1–2 grounded regen prompts.",
+    notes: "Keep the report FOCUSED and NON-REDUNDANT — never make the same point in two sections, and skip any section that would only restate another. For a SINGLE thumbnail, output in this order and nothing filler: (1) verdict, (2) the per-dimension scores, (3) ONE 'Biggest fix' that would raise the score most, (4) 2-4 concrete issues each with a copy-ready fix, (5) ONE grounded regeneration prompt that improves THIS thumbnail and explicitly applies the user's BRAND COLOURS and 'what to add / emphasise' requests, ending with a one-line 'expected score impact', (6) a short 2-3 variant A/B test plan. If the user gave brand colours or what-to-add, they MUST visibly shape the regen prompt. Lead with the squint test in the verdict.",
 
     // ── DESIGN LIBRARY ───────────────────────────────────────────────────────
     // STARTER patterns from established thumbnail design. Refined from the
