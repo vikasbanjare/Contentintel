@@ -236,7 +236,15 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
 4. Optional black "100K+/400K+ VIEWS" social-proof pill top-right; small channel logo top-left/bottom.
 5. VARIANTS used for the right story: Versus/duel (two figures or logos, e.g. Modi vs Trump, UPI vs eRupee), Chart/data-viz hero (a growth/gains-vs-losses chart with figures), Triptych/3-panel (OIL | INTERNET | AI), Product/object hero on cash (price-reveal shock, e.g. "This Costs ₹4,50,000??").
 6. TONE: confident and aspirational by default; intense for rivalry/news; shocked/curious for price reveals. A minimalist premium style ("It's not just a Phone") exists but is used sparingly.
-When you judge or regenerate a thumbnail in THIS niche, score it against this formula and make the regen prompt follow it — while PRESERVING the real founder/figure, brand and number actually shown. (Note: patterns describe the house style; without CTR data they are not yet ranked by performance.)`,
+When you judge or regenerate a thumbnail in THIS niche, score it against this formula and make the regen prompt follow it — while PRESERVING the real founder/figure, brand and number actually shown. (Note: patterns describe the house style; without CTR data they are not yet ranked by performance.)
+
+STOCK-MARKET / TRADING TIPS (personal-brand finance creator, e.g. Indian stock channels) — observed style (n=4, single creator → low confidence, treat as hypothesis):
+1. LAYOUT: the creator's OWN face cut out on the left or right third, eye contact, expression matched to the angle (smile for tips, wide-eyed shock for warnings, smirk for contrarian). Light/white or blue-grid background with a faint green up-line stock chart.
+2. HOOK TEXT: bold ALL-CAPS sans, large (~half the frame). Lead with a SMALL specific stock count — "2 Stocks", "3 Breakout Stocks" (NOT crore figures). Trader vocabulary: Breakout, In Focus, Falling Market, Good?/Bad?.
+3. SIGNATURE DEVICE: a highlighter/marker emphasis — a yellow highlight box (or a coral word) behind ONE key word ("Breakout", "IN FOCUS", "CONDITION").
+4. CURIOSITY GAP = hidden tickers: "?" cards, a magnifier over a news clue, "IN FOCUS" — withhold the actual stock names (the payoff). A curved arrow can point to the clue.
+5. PROPS that signal the topic: phone showing news, ₹500 cash stacks, gold coins, sector buildings; good-vs-bad = green/red split.
+Keep the creator's real face and the real stock count/claim shown; do not invent tickers.`,
 
   },
 
