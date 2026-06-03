@@ -125,9 +125,10 @@ async function callClaude({ system, userText, image, model, maxTokens = 1800 }) 
 
 // ── Prompt builder + JSON report parsing ─────────────────────────────────────
 const REPORT_SHAPE =
-`Return ONLY valid JSON (no markdown, no prose) in exactly this shape:
+`Return ONLY a single valid JSON object — no markdown fences, no text before or after it — in exactly this shape:
 {
   "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
+  "winner": { "pick": "A|B|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
   "scores": [ { "name": "string", "score": 0-100, "why": "plain-English reason" } ],
   "sections": [
      { "type": "issues",    "title": "string", "items": [ { "level": "green|yellow|red", "text": "string" } ] },
@@ -138,15 +139,20 @@ const REPORT_SHAPE =
   ],
   "bottomLine": "one honest paragraph: what to fix and the single highest-impact change"
 }
-Use as many or as few sections as useful. Quote the user's actual words. Every criticism gets a copy-ready fix.`;
+Rules:
+- "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
+- Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
+- Use as many or as few sections as useful. Quote the user's actual words. Every criticism gets a copy-ready fix.
+- Write in the same language and script as the user's content.`;
 
 function buildSystem(type) {
   const r = getResearch(type);
   const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
   return [
-    `You are ContentIntel — a blunt, specific pre-publish ${r.label || type} checker for short-form creators.`,
-    core ? `SHARED RESEARCH CONTEXT (applies to every check):\n"""\n${core}\n"""` : "",
+    `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
+    `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
+    core ? `RESEARCH CONTEXT (principles — apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
     `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
@@ -155,13 +161,19 @@ function buildSystem(type) {
   ].filter(Boolean).join("\n\n");
 }
 
+// Robust: tolerate code fences, surrounding prose, and trailing commas.
+// Returns null (never throws) when the text isn't usable JSON.
 function parseReport(text) {
   let t = (text || "").trim();
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence) t = fence[1].trim();
   const s = t.indexOf("{"), e = t.lastIndexOf("}");
   if (s !== -1 && e !== -1) t = t.slice(s, e + 1);
-  return JSON.parse(t);
+  try { return JSON.parse(t); }
+  catch (e1) {
+    try { return JSON.parse(t.replace(/,\s*([}\]])/g, "$1")); } catch (e2) {}
+    return null;
+  }
 }
 
 // ── useAnalysis — shared runner for every checker tab ────────────────────────
@@ -181,7 +193,13 @@ function useAnalysis(type) {
     }
     try {
       const { text, usage } = await callClaude({ system: buildSystem(type), userText, image, maxTokens });
-      const json = parseReport(text);
+      let json = parseReport(text);
+      if (!json || typeof json !== "object") {
+        // Model didn't return clean JSON — show its analysis as plain text rather than failing.
+        const body = (text || "").trim();
+        if (!body) throw new Error("The AI returned an empty response. Try again.");
+        json = { sections: [{ type: "text", title: "Analysis", body }] };
+      }
       setReport(json); setUsage(usage); setState("done");
     } catch (e) {
       if (String(e.message) === "NO_KEY") { setTimeout(() => setState("done"), 600); return; }
@@ -254,6 +272,19 @@ function ReportView({ report, mood }) {
   return (
     <div className="ci-results" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
       {v.level && <TrafficLight level={v.level} title={v.title || "Verdict"} text={v.text || ""} />}
+
+      {report.winner && report.winner.pick && (
+        <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbB}66, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+          <Eyebrow mood={mood} glow>{report.winner.pick === "tie" ? "It's a tie" : "Winner"}</Eyebrow>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+            <span style={{ fontSize: 20 }}>{report.winner.pick === "tie" ? "🤝" : "🏆"}</span>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 20, color: "var(--text-1)" }}>
+              {report.winner.label || (report.winner.pick === "tie" ? "Too close to call" : `${report.winner.pick} wins`)}
+            </div>
+          </div>
+          {report.winner.why && <div style={{ fontSize: 14, lineHeight: 1.55, marginTop: 8, color: "var(--text-2)" }}>{report.winner.why}</div>}
+        </Block>
+      )}
 
       {Array.isArray(report.scores) && report.scores.length > 0 && (
         <Block title="Scores" mood={mood}>

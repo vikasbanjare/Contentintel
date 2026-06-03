@@ -2019,9 +2019,10 @@ async function callClaude({ system, userText, image, model, maxTokens = 1800 }) 
 
 // ── Prompt builder + JSON report parsing ─────────────────────────────────────
 const REPORT_SHAPE =
-`Return ONLY valid JSON (no markdown, no prose) in exactly this shape:
+`Return ONLY a single valid JSON object — no markdown fences, no text before or after it — in exactly this shape:
 {
   "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
+  "winner": { "pick": "A|B|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
   "scores": [ { "name": "string", "score": 0-100, "why": "plain-English reason" } ],
   "sections": [
      { "type": "issues",    "title": "string", "items": [ { "level": "green|yellow|red", "text": "string" } ] },
@@ -2032,15 +2033,20 @@ const REPORT_SHAPE =
   ],
   "bottomLine": "one honest paragraph: what to fix and the single highest-impact change"
 }
-Use as many or as few sections as useful. Quote the user's actual words. Every criticism gets a copy-ready fix.`;
+Rules:
+- "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
+- Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
+- Use as many or as few sections as useful. Quote the user's actual words. Every criticism gets a copy-ready fix.
+- Write in the same language and script as the user's content.`;
 
 function buildSystem(type) {
   const r = getResearch(type);
   const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
   return [
-    `You are ContentIntel — a blunt, specific pre-publish ${r.label || type} checker for short-form creators.`,
-    core ? `SHARED RESEARCH CONTEXT (applies to every check):\n"""\n${core}\n"""` : "",
+    `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
+    `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
+    core ? `RESEARCH CONTEXT (principles — apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
     `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
@@ -2049,13 +2055,19 @@ function buildSystem(type) {
   ].filter(Boolean).join("\n\n");
 }
 
+// Robust: tolerate code fences, surrounding prose, and trailing commas.
+// Returns null (never throws) when the text isn't usable JSON.
 function parseReport(text) {
   let t = (text || "").trim();
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence) t = fence[1].trim();
   const s = t.indexOf("{"), e = t.lastIndexOf("}");
   if (s !== -1 && e !== -1) t = t.slice(s, e + 1);
-  return JSON.parse(t);
+  try { return JSON.parse(t); }
+  catch (e1) {
+    try { return JSON.parse(t.replace(/,\s*([}\]])/g, "$1")); } catch (e2) {}
+    return null;
+  }
 }
 
 // ── useAnalysis — shared runner for every checker tab ────────────────────────
@@ -2075,7 +2087,13 @@ function useAnalysis(type) {
     }
     try {
       const { text, usage } = await callClaude({ system: buildSystem(type), userText, image, maxTokens });
-      const json = parseReport(text);
+      let json = parseReport(text);
+      if (!json || typeof json !== "object") {
+        // Model didn't return clean JSON — show its analysis as plain text rather than failing.
+        const body = (text || "").trim();
+        if (!body) throw new Error("The AI returned an empty response. Try again.");
+        json = { sections: [{ type: "text", title: "Analysis", body }] };
+      }
       setReport(json); setUsage(usage); setState("done");
     } catch (e) {
       if (String(e.message) === "NO_KEY") { setTimeout(() => setState("done"), 600); return; }
@@ -2148,6 +2166,19 @@ function ReportView({ report, mood }) {
   return (
     <div className="ci-results" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
       {v.level && <TrafficLight level={v.level} title={v.title || "Verdict"} text={v.text || ""} />}
+
+      {report.winner && report.winner.pick && (
+        <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbB}66, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+          <Eyebrow mood={mood} glow>{report.winner.pick === "tie" ? "It's a tie" : "Winner"}</Eyebrow>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+            <span style={{ fontSize: 20 }}>{report.winner.pick === "tie" ? "🤝" : "🏆"}</span>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 20, color: "var(--text-1)" }}>
+              {report.winner.label || (report.winner.pick === "tie" ? "Too close to call" : `${report.winner.pick} wins`)}
+            </div>
+          </div>
+          {report.winner.why && <div style={{ fontSize: 14, lineHeight: 1.55, marginTop: 8, color: "var(--text-2)" }}>{report.winner.why}</div>}
+        </Block>
+      )}
 
       {Array.isArray(report.scores) && report.scores.length > 0 && (
         <Block title="Scores" mood={mood}>
@@ -2712,23 +2743,21 @@ const {
   WorkHead: SWH, LoadingResults: SLR,
 } = window;
 
-const DEFAULT_SCRIPT = `Kya aapko pata hai ki 90% log SIP mein paisa ganwa dete hain?
+const DEFAULT_SCRIPT = `Most people quit their new habit in the first week. Here's the one trick that fixed it for me.
 
-Main aapko batata hoon. Pehle samajhna padega ki SIP kaise kaam karta hai.
+When I started, I tried to do an hour a day. By day three I'd already given up.
 
-SIP ek tareeka hai invest karne ka. Har mahine thoda thoda paisa.
+So I changed one thing: I made the goal embarrassingly small. Two minutes. That's it.
 
-Lekin kyun log ganwa dete hain? Kyunki woh galat fund choose karte hain.
+Two minutes is too small to skip. And once you start, you usually keep going.
 
-Dekho, market upar neeche hota rehta hai. Yeh normal hai.
+Within a month, two minutes had quietly turned into thirty — without any willpower.
 
-Toh agar aap consistent rehte ho, toh long term mein accha return milta hai.
+The point isn't the two minutes. It's showing up every single day.
 
-Bahut log ghabra ke paisa nikaal lete hain. Yeh galti mat karna.
+So pick your habit, shrink it until it feels almost silly, and just start.
 
-Patience rakho. Time do. Compounding ka magic dekho.
-
-Toh yeh thi SIP ki basic jaankari. Umeed hai samajh aaya hoga.`;
+If this helped, save it — and tell me in the comments which habit you're starting.`;
 
 function ScriptTab({ onOpenKey }) {
   const mood = 'navy';
@@ -2737,11 +2766,24 @@ function ScriptTab({ onOpenKey }) {
   const [text, setText] = React.useState(DEFAULT_SCRIPT);
   const [textB, setTextB] = React.useState('');
   const [compare, setCompare] = React.useState(false);
-  const [lang, setLang] = React.useState('Hinglish');
-  const [kind, setKind] = React.useState('Finance');
-  const [who, setWho] = React.useState('Working people');
+  const [lang, setLang] = React.useState('Auto-detect');
+  const [kind, setKind] = React.useState('Education');
+  const [who, setWho] = React.useState('General');
   const [where, setWhere] = React.useState('Reels');
   const [rewrite, setRewrite] = React.useState({ open: false, dir: '', loading: false, out: null });
+  const fileRef = React.useRef(null);
+
+  function onFile(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = String(reader.result || '').trim();
+      if (content) { if (compare && text.trim()) setTextB(content); else setText(content); }
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  }
 
   const { state, report, usage, err, run } = window.useAnalysis('script');
 
@@ -2750,8 +2792,11 @@ function ScriptTab({ onOpenKey }) {
   const lengthOk = where === 'Reels' || where === 'Shorts' ? seconds <= 35 : true;
 
   const userText =
-    `Language: ${lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${words} (~${seconds}s)\n\n` +
-    `SCRIPT (Version A):\n${text}` + (compare && textB.trim() ? `\n\nSCRIPT (Version B):\n${textB}` : '');
+    `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${words} (~${seconds}s)\n\n` +
+    `SCRIPT (Version A):\n${text}` +
+    (compare && textB.trim()
+      ? `\n\nSCRIPT (Version B):\n${textB}\n\nCompare Version A and Version B and declare the winner (fill the "winner" field).`
+      : '');
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
   function check() { run({ userText, maxTokens: 2200 }); }
@@ -2782,9 +2827,11 @@ function ScriptTab({ onOpenKey }) {
       <SB mood={mood} style={{ padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <STg on={compare} onChange={setCompare} mood={mood}>Compare two versions</STg>
-          <button className="ci-drop" style={{ minHeight: 40, padding: '8px 14px', width: 'auto', border: '1px solid var(--stroke-1)' }}>
+          <input ref={fileRef} type="file" accept=".txt,.md,.text,text/plain" style={{ display: 'none' }} onChange={onFile} />
+          <button type="button" className="ci-drop" style={{ minHeight: 40, padding: '8px 14px', width: 'auto', border: '1px solid var(--stroke-1)' }}
+            onClick={() => fileRef.current && fileRef.current.click()}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 10.5V3M5 6l3-3 3 3M3 11.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
-            Upload a file (.txt, .docx)
+            Upload a file (.txt, .md)
           </button>
         </div>
 
@@ -2802,10 +2849,10 @@ function ScriptTab({ onOpenKey }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-          <SCG label="Language" options={['Hinglish', 'Hindi', 'English']} value={lang} onChange={setLang} />
-          <SCG label="Content" options={['Finance', 'Education', 'Entertainment', 'Ad', 'Podcast']} value={kind} onChange={setKind} />
-          <SCG label="Audience" options={['City audience', 'Small town', 'Gen Z', 'Working people']} value={who} onChange={setWho} />
-          <SCG label="Going to" options={['Reels', 'Shorts', 'YouTube', 'WhatsApp']} value={where} onChange={setWhere} />
+          <SCG label="Language" options={['Auto-detect', 'English', 'Hindi', 'Hinglish', 'Spanish', 'Other']} value={lang} onChange={setLang} />
+          <SCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Fitness', 'Comedy', 'Vlog', 'Finance', 'Ad', 'Other']} value={kind} onChange={setKind} />
+          <SCG label="Audience" options={['General', 'Gen Z', 'Millennials', 'Professionals', 'Beginners']} value={who} onChange={setWho} />
+          <SCG label="Going to" options={['Reels', 'TikTok', 'Shorts', 'YouTube', 'Other']} value={where} onChange={setWhere} />
         </div>
 
         <div className="ci-wpm" style={{ marginTop: 16 }}>
@@ -3030,18 +3077,26 @@ function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
   const m = TM[mood];
   const [compare, setCompare] = React.useState(false);
-  const [title, setTitle] = React.useState('Which AI Wins in 2026? GPT-4 vs Claude vs Gemini');
-  const [kind, setKind] = React.useState('Tech');
+  const [title, setTitle] = React.useState('How I Learned to Cook in 30 Days');
+  const [kind, setKind] = React.useState('Lifestyle');
   const [imgA, setImgA] = React.useState(null);
   const [imgB, setImgB] = React.useState(null);
+  const [descA, setDescA] = React.useState('');
+  const [descB, setDescB] = React.useState('');
   const { state, report, usage, err, run } = window.useAnalysis('thumbnail');
 
-  const userText =
-    `Video title: ${title || '(none given)'}\nContent type: ${kind}\n` +
-    (compare ? 'Two thumbnails are attached — compare them and say which wins.\n' : '') +
-    `Analyze the attached thumbnail image and judge whether it will earn the click.`;
-  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (imgA ? 1400 : 0); // image ≈ ~1.4k tokens
-  function check() { run({ userText, image: imgA, maxTokens: 2000 }); }
+  const hasVision = !!window.getKey(); // image vision only works with an API key; the free Claude AI is text-only
+  const userText = compare
+    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n\n` +
+      `THUMBNAIL A: ${descA.trim() || '(see attached image A)'}\n` +
+      `THUMBNAIL B: ${descB.trim() || '(see attached image B)'}\n\n` +
+      `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
+    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n\n` +
+      `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
+      `Judge whether this thumbnail will earn the click.`;
+  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (hasVision && imgA ? 1400 : 0);
+  // Vision only when a key is present AND we're not comparing (single-image vision path).
+  function check() { run({ userText, image: (hasVision && !compare ? imgA : null), maxTokens: 2000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -3054,15 +3109,37 @@ function ThumbnailTab({ onOpenKey }) {
           <ImageDrop image={imgA} onPick={setImgA} label="Drop your image here — any size, JPG or PNG" />
           {compare && <ImageDrop image={imgB} onPick={setImgB} label="Drop the second image" />}
         </div>
+
+        {!hasVision && (
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 10, padding: '8px 11px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)', lineHeight: 1.5 }}>
+            The free AI inside Claude can't see images — so <b>describe each thumbnail below</b> and that's what gets reviewed. (Add an API key in Settings for real image vision.)
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12, marginTop: 14 }}>
+          <div>
+            {compare && <label className="ci-label">Describe thumbnail A</label>}
+            {!compare && <label className="ci-label">Describe your thumbnail (text, faces, colors, layout)</label>}
+            <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descA} onChange={e => setDescA(e.target.value)}
+              placeholder="e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background, a burnt pan…" />
+          </div>
+          {compare && (
+            <div>
+              <label className="ci-label">Describe thumbnail B</label>
+              <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descB} onChange={e => setDescB(e.target.value)}
+                placeholder="Describe the second thumbnail the same way…" />
+            </div>
+          )}
+        </div>
+
         <div style={{ marginTop: 16 }}>
           <label className="ci-label">What's the video title? (helps us check if thumb + title work together)</label>
           <input className="ci-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Paste the video title…" />
         </div>
         <div style={{ marginTop: 14 }}>
-          <TCG label="Content" options={['Finance', 'Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food']} value={kind} onChange={setKind} />
+          <TCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
         </div>
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my thumbnail" /></div>
-        {window.getKey() && !imgA && <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8 }}>Tip: upload an image above to analyze your real thumbnail (otherwise you'll get a sample).</div>}
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -3149,20 +3226,22 @@ function TitleTab({ onOpenKey }) {
   const mood = 'cyan';
   const m = TM[mood];
   const [compare, setCompare] = React.useState(false);
-  const [title, setTitle] = React.useState('5 SIP Mistakes Beginners Make');
+  const [title, setTitle] = React.useState('5 Mistakes Every Beginner Makes');
   const [titleB, setTitleB] = React.useState('');
   const [about, setAbout] = React.useState('');
-  const [lang, setLang] = React.useState('Hinglish');
+  const [lang, setLang] = React.useState('Auto-detect');
   const [platform, setPlatform] = React.useState('YouTube');
-  const [aud, setAud] = React.useState('Working people');
+  const [aud, setAud] = React.useState('General');
   const { state, report, usage, err, run } = window.useAnalysis('title');
   const chars = title.length;
 
   const userText =
-    `Language: ${lang}\nPlatform: ${platform}\nAudience: ${aud}\n` +
+    `Language: ${lang === 'Auto-detect' ? '(detect from the title)' : lang}\nPlatform: ${platform}\nAudience: ${aud}\n` +
     (about.trim() ? `Video is about: ${about}\n` : '') +
-    `TITLE: ${title}` + (compare && titleB.trim() ? `\nTITLE B: ${titleB}` : '') +
-    `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`;
+    `TITLE${compare && titleB.trim() ? ' A' : ''}: ${title}` +
+    (compare && titleB.trim()
+      ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
+      : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
   function check() { run({ userText, maxTokens: 2200 }); }
 
@@ -3193,9 +3272,9 @@ function TitleTab({ onOpenKey }) {
           <input className="ci-input" value={about} onChange={e => setAbout(e.target.value)} placeholder="One line about the video…" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-          <TCG label="Language" options={['Hinglish', 'Hindi', 'English']} value={lang} onChange={setLang} />
-          <TCG label="Platform" options={['Reels', 'Shorts', 'YouTube']} value={platform} onChange={setPlatform} />
-          <TCG label="Audience" options={['City audience', 'Small town', 'Gen Z', 'Working people']} value={aud} onChange={setAud} />
+          <TCG label="Language" options={['Auto-detect', 'English', 'Hindi', 'Hinglish', 'Spanish', 'Other']} value={lang} onChange={setLang} />
+          <TCG label="Platform" options={['Reels', 'TikTok', 'Shorts', 'YouTube']} value={platform} onChange={setPlatform} />
+          <TCG label="Audience" options={['General', 'Gen Z', 'Millennials', 'Professionals', 'Beginners']} value={aud} onChange={setAud} />
         </div>
         <div className="ci-wpm" style={{ marginTop: 16 }}>
           <span>Characters: <b>{chars}</b></span>

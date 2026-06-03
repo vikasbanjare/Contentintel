@@ -39,18 +39,26 @@ function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
   const m = TM[mood];
   const [compare, setCompare] = React.useState(false);
-  const [title, setTitle] = React.useState('Which AI Wins in 2026? GPT-4 vs Claude vs Gemini');
-  const [kind, setKind] = React.useState('Tech');
+  const [title, setTitle] = React.useState('How I Learned to Cook in 30 Days');
+  const [kind, setKind] = React.useState('Lifestyle');
   const [imgA, setImgA] = React.useState(null);
   const [imgB, setImgB] = React.useState(null);
+  const [descA, setDescA] = React.useState('');
+  const [descB, setDescB] = React.useState('');
   const { state, report, usage, err, run } = window.useAnalysis('thumbnail');
 
-  const userText =
-    `Video title: ${title || '(none given)'}\nContent type: ${kind}\n` +
-    (compare ? 'Two thumbnails are attached — compare them and say which wins.\n' : '') +
-    `Analyze the attached thumbnail image and judge whether it will earn the click.`;
-  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (imgA ? 1400 : 0); // image ≈ ~1.4k tokens
-  function check() { run({ userText, image: imgA, maxTokens: 2000 }); }
+  const hasVision = !!window.getKey(); // image vision only works with an API key; the free Claude AI is text-only
+  const userText = compare
+    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n\n` +
+      `THUMBNAIL A: ${descA.trim() || '(see attached image A)'}\n` +
+      `THUMBNAIL B: ${descB.trim() || '(see attached image B)'}\n\n` +
+      `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
+    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n\n` +
+      `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
+      `Judge whether this thumbnail will earn the click.`;
+  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (hasVision && imgA ? 1400 : 0);
+  // Vision only when a key is present AND we're not comparing (single-image vision path).
+  function check() { run({ userText, image: (hasVision && !compare ? imgA : null), maxTokens: 2000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -63,15 +71,37 @@ function ThumbnailTab({ onOpenKey }) {
           <ImageDrop image={imgA} onPick={setImgA} label="Drop your image here — any size, JPG or PNG" />
           {compare && <ImageDrop image={imgB} onPick={setImgB} label="Drop the second image" />}
         </div>
+
+        {!hasVision && (
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 10, padding: '8px 11px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)', lineHeight: 1.5 }}>
+            The free AI inside Claude can't see images — so <b>describe each thumbnail below</b> and that's what gets reviewed. (Add an API key in Settings for real image vision.)
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12, marginTop: 14 }}>
+          <div>
+            {compare && <label className="ci-label">Describe thumbnail A</label>}
+            {!compare && <label className="ci-label">Describe your thumbnail (text, faces, colors, layout)</label>}
+            <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descA} onChange={e => setDescA(e.target.value)}
+              placeholder="e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background, a burnt pan…" />
+          </div>
+          {compare && (
+            <div>
+              <label className="ci-label">Describe thumbnail B</label>
+              <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descB} onChange={e => setDescB(e.target.value)}
+                placeholder="Describe the second thumbnail the same way…" />
+            </div>
+          )}
+        </div>
+
         <div style={{ marginTop: 16 }}>
           <label className="ci-label">What's the video title? (helps us check if thumb + title work together)</label>
           <input className="ci-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Paste the video title…" />
         </div>
         <div style={{ marginTop: 14 }}>
-          <TCG label="Content" options={['Finance', 'Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food']} value={kind} onChange={setKind} />
+          <TCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
         </div>
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my thumbnail" /></div>
-        {window.getKey() && !imgA && <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8 }}>Tip: upload an image above to analyze your real thumbnail (otherwise you'll get a sample).</div>}
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -158,20 +188,22 @@ function TitleTab({ onOpenKey }) {
   const mood = 'cyan';
   const m = TM[mood];
   const [compare, setCompare] = React.useState(false);
-  const [title, setTitle] = React.useState('5 SIP Mistakes Beginners Make');
+  const [title, setTitle] = React.useState('5 Mistakes Every Beginner Makes');
   const [titleB, setTitleB] = React.useState('');
   const [about, setAbout] = React.useState('');
-  const [lang, setLang] = React.useState('Hinglish');
+  const [lang, setLang] = React.useState('Auto-detect');
   const [platform, setPlatform] = React.useState('YouTube');
-  const [aud, setAud] = React.useState('Working people');
+  const [aud, setAud] = React.useState('General');
   const { state, report, usage, err, run } = window.useAnalysis('title');
   const chars = title.length;
 
   const userText =
-    `Language: ${lang}\nPlatform: ${platform}\nAudience: ${aud}\n` +
+    `Language: ${lang === 'Auto-detect' ? '(detect from the title)' : lang}\nPlatform: ${platform}\nAudience: ${aud}\n` +
     (about.trim() ? `Video is about: ${about}\n` : '') +
-    `TITLE: ${title}` + (compare && titleB.trim() ? `\nTITLE B: ${titleB}` : '') +
-    `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`;
+    `TITLE${compare && titleB.trim() ? ' A' : ''}: ${title}` +
+    (compare && titleB.trim()
+      ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
+      : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
   function check() { run({ userText, maxTokens: 2200 }); }
 
@@ -202,9 +234,9 @@ function TitleTab({ onOpenKey }) {
           <input className="ci-input" value={about} onChange={e => setAbout(e.target.value)} placeholder="One line about the video…" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-          <TCG label="Language" options={['Hinglish', 'Hindi', 'English']} value={lang} onChange={setLang} />
-          <TCG label="Platform" options={['Reels', 'Shorts', 'YouTube']} value={platform} onChange={setPlatform} />
-          <TCG label="Audience" options={['City audience', 'Small town', 'Gen Z', 'Working people']} value={aud} onChange={setAud} />
+          <TCG label="Language" options={['Auto-detect', 'English', 'Hindi', 'Hinglish', 'Spanish', 'Other']} value={lang} onChange={setLang} />
+          <TCG label="Platform" options={['Reels', 'TikTok', 'Shorts', 'YouTube']} value={platform} onChange={setPlatform} />
+          <TCG label="Audience" options={['General', 'Gen Z', 'Millennials', 'Professionals', 'Beginners']} value={aud} onChange={setAud} />
         </div>
         <div className="ci-wpm" style={{ marginTop: 16 }}>
           <span>Characters: <b>{chars}</b></span>

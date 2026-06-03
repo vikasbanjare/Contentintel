@@ -6,23 +6,21 @@ const {
   WorkHead: SWH, LoadingResults: SLR,
 } = window;
 
-const DEFAULT_SCRIPT = `Kya aapko pata hai ki 90% log SIP mein paisa ganwa dete hain?
+const DEFAULT_SCRIPT = `Most people quit their new habit in the first week. Here's the one trick that fixed it for me.
 
-Main aapko batata hoon. Pehle samajhna padega ki SIP kaise kaam karta hai.
+When I started, I tried to do an hour a day. By day three I'd already given up.
 
-SIP ek tareeka hai invest karne ka. Har mahine thoda thoda paisa.
+So I changed one thing: I made the goal embarrassingly small. Two minutes. That's it.
 
-Lekin kyun log ganwa dete hain? Kyunki woh galat fund choose karte hain.
+Two minutes is too small to skip. And once you start, you usually keep going.
 
-Dekho, market upar neeche hota rehta hai. Yeh normal hai.
+Within a month, two minutes had quietly turned into thirty — without any willpower.
 
-Toh agar aap consistent rehte ho, toh long term mein accha return milta hai.
+The point isn't the two minutes. It's showing up every single day.
 
-Bahut log ghabra ke paisa nikaal lete hain. Yeh galti mat karna.
+So pick your habit, shrink it until it feels almost silly, and just start.
 
-Patience rakho. Time do. Compounding ka magic dekho.
-
-Toh yeh thi SIP ki basic jaankari. Umeed hai samajh aaya hoga.`;
+If this helped, save it — and tell me in the comments which habit you're starting.`;
 
 function ScriptTab({ onOpenKey }) {
   const mood = 'navy';
@@ -31,11 +29,24 @@ function ScriptTab({ onOpenKey }) {
   const [text, setText] = React.useState(DEFAULT_SCRIPT);
   const [textB, setTextB] = React.useState('');
   const [compare, setCompare] = React.useState(false);
-  const [lang, setLang] = React.useState('Hinglish');
-  const [kind, setKind] = React.useState('Finance');
-  const [who, setWho] = React.useState('Working people');
+  const [lang, setLang] = React.useState('Auto-detect');
+  const [kind, setKind] = React.useState('Education');
+  const [who, setWho] = React.useState('General');
   const [where, setWhere] = React.useState('Reels');
   const [rewrite, setRewrite] = React.useState({ open: false, dir: '', loading: false, out: null });
+  const fileRef = React.useRef(null);
+
+  function onFile(e) {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = String(reader.result || '').trim();
+      if (content) { if (compare && text.trim()) setTextB(content); else setText(content); }
+    };
+    reader.readAsText(f);
+    e.target.value = '';
+  }
 
   const { state, report, usage, err, run } = window.useAnalysis('script');
 
@@ -44,8 +55,11 @@ function ScriptTab({ onOpenKey }) {
   const lengthOk = where === 'Reels' || where === 'Shorts' ? seconds <= 35 : true;
 
   const userText =
-    `Language: ${lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${words} (~${seconds}s)\n\n` +
-    `SCRIPT (Version A):\n${text}` + (compare && textB.trim() ? `\n\nSCRIPT (Version B):\n${textB}` : '');
+    `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${words} (~${seconds}s)\n\n` +
+    `SCRIPT (Version A):\n${text}` +
+    (compare && textB.trim()
+      ? `\n\nSCRIPT (Version B):\n${textB}\n\nCompare Version A and Version B and declare the winner (fill the "winner" field).`
+      : '');
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
   function check() { run({ userText, maxTokens: 2200 }); }
@@ -76,9 +90,11 @@ function ScriptTab({ onOpenKey }) {
       <SB mood={mood} style={{ padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <STg on={compare} onChange={setCompare} mood={mood}>Compare two versions</STg>
-          <button className="ci-drop" style={{ minHeight: 40, padding: '8px 14px', width: 'auto', border: '1px solid var(--stroke-1)' }}>
+          <input ref={fileRef} type="file" accept=".txt,.md,.text,text/plain" style={{ display: 'none' }} onChange={onFile} />
+          <button type="button" className="ci-drop" style={{ minHeight: 40, padding: '8px 14px', width: 'auto', border: '1px solid var(--stroke-1)' }}
+            onClick={() => fileRef.current && fileRef.current.click()}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 10.5V3M5 6l3-3 3 3M3 11.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
-            Upload a file (.txt, .docx)
+            Upload a file (.txt, .md)
           </button>
         </div>
 
@@ -96,10 +112,10 @@ function ScriptTab({ onOpenKey }) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 16 }}>
-          <SCG label="Language" options={['Hinglish', 'Hindi', 'English']} value={lang} onChange={setLang} />
-          <SCG label="Content" options={['Finance', 'Education', 'Entertainment', 'Ad', 'Podcast']} value={kind} onChange={setKind} />
-          <SCG label="Audience" options={['City audience', 'Small town', 'Gen Z', 'Working people']} value={who} onChange={setWho} />
-          <SCG label="Going to" options={['Reels', 'Shorts', 'YouTube', 'WhatsApp']} value={where} onChange={setWhere} />
+          <SCG label="Language" options={['Auto-detect', 'English', 'Hindi', 'Hinglish', 'Spanish', 'Other']} value={lang} onChange={setLang} />
+          <SCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Fitness', 'Comedy', 'Vlog', 'Finance', 'Ad', 'Other']} value={kind} onChange={setKind} />
+          <SCG label="Audience" options={['General', 'Gen Z', 'Millennials', 'Professionals', 'Beginners']} value={who} onChange={setWho} />
+          <SCG label="Going to" options={['Reels', 'TikTok', 'Shorts', 'YouTube', 'Other']} value={where} onChange={setWhere} />
         </div>
 
         <div className="ci-wpm" style={{ marginTop: 16 }}>
