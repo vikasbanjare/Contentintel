@@ -81,14 +81,16 @@ function fmtCost(usd) {
 }
 
 // ── The real call — direct browser → Anthropic (BYO key) ─────────────────────
-async function callClaude({ system, userText, image, model, maxTokens = 1800 }) {
+async function callClaude({ system, userText, image, images, model, maxTokens = 1800 }) {
   const key = getKey();
+  // Normalise to an array so single- and multi-image (compare) paths share code.
+  const imgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
   // No personal key? If we're inside a Claude preview/artifact, use its free AI.
   if (!key) {
     if (hasSandbox()) {
       const prompt = [
         system, "",
-        image ? "(An image was attached but can't be forwarded in this preview — judge from the text/description.)" : "",
+        imgs.length ? "(IMPORTANT: " + imgs.length + " image(s) were attached but the free preview AI CANNOT see images. Do NOT guess what the image looks like or invent a thumbnail. Judge ONLY from any text description the user wrote; if there is none, say you cannot see the image and ask them to describe it or add an API key — and give no scores or regen prompt for an image you cannot see.)" : "",
         userText,
       ].filter(Boolean).join("\n");
       // Claude artifact API: takes a single STRING prompt, returns a STRING.
@@ -97,9 +99,14 @@ async function callClaude({ system, userText, image, model, maxTokens = 1800 }) 
     }
     throw new Error("NO_KEY");
   }
-  const content = image
-    ? [{ type: "image", source: { type: "base64", media_type: image.mime, data: image.data } },
-       { type: "text", text: userText }]
+  const content = imgs.length
+    ? [
+        ...imgs.flatMap((im, i) => [
+          ...(imgs.length > 1 ? [{ type: "text", text: (i === 0 ? "THUMBNAIL A:" : "THUMBNAIL B:") }] : []),
+          { type: "image", source: { type: "base64", media_type: im.mime, data: im.data } },
+        ]),
+        { type: "text", text: userText },
+      ]
     : userText;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -150,12 +157,20 @@ function buildSystem(type) {
   const r = getResearch(type);
   const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
+  // Optional structured design library (currently used by the thumbnail check).
+  const cat = (arr) => (arr || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
+  const libParts = [];
+  if (r.layouts && r.layouts.length)      libParts.push(`LAYOUT ARCHETYPES (classify this content as one, or "unclear"):\n${cat(r.layouts)}`);
+  if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
+  if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
+  const library = libParts.length ? `DESIGN LIBRARY — classify against and judge by these:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
     `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
     `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
     core ? `RESEARCH CONTEXT (principles — apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
     `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
+    library,
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
     r.notes ? `Extra: ${r.notes}` : "",
     REPORT_SHAPE,

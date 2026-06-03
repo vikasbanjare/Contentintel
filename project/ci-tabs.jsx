@@ -41,24 +41,36 @@ function ThumbnailTab({ onOpenKey }) {
   const [compare, setCompare] = React.useState(false);
   const [title, setTitle] = React.useState('How I Learned to Cook in 30 Days');
   const [kind, setKind] = React.useState('Lifestyle');
+  const [layout, setLayout] = React.useState('Auto-detect');
+  const [scheme, setScheme] = React.useState('Auto-detect');
   const [imgA, setImgA] = React.useState(null);
   const [imgB, setImgB] = React.useState(null);
   const [descA, setDescA] = React.useState('');
   const [descB, setDescB] = React.useState('');
   const { state, report, usage, err, run } = window.useAnalysis('thumbnail');
 
+  // Layout + colour options come straight from the research design library (single source of truth).
+  const TLib = window.getResearch('thumbnail') || {};
+  const layoutOpts = ['Auto-detect', ...((TLib.layouts || []).map(x => x.name))];
+  const schemeOpts = ['Auto-detect', ...((TLib.colorSchemes || []).map(x => x.name))];
+
   const hasVision = !!window.getKey(); // image vision only works with an API key; the free Claude AI is text-only
+  const targetLine =
+    (layout !== 'Auto-detect' ? `Target layout archetype: ${layout}\n` : '') +
+    (scheme !== 'Auto-detect' ? `Target colour scheme: ${scheme}\n` : '') +
+    ((layout === 'Auto-detect' && scheme === 'Auto-detect') ? 'Auto-detect the layout archetype and colour scheme and judge their fit.\n' : '');
   const userText = compare
-    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n\n` +
+    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL A: ${descA.trim() || '(see attached image A)'}\n` +
       `THUMBNAIL B: ${descB.trim() || '(see attached image B)'}\n\n` +
       `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
-    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n\n` +
+    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
       `Judge whether this thumbnail will earn the click.`;
-  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (hasVision && imgA ? 1400 : 0);
-  // Vision only when a key is present AND we're not comparing (single-image vision path).
-  function check() { run({ userText, image: (hasVision && !compare ? imgA : null), maxTokens: 3000 }); }
+  // Vision now works for BOTH single and compare (two images) when a key is present.
+  const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
+  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + imgs.length * 1400;
+  function check() { run({ userText, images: imgs, maxTokens: 3000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -100,6 +112,15 @@ function ThumbnailTab({ onOpenKey }) {
         </div>
         <div style={{ marginTop: 14 }}>
           <TCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <TCG label="Layout" options={layoutOpts} value={layout} onChange={setLayout} />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <TCG label="Colour scheme" options={schemeOpts} value={scheme} onChange={setScheme} />
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 8 }}>
+          Leave on <b>Auto-detect</b> to have the AI classify your thumbnail, or pick a target to grade against it.
         </div>
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
       </TB>

@@ -60,6 +60,7 @@ GLOBAL RULES FOR EVERY ANSWER:
 3) Cite specifics (character limits, %, word counts, timings) instead of vague advice.
 4) Score dimension-by-dimension — never one vague number.
 5) Quote the user's actual words; pair every criticism with a copy-ready fix.
+5b) GROUND EVERY OUTPUT IN THE ACTUAL SUBMITTED CONTENT. Describe and react to what is REALLY there — never invent details, examples, numbers or visual elements that the user did not provide. Any rewrite, alternative or generated prompt must be a transformation of THE USER'S OWN content (same subject, topic and intent), not a generic new one. If the needed input is missing (e.g. an image you cannot see and no description), say so plainly and ask for it — do NOT fabricate.
 6) COMPLIANCE IS CONDITIONAL: raise regulatory / disclaimer issues ONLY when the topic genuinely requires it — e.g. financial advice (SEBI/RBI in India, SEC/FINRA/FTC in the US, FCA in the UK, etc.), health / medical claims, legal, gambling, or paid-promotion disclosure. For ordinary, non-regulated content, do NOT add any compliance note.
 7) For A/B comparisons, always name a clear winner and explain why in one specific sentence.`,
 
@@ -113,7 +114,15 @@ OUTPUT EXPECTATIONS: a line-by-line emotion/attention read, the predicted exact 
   thumbnail: {
     label: "Thumbnail",
     systemGuidance:
-`Judge whether the thumbnail EARNS THE CLICK in a crowded, mobile, muted feed — at roughly 120px wide, scrolled past in under a second. Judge it as the FEED renders it, not as a piece of art. If an image is attached, analyse it directly; if only a TEXT DESCRIPTION is given (free mode, no vision), judge rigorously from the description and say you are working from the description.
+`Judge whether the thumbnail EARNS THE CLICK in a crowded, mobile, muted feed — at roughly 120px wide, scrolled past in under a second. Judge it as the FEED renders it, not as a piece of art.
+
+STEP 0 — GROUND YOURSELF IN THIS EXACT THUMBNAIL (do this FIRST, before any judgement):
+- If an IMAGE is attached, describe ONLY what is actually in it: the subject, their expression and size in frame, the literal text words, the colours, the background, the layout, any objects/arrows. Do not invent anything that is not visibly there.
+- If only a TEXT DESCRIPTION is given (free mode, no vision), work strictly from that description and say "based on your description".
+- If you have NEITHER a visible image NOR a description, do NOT fabricate a thumbnail. Say you cannot see it, ask the user to attach an image (with an API key for vision) or describe it, and give only general guidance — output NO scores pretending to judge a specific image and NO regen prompt.
+Everything below — scores, fixes and especially the regeneration prompt — must refer to the ACTUAL thumbnail you grounded yourself in here.
+
+STEP 1 — CLASSIFY against the DESIGN LIBRARY provided below: name which LAYOUT archetype and which COLOR scheme this thumbnail uses (or "unclear/none"), and note whether that choice fits the niche. If the user pre-selected a target layout or colour scheme, evaluate against THAT target.
 
 A. THE SQUINT / HALF-SECOND TEST: at thumbnail size and a glance, is there ONE instantly clear focal point and ONE clear idea? If the eye doesn't know where to land, it fails — say so first.
 
@@ -144,7 +153,15 @@ F. CURIOSITY & PROMISE — thumb + title as ONE unit:
 
 G. PATTERN INTERRUPT: would this look DIFFERENT from the other thumbnails around it in this niche? Sameness = invisible.
 
-OUTPUT EXPECTATIONS: an overall 0–100 plus per-dimension scores, a short "what the feed actually sees" description, the SINGLE highest-impact change, and 1–2 concrete image-generation prompts (calibrated to the content's own context) for a stronger version. If two thumbnails (A and B) are described/attached, compare them dimension-by-dimension and fill the "winner" field with the stronger one and why.`,
+REGENERATION PROMPT — CRITICAL (this is where generic, unrelated output must be prevented):
+The image-generation prompt(s) you output MUST be an IMPROVED VERSION OF THIS EXACT THUMBNAIL — never a brand-new, unrelated image.
+- PRESERVE what is already there and working: the real subject / person, the actual topic and core concept, the real text message, any brand identity.
+- CHANGE ONLY the specific weak elements you flagged above (e.g. "enlarge the face to fill the left third", "switch the muddy palette to a high-contrast teal/orange scheme", "cut the text from 7 words to 3: 'I QUIT'", "add rim light to separate the subject from the background").
+- Reference the REAL observed details by name so the result is recognisably the same thumbnail, improved — not a different video.
+- Make it directly usable in an image generator: state the layout archetype, colour scheme, composition, exact text, subject, expression, lighting and background.
+- If in STEP 0 you could NOT see or read the thumbnail, output NO regen prompt — ask for the image/description instead.
+
+OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STEP 0), the layout + colour-scheme classification (STEP 1), an overall 0–100 plus per-dimension scores, the SINGLE highest-impact change, and 1–2 grounded regeneration prompts as defined above. If two thumbnails (A and B) are attached/described, compare them dimension-by-dimension and fill the "winner" field with the stronger one and why.`,
     rubric: [
       { name: "Focal clarity (squint test)", what: "One instantly clear subject + idea at 120px in half a second." },
       { name: "Composition & hierarchy", what: "Figure-ground separation, placement, depth, ≤3 elements, leading gaze." },
@@ -154,7 +171,43 @@ OUTPUT EXPECTATIONS: an overall 0–100 plus per-dimension scores, a short "what
       { name: "Curiosity gap (thumb+title)", what: "One promise with an open loop; no answer given away; no mismatch." },
       { name: "Pattern interrupt", what: "Visibly different from competing thumbnails in this niche." },
     ],
-    notes: "Lead with the squint test, name the single highest-impact fix, and give 1–2 image-gen prompts.",
+    notes: "Lead with the squint test, name the single highest-impact fix, and give 1–2 grounded regen prompts.",
+
+    // ── DESIGN LIBRARY ───────────────────────────────────────────────────────
+    // STARTER patterns from established thumbnail design. Refined from the
+    // owner's analysis of top-performing thumbnails (batches added over time).
+    // The analyzer classifies each thumbnail against these, and the UI shows
+    // them as Layout / Colour pickers. Edit freely — names here drive the UI.
+    layouts: [
+      { name: "Face + Text split", what: "Big emotive face on one side, 2–4 bold words on the other. The workhorse for talking-head / reaction content." },
+      { name: "Full-bleed face", what: "A single close-up face fills the frame with an exaggerated expression; little or no text. Maximum emotion." },
+      { name: "Subject + object/result", what: "Person reacting to a clear object or end-result (the product, the money, the dish, the screen). Shows the payoff." },
+      { name: "Before / after split", what: "Frame split into two contrasting states. Strong for transformations, comparisons, tutorials." },
+      { name: "Text-dominant", what: "A large typographic statement is the hero; imagery is secondary. Good for ideas, news, finance, education." },
+      { name: "Product / object hero", what: "The object centered on a clean, separated background. Good for tech, unboxing, reviews — often no face." },
+      { name: "Number / list hero", what: "A big number is the focal point (e.g. '7', '$10,000'). Signals a listicle or a concrete stake." },
+      { name: "Annotated / arrow", what: "Circles, arrows or highlights direct the eye to a detail. Curiosity and 'look here' energy." },
+      { name: "Scene / establishing", what: "A wide environmental shot (travel, vlog, cinematic). Sells place and mood; weak focal point unless composed well." },
+    ],
+    colorSchemes: [
+      { name: "High-contrast complementary", what: "Opposites that vibrate: teal/orange, blue/yellow, purple/yellow. The strongest in-feed pop." },
+      { name: "Bold saturated primary", what: "Loud reds/yellows/blues at high saturation. Energetic, MrBeast-style." },
+      { name: "Dark + neon accent", what: "Near-black background with ONE glowing accent (cyan, lime, magenta). Tech, gaming, drama." },
+      { name: "Bright + white space", what: "Light, clean background with one strong accent. Pops on a dark feed; reads premium/educational." },
+      { name: "Warm dramatic", what: "Reds/oranges/ambers, high energy and urgency. Good for stakes and emotion." },
+      { name: "Cool / tech", what: "Blues/cyans, calm and trustworthy. Finance, software, explainer." },
+      { name: "Monochrome + single accent", what: "One desaturated palette with a single saturated highlight on the focal point. Elegant, focuses the eye." },
+    ],
+    designPrinciples:
+`(STARTER set — replace/extend with findings extracted from the owner's top-100 thumbnail analysis.)
+- One focal point that survives the squint test at ~120px; everything else is support.
+- Strong figure-ground separation (rim light, blur, cut-out outline) so the subject pops off the background.
+- ≤3 competing elements; negative space is a feature, not wasted room.
+- Text ≤3–4 big words, high contrast with an outline/shadow, kept out of the bottom-right (timestamp) and right edge (Shorts UI).
+- Faces win when the niche is personality-led: large, well-lit, ONE exaggerated emotion, eye contact.
+- The palette should contrast with the platform UI and with likely neighbouring thumbnails — be the different one.
+- Thumb + title form ONE promise with a curiosity gap; never repeat the title verbatim on the image.`,
+
   },
 
   // ── TITLE ─────────────────────────────────────────────────────────────────

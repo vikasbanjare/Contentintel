@@ -1975,14 +1975,16 @@ function fmtCost(usd) {
 }
 
 // ── The real call — direct browser → Anthropic (BYO key) ─────────────────────
-async function callClaude({ system, userText, image, model, maxTokens = 1800 }) {
+async function callClaude({ system, userText, image, images, model, maxTokens = 1800 }) {
   const key = getKey();
+  // Normalise to an array so single- and multi-image (compare) paths share code.
+  const imgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
   // No personal key? If we're inside a Claude preview/artifact, use its free AI.
   if (!key) {
     if (hasSandbox()) {
       const prompt = [
         system, "",
-        image ? "(An image was attached but can't be forwarded in this preview — judge from the text/description.)" : "",
+        imgs.length ? "(IMPORTANT: " + imgs.length + " image(s) were attached but the free preview AI CANNOT see images. Do NOT guess what the image looks like or invent a thumbnail. Judge ONLY from any text description the user wrote; if there is none, say you cannot see the image and ask them to describe it or add an API key — and give no scores or regen prompt for an image you cannot see.)" : "",
         userText,
       ].filter(Boolean).join("\n");
       // Claude artifact API: takes a single STRING prompt, returns a STRING.
@@ -1991,9 +1993,14 @@ async function callClaude({ system, userText, image, model, maxTokens = 1800 }) 
     }
     throw new Error("NO_KEY");
   }
-  const content = image
-    ? [{ type: "image", source: { type: "base64", media_type: image.mime, data: image.data } },
-       { type: "text", text: userText }]
+  const content = imgs.length
+    ? [
+        ...imgs.flatMap((im, i) => [
+          ...(imgs.length > 1 ? [{ type: "text", text: (i === 0 ? "THUMBNAIL A:" : "THUMBNAIL B:") }] : []),
+          { type: "image", source: { type: "base64", media_type: im.mime, data: im.data } },
+        ]),
+        { type: "text", text: userText },
+      ]
     : userText;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -2044,12 +2051,20 @@ function buildSystem(type) {
   const r = getResearch(type);
   const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
+  // Optional structured design library (currently used by the thumbnail check).
+  const cat = (arr) => (arr || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
+  const libParts = [];
+  if (r.layouts && r.layouts.length)      libParts.push(`LAYOUT ARCHETYPES (classify this content as one, or "unclear"):\n${cat(r.layouts)}`);
+  if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
+  if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
+  const library = libParts.length ? `DESIGN LIBRARY — classify against and judge by these:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
     `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
     `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
     core ? `RESEARCH CONTEXT (principles — apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
     `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
+    library,
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
     r.notes ? `Extra: ${r.notes}` : "",
     REPORT_SHAPE,
@@ -3111,24 +3126,36 @@ function ThumbnailTab({ onOpenKey }) {
   const [compare, setCompare] = React.useState(false);
   const [title, setTitle] = React.useState('How I Learned to Cook in 30 Days');
   const [kind, setKind] = React.useState('Lifestyle');
+  const [layout, setLayout] = React.useState('Auto-detect');
+  const [scheme, setScheme] = React.useState('Auto-detect');
   const [imgA, setImgA] = React.useState(null);
   const [imgB, setImgB] = React.useState(null);
   const [descA, setDescA] = React.useState('');
   const [descB, setDescB] = React.useState('');
   const { state, report, usage, err, run } = window.useAnalysis('thumbnail');
 
+  // Layout + colour options come straight from the research design library (single source of truth).
+  const TLib = window.getResearch('thumbnail') || {};
+  const layoutOpts = ['Auto-detect', ...((TLib.layouts || []).map(x => x.name))];
+  const schemeOpts = ['Auto-detect', ...((TLib.colorSchemes || []).map(x => x.name))];
+
   const hasVision = !!window.getKey(); // image vision only works with an API key; the free Claude AI is text-only
+  const targetLine =
+    (layout !== 'Auto-detect' ? `Target layout archetype: ${layout}\n` : '') +
+    (scheme !== 'Auto-detect' ? `Target colour scheme: ${scheme}\n` : '') +
+    ((layout === 'Auto-detect' && scheme === 'Auto-detect') ? 'Auto-detect the layout archetype and colour scheme and judge their fit.\n' : '');
   const userText = compare
-    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n\n` +
+    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL A: ${descA.trim() || '(see attached image A)'}\n` +
       `THUMBNAIL B: ${descB.trim() || '(see attached image B)'}\n\n` +
       `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
-    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n\n` +
+    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
       `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
       `Judge whether this thumbnail will earn the click.`;
-  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (hasVision && imgA ? 1400 : 0);
-  // Vision only when a key is present AND we're not comparing (single-image vision path).
-  function check() { run({ userText, image: (hasVision && !compare ? imgA : null), maxTokens: 3000 }); }
+  // Vision now works for BOTH single and compare (two images) when a key is present.
+  const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
+  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + imgs.length * 1400;
+  function check() { run({ userText, images: imgs, maxTokens: 3000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -3170,6 +3197,15 @@ function ThumbnailTab({ onOpenKey }) {
         </div>
         <div style={{ marginTop: 14 }}>
           <TCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <TCG label="Layout" options={layoutOpts} value={layout} onChange={setLayout} />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <TCG label="Colour scheme" options={schemeOpts} value={scheme} onChange={setScheme} />
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 8 }}>
+          Leave on <b>Auto-detect</b> to have the AI classify your thumbnail, or pick a target to grade against it.
         </div>
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
       </TB>
