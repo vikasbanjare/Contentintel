@@ -179,17 +179,21 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
     // The analyzer classifies each thumbnail against these, and the UI shows
     // them as Layout / Colour pickers. Edit freely — names here drive the UI.
     layouts: [
+      { name: "Founder + brand scene", what: "Real founder/CEO cut out on the right third (smiling, eye contact) over the company's real store/product/logo + a faint upward growth graph, big number bottom-left, a curved arrow to the subject. The workhorse of business/case-study thumbnails." },
       { name: "Face + Text split", what: "Big emotive face on one side, 2–4 bold words on the other. The workhorse for talking-head / reaction content." },
       { name: "Full-bleed face", what: "A single close-up face fills the frame with an exaggerated expression; little or no text. Maximum emotion." },
-      { name: "Subject + object/result", what: "Person reacting to a clear object or end-result (the product, the money, the dish, the screen). Shows the payoff." },
+      { name: "Subject + object/result", what: "Person reacting to or holding a clear object or end-result (the product, the money, the card, the dish). Shows the payoff." },
+      { name: "Versus / duel", what: "Two subjects, logos or products facing off (e.g. challenger vs incumbent). Strong for rivalry, comparison and news stories." },
       { name: "Before / after split", what: "Frame split into two contrasting states. Strong for transformations, comparisons, tutorials." },
       { name: "Text-dominant", what: "A large typographic statement is the hero; imagery is secondary. Good for ideas, news, finance, education." },
-      { name: "Product / object hero", what: "The object centered on a clean, separated background. Good for tech, unboxing, reviews — often no face." },
-      { name: "Number / list hero", what: "A big number is the focal point (e.g. '7', '$10,000'). Signals a listicle or a concrete stake." },
-      { name: "Annotated / arrow", what: "Circles, arrows or highlights direct the eye to a detail. Curiosity and 'look here' energy." },
+      { name: "Product / object hero", what: "The object centered on a clean or dramatic background (e.g. on a pile of cash). Good for tech, products, reviews — often no face." },
+      { name: "Number / list hero", what: "A big number is the focal point (e.g. '7', '₹160 CR'). Signals a listicle or a concrete stake." },
+      { name: "Annotated / arrow", what: "Hand-drawn circles, arrows or highlights direct the eye to the subject or a detail. Curiosity and 'look here' energy." },
       { name: "Scene / establishing", what: "A wide environmental shot (travel, vlog, cinematic). Sells place and mood; weak focal point unless composed well." },
     ],
     colorSchemes: [
+      { name: "Sky-blue growth", what: "Bright daylight blue + clouds + a faint upward line-graph. Reads optimism/success — dominant in business/startup case-study thumbnails." },
+      { name: "Brand-matched", what: "Palette pulled from the featured company's own brand colour (pink, blue grid, warm cream). Ties the thumb to a recognisable brand." },
       { name: "High-contrast complementary", what: "Opposites that vibrate: teal/orange, blue/yellow, purple/yellow. The strongest in-feed pop." },
       { name: "Bold saturated primary", what: "Loud reds/yellows/blues at high saturation. Energetic, MrBeast-style." },
       { name: "Dark + neon accent", what: "Near-black background with ONE glowing accent (cyan, lime, magenta). Tech, gaming, drama." },
@@ -199,14 +203,31 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
       { name: "Monochrome + single accent", what: "One desaturated palette with a single saturated highlight on the focal point. Elegant, focuses the eye." },
     ],
     designPrinciples:
-`(STARTER set — replace/extend with findings extracted from the owner's top-100 thumbnail analysis.)
+`Refined from analysis of top-performing thumbnails (Batch 1: Indian business/startup case-studies).
 - One focal point that survives the squint test at ~120px; everything else is support.
 - Strong figure-ground separation (rim light, blur, cut-out outline) so the subject pops off the background.
 - ≤3 competing elements; negative space is a feature, not wasted room.
-- Text ≤3–4 big words, high contrast with an outline/shadow, kept out of the bottom-right (timestamp) and right edge (Shorts UI).
-- Faces win when the niche is personality-led: large, well-lit, ONE exaggerated emotion, eye contact.
-- The palette should contrast with the platform UI and with likely neighbouring thumbnails — be the different one.
-- Thumb + title form ONE promise with a curiosity gap; never repeat the title verbatim on the image.`,
+- Lead with the strongest CONCRETE specific — for business stories that is a big money number (₹/Crore) as the LARGEST element.
+- Two-line text formula: an elegant serif-italic number/hook line + a bold-sans descriptor line. 3–5 words per block.
+- Authority/dominance power words where they fit (King, Empire, Kingdom, Masterplan).
+- A hand-drawn curved arrow from the number toward the subject/hero object both directs the eye and opens a curiosity gap ("who/what is this?").
+- Composite the REAL subject (founder) + the REAL brand asset (store/product/logo) for instant credibility and recognition; a faint upward graph signals growth/success.
+- Text ≤3–4 big words on busy areas, high contrast with an outline/shadow, kept out of the bottom-right (timestamp) and right edge (Shorts UI); one accent-colour word for emphasis.
+- Faces: large, well-lit, eye contact. Match the expression to tone — confident/aspirational for business; shock/intense for drama, rivalry or news.
+- Palette should contrast with the platform UI and neighbouring thumbnails, or be deliberately brand-matched. Thumb + title form ONE promise with a curiosity gap; never repeat the title verbatim.
+- Optional social-proof pill ("100K+ VIEWS") top-right, or a status badge ("SOLD") for news hooks.`,
+
+    // PROVEN PATTERNS — niche-scoped playbooks distilled from analysed top
+    // performers. The analyzer applies the matching playbook when the
+    // thumbnail's niche fits; otherwise it uses the general principles above.
+    provenPatterns:
+`BUSINESS / STARTUP / FINANCE CASE-STUDY EXPLAINER (e.g. Indian company-story channels) — proven high-CTR formula (Batch 1, n=15):
+1. LAYOUT: real founder/CEO cut out on the right third, smiling with eye contact, over the company's REAL store/product/logo scene on a bright sky-blue (or brand-matched) background with a faint upward growth graph.
+2. HOOK TEXT bottom-left, two lines: a huge money number in serif-italic ("900 Crore", "₹160 CR") + a 2–3 word bold-sans descriptor ("Cloud Kitchen Factory"). Or an "India's ___ King/Empire" authority line.
+3. A hand-drawn curved white arrow from the number to the founder/hero object.
+4. Optional black "100K+ VIEWS" social-proof pill top-right; small channel logo top-left.
+5. TONE: confident and aspirational, not shock-face. For rivalry/news stories use a Versus/duel layout with serious faces and a status badge.
+When you judge or regenerate a thumbnail in THIS niche, score it against this formula and make the regen prompt follow it (while preserving the real founder, brand and number actually shown).`,
 
   },
 
