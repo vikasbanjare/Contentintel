@@ -2225,6 +2225,7 @@ Rules:
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
 - Use as many or as few sections as useful. Quote the user's actual words. Every criticism gets a copy-ready fix.
+- Keep every string tight (1-2 sentences). The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
 - Write in the same language and script as the user's content.`;
 
 function buildSystem(type) {
@@ -2987,7 +2988,7 @@ function ScriptTab({ onOpenKey }) {
       : '');
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 2200 }); }
+  function check() { run({ userText, maxTokens: 4000 }); }
 
   async function doRewrite() {
     setRewrite(r => ({ ...r, loading: true, out: null }));
@@ -3284,7 +3285,7 @@ function ThumbnailTab({ onOpenKey }) {
       `Judge whether this thumbnail will earn the click.`;
   const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (hasVision && imgA ? 1400 : 0);
   // Vision only when a key is present AND we're not comparing (single-image vision path).
-  function check() { run({ userText, image: (hasVision && !compare ? imgA : null), maxTokens: 2000 }); }
+  function check() { run({ userText, image: (hasVision && !compare ? imgA : null), maxTokens: 3000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -3431,7 +3432,7 @@ function TitleTab({ onOpenKey }) {
       ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
       : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
-  function check() { run({ userText, maxTokens: 2200 }); }
+  function check() { run({ userText, maxTokens: 4000 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -3561,7 +3562,7 @@ function AdsTab({ onOpenKey }) {
     `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
     `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  function check() { run({ userText, maxTokens: 2000 }); }
+  function check() { run({ userText, maxTokens: 3000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>

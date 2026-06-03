@@ -58,7 +58,7 @@ function ThumbnailTab({ onOpenKey }) {
       `Judge whether this thumbnail will earn the click.`;
   const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + (hasVision && imgA ? 1400 : 0);
   // Vision only when a key is present AND we're not comparing (single-image vision path).
-  function check() { run({ userText, image: (hasVision && !compare ? imgA : null), maxTokens: 2000 }); }
+  function check() { run({ userText, image: (hasVision && !compare ? imgA : null), maxTokens: 3000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -205,7 +205,7 @@ function TitleTab({ onOpenKey }) {
       ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
       : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
-  function check() { run({ userText, maxTokens: 2200 }); }
+  function check() { run({ userText, maxTokens: 4000 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -335,7 +335,7 @@ function AdsTab({ onOpenKey }) {
     `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
     `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  function check() { run({ userText, maxTokens: 2000 }); }
+  function check() { run({ userText, maxTokens: 3000 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>

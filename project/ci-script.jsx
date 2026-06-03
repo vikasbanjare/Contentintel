@@ -62,7 +62,7 @@ function ScriptTab({ onOpenKey }) {
       : '');
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 2200 }); }
+  function check() { run({ userText, maxTokens: 4000 }); }
 
   async function doRewrite() {
     setRewrite(r => ({ ...r, loading: true, out: null }));

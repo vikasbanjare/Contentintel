@@ -143,6 +143,7 @@ Rules:
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
 - Use as many or as few sections as useful. Quote the user's actual words. Every criticism gets a copy-ready fix.
+- Keep every string tight (1-2 sentences). The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
 - Write in the same language and script as the user's content.`;
 
 function buildSystem(type) {
