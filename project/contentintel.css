@@ -530,3 +530,10 @@
   .ci-results > *:nth-child(8) { animation-delay: 0.30s; }
   .ci-results > *:nth-child(n+9) { animation-delay: 0.34s; }
 }
+
+/* Collapsible report sections — hide the native disclosure triangle */
+.ci-collapse > summary { list-style: none; }
+.ci-collapse > summary::-webkit-details-marker { display: none; }
+.ci-collapse > summary:hover { background: rgba(255,255,255,0.02); }
+.ci-collapse[open] > summary .ci-collapse-caret::after { content: ""; }
+.ci-collapse[open] > summary .ci-collapse-caret { opacity: 0.3; }

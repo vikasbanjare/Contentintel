@@ -149,8 +149,9 @@ const REPORT_SHAPE =
 Rules:
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
-- Use as many or as few sections as useful. Quote the user's actual words. Every criticism gets a copy-ready fix.
-- Keep every string tight (1-2 sentences). The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
+- BE CONCISE AND SCANNABLE — this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2–3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence — only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
+- Quote the user's actual words; pair each criticism with a one-line, copy-ready fix.
+- The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
 - Write in the same language and script as the user's content.`;
 
 function buildSystem(type) {
@@ -321,6 +322,23 @@ function ErrorCard({ msg, onOpenKey }) {
   );
 }
 
+// Collapsible card — keeps long detail (regen prompts, checklists, tables)
+// tucked away so the report stays scannable. Styled like a Block.
+function Collapsible({ title, desc, children }) {
+  return (
+    <details className="ci-block ci-collapse" style={{ padding: 0 }}>
+      <summary style={{ cursor: "pointer", padding: "13px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", fontWeight: 700, fontSize: 14, color: "var(--text-1)" }}>
+        <span>{title}</span>
+        <span className="ci-collapse-caret" style={{ opacity: 0.45, fontSize: 11.5, marginLeft: 10, whiteSpace: "nowrap" }}>tap to open ▾</span>
+      </summary>
+      <div style={{ padding: "0 16px 16px" }}>
+        {desc && <div style={{ fontSize: 12.5, color: "var(--text-3)", margin: "0 0 10px", lineHeight: 1.5 }}>{desc}</div>}
+        {children}
+      </div>
+    </details>
+  );
+}
+
 // ── ReportView — renders the generic JSON report from Claude ─────────────────
 function ReportView({ report, mood }) {
   const m = EM[mood] || EM.navy;
@@ -351,18 +369,19 @@ function ReportView({ report, mood }) {
 
       {Array.isArray(report.sections) && report.sections.map((sec, i) => {
         if (!sec) return null;
+        // Short, high-value section stays open; long detail collapses to keep it scannable.
         if (sec.type === "issues")
-          return <Block key={i} title={sec.title} mood={mood}>{(sec.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>;
+          return <Block key={i} title={sec.title || "Fix these"} mood={mood}>{(sec.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>;
         if (sec.type === "copy")
-          return <Block key={i} title={sec.title} desc={sec.desc} mood={mood}>
+          return <Collapsible key={i} title={sec.title || "Copy"} desc={sec.desc}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {(sec.blocks || []).map((b, j) => <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono} />)}
             </div>
-          </Block>;
+          </Collapsible>;
         if (sec.type === "checklist")
-          return <Block key={i} title={sec.title} mood={mood}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Block>;
+          return <Collapsible key={i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
         if (sec.type === "kv")
-          return <Block key={i} title={sec.title} mood={mood}>
+          return <Collapsible key={i} title={sec.title || "Details"}>
             {(sec.rows || []).map((r, j) => (
               <div key={j} style={{ display: "grid", gridTemplateColumns: r.level ? "20px 150px 1fr" : "150px 1fr", gap: 12, alignItems: "center", padding: "11px 0", borderTop: j ? "1px solid var(--stroke-1)" : "none", fontSize: 13 }}>
                 {r.level && <span className={"ci-dot " + r.level} />}
@@ -370,9 +389,9 @@ function ReportView({ report, mood }) {
                 <span style={{ color: "var(--text-1)", lineHeight: 1.5 }}>{r.v}</span>
               </div>
             ))}
-          </Block>;
+          </Collapsible>;
         if (sec.type === "text")
-          return <Block key={i} title={sec.title} mood={mood}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Block>;
+          return <Collapsible key={i} title={sec.title || "More"}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Collapsible>;
         return null;
       })}
 
