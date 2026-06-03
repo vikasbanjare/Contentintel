@@ -167,7 +167,7 @@ function buildSystem(type) {
   if (r.provenPatterns)                    libParts.push(`PROVEN PATTERNS — niche-scoped playbooks. Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${r.provenPatterns}`);
   if (r.regenGuidance)                     libParts.push(`REGENERATION-PROMPT RULES:\n${r.regenGuidance}`);
   if (r.abTesting)                         libParts.push(`A/B TESTING:\n${r.abTesting}`);
-  const library = libParts.length ? `DESIGN LIBRARY — classify against and judge by these:\n"""\n${libParts.join("\n\n")}\n"""` : "";
+  const library = libParts.length ? `DESIGN LIBRARY — reference for SCORING & classification ONLY. It is NOT a source of new elements, palette, people, brands or style for the regeneration, and it must NEVER override what is actually in the user's content. Apply a niche playbook only when the content clearly belongs to that niche; otherwise ignore it entirely:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
     `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
     `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
