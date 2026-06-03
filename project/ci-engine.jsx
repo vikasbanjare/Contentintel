@@ -135,9 +135,12 @@ const REPORT_SHAPE =
 `Return ONLY a single valid JSON object — no markdown fences, no text before or after it — in exactly this shape:
 {
   "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
+  "overall": 0-100,
   "winner": { "pick": "A|B|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
   "scores": [ { "name": "string", "score": 0-100, "why": "plain-English reason" } ],
   "sections": [
+     { "type": "graph",     "title": "string", "desc": "optional", "points": [ { "label": "short x-axis label e.g. '0:00 Hook'", "value": 0-100 } ] },
+     { "type": "beats",     "title": "string", "items": [ { "t": "0:00", "label": "HOOK", "text": "the actual line", "level": "green|yellow|red", "note": "optional one-liner" } ] },
      { "type": "issues",    "title": "string", "items": [ { "level": "green|yellow|red", "text": "string" } ] },
      { "type": "copy",      "title": "string", "desc": "optional", "blocks": [ { "label": "Copy", "text": "string", "mono": false } ] },
      { "type": "kv",        "title": "string", "rows": [ { "k": "label", "v": "value", "level": "green|yellow|red (optional)" } ] },
@@ -147,6 +150,8 @@ const REPORT_SHAPE =
   "bottomLine": "one honest paragraph: what to fix and the single highest-impact change"
 }
 Rules:
+- ALWAYS include "overall" (0-100), a single headline score for the whole piece.
+- For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats — HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. — each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
 - BE CONCISE AND SCANNABLE — this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2–3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence — only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
@@ -361,15 +366,37 @@ function Collapsible({ title, desc, children }) {
   );
 }
 
-// ── ReportView — renders the generic JSON report from Claude ─────────────────
+// ── ReportView — dashboard-style report renderer ─────────────────────────────
 function ReportView({ report, mood }) {
   const m = EM[mood] || EM.navy;
   if (!report || typeof report !== "object") return null;
   const v = report.verdict || {};
+  const sections = Array.isArray(report.sections) ? report.sections.filter(Boolean) : [];
+  const graphs = sections.filter(s => s.type === "graph");
+  const beats  = sections.filter(s => s.type === "beats");
+  const issues = sections.filter(s => s.type === "issues");
+  const rest   = sections.filter(s => !["graph", "beats", "issues"].includes(s.type));
+  const hasOverall = typeof report.overall === "number";
+
   return (
     <div className="ci-results" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-      {v.level && <TrafficLight level={v.level} title={v.title || "Verdict"} text={v.text || ""} />}
+      {/* Header — verdict + overall score */}
+      {(v.level || hasOverall) && (
+        <Block mood={mood}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20, justifyContent: "space-between", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 300px", display: "flex", gap: 12 }}>
+              {v.level && <span className={"ci-dot " + v.level} style={{ marginTop: 7, flexShrink: 0 }} />}
+              <div>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 20, color: "var(--text-1)" }}>{v.title || "Verdict"}</div>
+                {v.text && <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.55, marginTop: 6 }}>{v.text}</div>}
+              </div>
+            </div>
+            {hasOverall && <ScoreDonut value={report.overall} label="Overall" />}
+          </div>
+        </Block>
+      )}
 
+      {/* Winner (A/B) */}
       {report.winner && report.winner.pick && (
         <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbB}66, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
           <Eyebrow mood={mood} glow>{report.winner.pick === "tie" ? "It's a tie" : "Winner"}</Eyebrow>
@@ -383,27 +410,52 @@ function ReportView({ report, mood }) {
         </Block>
       )}
 
+      {/* Script quality / attention curve */}
+      {graphs.map((s, i) => (
+        <Block key={"g" + i} title={s.title || "Quality across the video"} desc={s.desc || "Predicted attention & retention — dips mark the weak spots"} mood={mood}>
+          <QualityGraph points={s.points} mood={mood} />
+        </Block>
+      ))}
+
+      {/* Scores */}
       {Array.isArray(report.scores) && report.scores.length > 0 && (
         <Block title="Scores" mood={mood}>
-          {report.scores.map((s, i) => <ScoreItem key={i} mood={mood} name={s.name} score={Math.round(s.score)} why={s.why} />)}
+          {report.scores.map((s, i) => <ScoreBar key={i} name={s.name} score={s.score} why={s.why} />)}
         </Block>
       )}
 
-      {Array.isArray(report.sections) && report.sections.map((sec, i) => {
-        if (!sec) return null;
-        // Short, high-value section stays open; long detail collapses to keep it scannable.
-        if (sec.type === "issues")
-          return <Block key={i} title={sec.title || "Fix these"} mood={mood}>{(sec.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>;
+      {/* Beat sheet — the script broken down */}
+      {beats.map((s, i) => (
+        <Block key={"b" + i} title={s.title || "Script breakdown"} desc={s.desc} mood={mood}>
+          <BeatSheet items={s.items} />
+        </Block>
+      ))}
+
+      {/* Fix these */}
+      {issues.map((s, i) => (
+        <Block key={"i" + i} title={s.title || "Fix these"} mood={mood}>{(s.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>
+      ))}
+
+      {/* Biggest fix — the one action */}
+      {report.bottomLine && (
+        <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+          <Eyebrow mood={mood} glow>Biggest fix</Eyebrow>
+          <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10, color: "var(--text-1)" }}>{report.bottomLine}</div>
+        </Block>
+      )}
+
+      {/* Everything else — collapsible to keep it scannable */}
+      {rest.map((sec, i) => {
         if (sec.type === "copy")
-          return <Collapsible key={i} title={sec.title || "Copy"} desc={sec.desc}>
+          return <Collapsible key={"r" + i} title={sec.title || "Copy & rewrites"} desc={sec.desc}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {(sec.blocks || []).map((b, j) => <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono} />)}
             </div>
           </Collapsible>;
         if (sec.type === "checklist")
-          return <Collapsible key={i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
+          return <Collapsible key={"r" + i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
         if (sec.type === "kv")
-          return <Collapsible key={i} title={sec.title || "Details"}>
+          return <Collapsible key={"r" + i} title={sec.title || "Details"}>
             {(sec.rows || []).map((r, j) => (
               <div key={j} style={{ display: "grid", gridTemplateColumns: r.level ? "20px 150px 1fr" : "150px 1fr", gap: 12, alignItems: "center", padding: "11px 0", borderTop: j ? "1px solid var(--stroke-1)" : "none", fontSize: 13 }}>
                 {r.level && <span className={"ci-dot " + r.level} />}
@@ -413,16 +465,9 @@ function ReportView({ report, mood }) {
             ))}
           </Collapsible>;
         if (sec.type === "text")
-          return <Collapsible key={i} title={sec.title || "More"}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Collapsible>;
+          return <Collapsible key={"r" + i} title={sec.title || "More"}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Collapsible>;
         return null;
       })}
-
-      {report.bottomLine && (
-        <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
-          <Eyebrow mood={mood} glow>Bottom line</Eyebrow>
-          <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10, color: "var(--text-1)" }}>{report.bottomLine}</div>
-        </Block>
-      )}
     </div>
   );
 }

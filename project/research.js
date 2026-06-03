@@ -107,7 +107,7 @@ OUTPUT EXPECTATIONS: a line-by-line emotion/attention read, the predicted exact 
       { name: "CTA", what: "One specific CTA tied to the payoff, well placed." },
       { name: "Audience & platform fit", what: "Authentic to the content's own language, audience and platform." },
     ],
-    notes: "Map emotion line-by-line, predict the exact drop-off line(s), and give 2–3 hook rewrites.",
+    notes: "Output a dashboard: (1) 'overall' score + verdict; (2) a 'graph' section — the predicted attention/retention curve as 6–10 points across the runtime, the VALUE dipping at slow, confusing or low-tension moments and lowest at the predicted drop-off; (3) a 'beats' section — the script split into labelled beats (HOOK, SETUP, PROOF, TURN, PAYOFF, CTA…), each with the ACTUAL line text and a level (green strong / yellow ok / red weak); (4) per-dimension 'scores'; (5) 2–3 hook rewrites in a 'copy' section; (6) the single 'bottomLine' biggest fix. The graph points and the beats must be in the same order. Keep every string tight.",
   },
 
   // ── THUMBNAIL ───────────────────────────────────────────────────────────────

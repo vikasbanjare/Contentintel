@@ -62,7 +62,7 @@ function ScriptTab({ onOpenKey }) {
       : '');
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 4000 }); }
+  function check() { run({ userText, maxTokens: 5200 }); }
 
   // Turn the analysis report into a short brief the rewriter can act on.
   function feedbackBrief() {
