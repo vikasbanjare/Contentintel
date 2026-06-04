@@ -658,18 +658,24 @@ function KeyModal({ open, onClose }) {
           No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
         </div>
 
-        <label className="ci-label" style={{ marginTop: 18 }}>Image generation key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, to generate thumbnails</span></label>
-        <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="NVIDIA key — nvapi-… (FLUX, free)" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-        <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="Google AI key — AIza… (Gemini, edits your image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
-        <input className="ci-input" type={show ? "text" : "password"} value={rvkey} onChange={e => setRvkey(e.target.value)} placeholder="Reve key (image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
-        <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-          The Thumbnail tab generates an improved image from the feedback. Uses <b>NVIDIA FLUX</b> if set (free — <a href="https://build.nvidia.com/black-forest-labs/flux_1-dev" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>build.nvidia.com</a>), otherwise <b>Google Gemini</b> (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>free key</a>) which edits your actual image.
-        </div>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--stroke-1)" }}>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, color: "var(--text-1)" }}>Image generation (optional)</div>
+          <div style={{ fontSize: 12, color: "var(--text-4)", margin: "4px 0 14px" }}>Only needed to <i>generate</i> thumbnails. The free option needs no key at all.</div>
 
-        <label className="ci-label" style={{ marginTop: 18 }}>Image proxy URL <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional; fixes NVIDIA CORS & keeps keys private when sharing</span></label>
-        <input className="ci-input" value={proxy} onChange={e => setProxy(e.target.value)} placeholder="https://your-worker.workers.dev" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-        <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-          If set, image generation goes through your Cloudflare Worker (keys live there, not in the browser). Leave blank to call providers directly with the keys above.
+          <label className="ci-label">🟢 NVIDIA key — FLUX (free; needs the proxy URL below)</label>
+          <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="nvapi-…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+
+          <label className="ci-label" style={{ marginTop: 12 }}>🔵 Google AI key — Gemini (edits your image; paid plan required)</label>
+          <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="AIza…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+
+          <label className="ci-label" style={{ marginTop: 12 }}>🟣 Reve key</label>
+          <input className="ci-input" type={show ? "text" : "password"} value={rvkey} onChange={e => setRvkey(e.target.value)} placeholder="reve key…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+
+          <label className="ci-label" style={{ marginTop: 12 }}>⚙️ Image proxy URL — your Cloudflare Worker (required for FLUX / Reve)</label>
+          <input className="ci-input" value={proxy} onChange={e => setProxy(e.target.value)} placeholder="https://your-worker.workers.dev" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8, lineHeight: 1.5 }}>
+            Tip: in the Thumbnail tab you can pick <b>“Free — no key, no setup”</b> and skip all of this. FLUX/Reve need the proxy (browser can't call them directly). Gemini works without the proxy but needs a paid plan.
+          </div>
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
