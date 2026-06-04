@@ -2067,17 +2067,20 @@ async function generateThumbnail({ instruction, image, model }) {
   const parts = [{ text: instruction }];
   if (image && image.data) parts.push({ inline_data: { mime_type: image.mime || "image/png", data: image.data } });
   const payload = { contents: [{ parts }], generationConfig: { responseModalities: ["IMAGE"] } };
+  // Gemini supports browser CORS, so call it DIRECTLY when a Google key is set.
+  // Only fall back to the proxy when there's no key (e.g. a shared deployment).
+  const key = getGoogleKey();
   const proxy = getProxyUrl();
   let res;
-  if (proxy) {
-    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL — check it in Settings."); }
-  } else {
-    const key = getGoogleKey();
-    if (!key) throw new Error("NO_GOOGLE_KEY");
+  if (key) {
     res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
     });
+  } else if (proxy) {
+    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); }
+  } else {
+    throw new Error("NO_GOOGLE_KEY");
   }
   if (!res.ok) {
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
@@ -2103,7 +2106,7 @@ async function generateThumbnailFlux({ prompt, model, size }) {
   let res;
   if (proxy) {
     try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "flux", payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL — check it in Settings."); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser — it should say 'POST only'. Check it in Settings."); }
   } else {
     const key = getNvidiaKey();
     if (!key) throw new Error("NO_NV_KEY");
@@ -2138,7 +2141,7 @@ async function generateThumbnailReve({ prompt, model, size }) {
   let res;
   if (proxy) {
     try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "reve", payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL — check it in Settings."); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser — it should say 'POST only'. Check it in Settings."); }
   } else {
     const key = getReveKey();
     if (!key) throw new Error("NO_REVE_KEY");
