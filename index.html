@@ -3515,6 +3515,13 @@ function saveBrandKit(b) { try { localStorage.setItem(LS_BRAND, JSON.stringify(b
 
 const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Add brand logo', 'More contrast', 'Less text', 'Yellow highlight box', 'Shocked expression'];
 
+// Image-generation models the user can pick. Extend with Reve / more FLUX once
+// their endpoints are confirmed. provider routes to the right engine + key.
+const IMG_MODELS = [
+  { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA, free (fresh image)', provider: 'nvidia' },
+  { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key)', provider: 'gemini' },
+];
+
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
 function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
@@ -3583,35 +3590,52 @@ function ThumbnailTab({ onOpenKey }) {
   const estIn = window.estTokens(system, userText) + imgs.length * 1400;
   function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
 
-  // ── Generate the improved thumbnail from the feedback ───────────────────────
-  // Prefers NVIDIA FLUX (free, text-to-image) → else Google Gemini (edits the image).
-  const [gen, setGen] = React.useState({ loading: false, out: null, err: '', via: '' });
-  React.useEffect(() => { setGen({ loading: false, out: null, err: '', via: '' }); }, [report]);
-  async function doGenerate() {
-    setGen({ loading: true, out: null, err: '', via: '' });
+  // ── Image generation (shared) ───────────────────────────────────────────────
+  const [genModelId, setGenModelId] = React.useState(IMG_MODELS[0].id);
+  const [genPrompt, setGenPrompt] = React.useState('');
+  const [gen, setGen] = React.useState({ loading: false, out: null, err: '', via: '', surface: '' });
+  React.useEffect(() => { setGen({ loading: false, out: null, err: '', via: '', surface: '' }); }, [report]);
+  const genModel = IMG_MODELS.find(x => x.id === genModelId) || IMG_MODELS[0];
+  async function runGenerate(basePrompt, surface) {
+    if (genModel.provider === 'gemini' && !imgA) { setGen({ loading: false, out: null, err: 'Upload an image first (Gemini edits your image).', via: '', surface }); return; }
+    setGen({ loading: true, out: null, err: '', via: '', surface });
     try {
-      const base = window.regenPromptFromReport(report) || 'A high click-through thumbnail.';
-      const nv = window.getNvidiaKey && window.getNvidiaKey();
-      const g = window.getGoogleKey && window.getGoogleKey();
       let out, via;
-      if (nv) {
-        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${base}${guidance ? '\n' + guidance : ''}`;
-        out = await window.generateThumbnailFlux({ prompt }); via = 'NVIDIA FLUX';
-      } else if (g) {
-        const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and palette — change only what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${base}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail.`;
-        out = await window.generateThumbnail({ instruction, image: imgA }); via = 'Google Gemini';
+      if (genModel.provider === 'nvidia') {
+        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
+        out = await window.generateThumbnailFlux({ prompt, model: genModel.id }); via = 'NVIDIA FLUX (klein-4B)';
       } else {
-        throw new Error('Add an NVIDIA (FLUX) or Google AI key in Settings to generate images.');
+        const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and palette — change only what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${basePrompt}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail.`;
+        out = await window.generateThumbnail({ instruction, image: imgA }); via = 'Google Gemini';
       }
-      setGen({ loading: false, out, err: '', via });
+      setGen({ loading: false, out, err: '', via, surface });
     } catch (e) {
       const em = String(e.message);
       const msg = (em === 'NO_GOOGLE_KEY' || em === 'NO_NV_KEY')
-        ? 'Add an NVIDIA (FLUX) or Google AI key in Settings (top-right) to generate images.'
+        ? 'Add an NVIDIA (FLUX) or Google AI key in Settings (top-right) for this model.'
         : (e.message || 'Could not generate — try again.');
-      setGen({ loading: false, out: null, err: msg, via: '' });
+      setGen({ loading: false, out: null, err: msg, via: '', surface });
     }
   }
+  const ModelPicker = () => (
+    <select className="ci-input" value={genModelId} onChange={e => setGenModelId(e.target.value)} style={{ appearance: 'auto', maxWidth: 380 }}>
+      {IMG_MODELS.map(mm => <option key={mm.id} value={mm.id}>{mm.label}</option>)}
+    </select>
+  );
+  const GenResult = ({ surface }) => (gen.surface === surface ? (
+    <div>
+      {gen.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12, lineHeight: 1.5 }}>{gen.err}</div>}
+      {gen.out && (
+        <div style={{ marginTop: 14 }}>
+          {gen.via && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 6 }}>Generated with {gen.via}</div>}
+          <img src={gen.out} alt="generated thumbnail" style={{ width: '100%', maxWidth: 640, borderRadius: 12, display: 'block', border: '1px solid var(--stroke-2)' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <a className="ci-copybtn" href={gen.out} download="thumbnail.png" style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none' }}>↓ Download</a>
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null);
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -3646,6 +3670,26 @@ function ThumbnailTab({ onOpenKey }) {
             </div>
           ))}
         </div>
+
+        {!compare && imgA && (
+          <details className="ci-collapse" style={{ marginTop: 14, border: `1px solid ${m.accentGlow}`, borderRadius: 12, background: `linear-gradient(135deg, ${m.orbB}33, var(--surface-1))` }}>
+            <summary style={{ cursor: 'pointer', padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700, fontSize: 13.5, color: 'var(--text-1)' }}>
+              <span>✨ Just regenerate from a prompt — skip the check</span>
+              <span className="ci-collapse-caret" style={{ opacity: 0.5, fontSize: 11.5 }}>open ▾</span>
+            </summary>
+            <div style={{ padding: '0 16px 16px' }}>
+              <textarea className="ci-textarea" style={{ minHeight: 64 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
+                placeholder="Describe the new version… e.g. 'add a shocked face on the right, huge yellow ₹500 Cr, dark navy background'" />
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+                <ModelPicker />
+                <window.GlowButton mood={mood} onClick={() => runGenerate(genPrompt.trim() || 'Improve this thumbnail for higher click-through.', 'inline')}>
+                  {gen.loading && gen.surface === 'inline' ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
+                </window.GlowButton>
+              </div>
+              <GenResult surface="inline" />
+            </div>
+          </details>
+        )}
 
         <div style={{ marginTop: 16 }}>
           <TTg on={showTitle} onChange={setShowTitle} mood={mood}>Pair with a title (checks if thumb + title work together)</TTg>
@@ -3728,26 +3772,15 @@ function ThumbnailTab({ onOpenKey }) {
           <window.ReportView report={report} mood={mood} />
           {!compare && imgA && (
             <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>✨ Generate the improved thumbnail</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>Uses NVIDIA FLUX (free) or Google Gemini from the feedback above. Add a key in Settings.</div>
-                </div>
-                <window.GlowButton mood={mood} onClick={doGenerate}>
-                  {gen.loading ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>✨ Generate the improved thumbnail</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Builds it from the feedback above. Pick a model:</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <ModelPicker />
+                <window.GlowButton mood={mood} onClick={() => runGenerate(window.regenPromptFromReport(report) || 'A high click-through thumbnail.', 'report')}>
+                  {gen.loading && gen.surface === 'report' ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
                 </window.GlowButton>
               </div>
-              {gen.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12, lineHeight: 1.5 }}>{gen.err}</div>}
-              {gen.out && (
-                <div style={{ marginTop: 14 }}>
-                  {gen.via && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 6 }}>Generated with {gen.via}</div>}
-                  <img src={gen.out} alt="generated thumbnail" style={{ width: '100%', maxWidth: 640, borderRadius: 12, display: 'block', border: '1px solid var(--stroke-2)' }} />
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                    <a className="ci-copybtn" href={gen.out} download="thumbnail.png" style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none' }}>↓ Download</a>
-                    <button className="ci-copybtn" style={{ height: 34 }} onClick={doGenerate}>↻ Regenerate</button>
-                  </div>
-                </div>
-              )}
+              <GenResult surface="report" />
             </div>
           )}
         </div>
