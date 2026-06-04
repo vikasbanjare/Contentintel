@@ -1964,6 +1964,18 @@ function clearLocalResearch() {
 function hasLocalResearch() { try { return !!localStorage.getItem(LS_RESEARCH); } catch (e) { return false; } }
 loadLocalResearch();
 
+// ── Analysis history (saved locally per browser) ─────────────────────────────
+const LS_HISTORY = "ci_history";
+function loadHistory() { try { return JSON.parse(localStorage.getItem(LS_HISTORY)) || []; } catch (e) { return []; } }
+function saveHistory(rec) {
+  try {
+    const arr = loadHistory();
+    arr.unshift(rec);
+    localStorage.setItem(LS_HISTORY, JSON.stringify(arr.slice(0, 50)));
+  } catch (e) {}
+}
+function clearHistory() { try { localStorage.removeItem(LS_HISTORY); } catch (e) {} }
+
 // ── Token estimate (rough: ~4 chars/token) ───────────────────────────────────
 function estTokens(...strings) {
   const chars = strings.filter(Boolean).join(" ").length;
@@ -2187,6 +2199,12 @@ function useAnalysis(type) {
         json = { sections: [{ type: "text", title: "Analysis", body }] };
       }
       setReport(json); setUsage(usage); setState("done");
+      try {
+        const vd = json.verdict || {};
+        saveHistory({ type, t: Date.now(), level: vd.level || "yellow",
+          score: typeof json.overall === "number" ? Math.round(json.overall) : null,
+          title: vd.title || (json.winner && json.winner.label) || "Analysis" });
+      } catch (e) {}
     } catch (e) {
       if (String(e.message) === "NO_KEY") { setTimeout(() => setState("done"), 600); return; }
       setErr(e.message || "Something went wrong."); setState("error");
@@ -2425,7 +2443,7 @@ Object.assign(window, {
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
-  nicheNames, splitPlaybookBlocks,
+  nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
 });
 
 </script>
@@ -3419,7 +3437,8 @@ function ThumbnailTab({ onOpenKey }) {
   const [cmpMode, setCmpMode] = React.useState('Single');
   const count = cmpMode === 'A/B/C' ? 3 : cmpMode === 'A/B' ? 2 : 1;
   const compare = count > 1;
-  const [title, setTitle] = React.useState('How I Learned to Cook in 30 Days');
+  const [title, setTitle] = React.useState('');
+  const [showTitle, setShowTitle] = React.useState(true);
   const [kind, setKind] = React.useState('Lifestyle');
   const [layout, setLayout] = React.useState('Auto-detect');
   const [scheme, setScheme] = React.useState('Auto-detect');
@@ -3464,7 +3483,7 @@ function ThumbnailTab({ onOpenKey }) {
     addNote.trim() ? `Also for the regeneration: ${addNote.trim()}` : '',
   ].filter(Boolean).join('\n');
   const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
-  const head = `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n`;
+  const head = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none given)'}\nContent type: ${kind}\n${targetLine}\n`;
   const userText = (compare
     ? head +
       Array.from({ length: count }, (_, i) => `THUMBNAIL ${LBL[i]} (= Image ${i + 1}): ${descsAll[i].trim() || `(see attached Image ${i + 1})`}`).join('\n') + '\n\n' +
@@ -3514,8 +3533,10 @@ function ThumbnailTab({ onOpenKey }) {
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <label className="ci-label">What's the video title? (helps us check if thumb + title work together)</label>
-          <input className="ci-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Paste the video title…" />
+          <TTg on={showTitle} onChange={setShowTitle} mood={mood}>Pair with a title (checks if thumb + title work together)</TTg>
+          {showTitle && (
+            <input className="ci-input" style={{ marginTop: 10 }} value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your video title here…" />
+          )}
         </div>
         <div style={{ marginTop: 14 }}>
           <TCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
@@ -3916,19 +3937,22 @@ function AdsTab({ onOpenKey }) {
 window.AdsTab = AdsTab;
 
 // ── HISTORY ──────────────────────────────────────────────────────────────────
+function timeAgo(t) {
+  const s = Math.max(1, Math.floor((Date.now() - t) / 1000));
+  if (s < 60) return s + 's ago';
+  const mn = Math.floor(s / 60); if (mn < 60) return mn + 'm ago';
+  const h = Math.floor(mn / 60); if (h < 24) return h + 'h ago';
+  const d = Math.floor(h / 24); return d === 1 ? 'Yesterday' : d + 'd ago';
+}
 function HistoryTab() {
   const mood = 'burgundy';
   const m = TM[mood];
   const [filter, setFilter] = React.useState('All');
-  const items = [
-    { type: 'Script', tmood: 'navy', date: '2h ago', preview: '"Kya aapko pata hai ki 90% log SIP mein…"', verdict: 'yellow', score: 71 },
-    { type: 'Thumbnail', tmood: 'ember', date: '5h ago', preview: 'Which AI Wins 2026 — 5 logos, no face', verdict: 'yellow', score: 72 },
-    { type: 'Title', tmood: 'cyan', date: 'Yesterday', preview: '"5 SIP Mistakes Beginners Make"', verdict: 'yellow', score: 70 },
-    { type: 'Ads', tmood: 'violet', date: 'Yesterday', preview: 'Atlas Mach — "Tired of trainers that…"', verdict: 'red', score: 52 },
-    { type: 'Script', tmood: 'navy', date: '2d ago', preview: '"Atlas Mach broke me — here\'s why"', verdict: 'green', score: 88 },
-    { type: 'Title', tmood: 'cyan', date: '3d ago', preview: '"$90 Shoe Beat My $200 Trainer"', verdict: 'green', score: 91 },
-  ];
-  const filtered = filter === 'All' ? items : items.filter(i => i.type === filter.replace(/s$/, '') || i.type === filter);
+  const [items, setItems] = React.useState(() => (window.loadHistory ? window.loadHistory() : []));
+  const TYPE_LABEL = { script: 'Script', thumbnail: 'Thumbnail', title: 'Title', ads: 'Ads' };
+  const tmoodOf = { script: 'navy', thumbnail: 'ember', title: 'cyan', ads: 'violet' };
+  const filtered = filter === 'All' ? items : items.filter(i => TYPE_LABEL[i.type] === filter.replace(/s$/, ''));
+  function clearAll() { window.clearHistory && window.clearHistory(); setItems([]); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -3937,35 +3961,44 @@ function HistoryTab() {
           <Eyebrow mood={mood} glow>History</Eyebrow>
           <h2 className="ci-h2">Past checks</h2>
         </div>
-        <button className="ci-copybtn" style={{ height: 34 }}>Clear all</button>
+        {items.length > 0 && <button className="ci-copybtn" style={{ height: 34 }} onClick={clearAll}>Clear all</button>}
       </div>
 
-      <div className="ci-chiprow" style={{ marginBottom: 16 }}>
-        {['All', 'Scripts', 'Thumbnails', 'Titles', 'Ads'].map(f => (
-          <button key={f} className={'pill' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)} style={{ height: 30, fontSize: 12.5 }}>{f}</button>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {filtered.map((it, i) => {
-          const im = TM[it.tmood];
-          return (
-            <div key={i} className="ci-block lift" style={{ padding: 16, display: 'grid', gridTemplateColumns: '110px 1fr 80px 44px 30px', gap: 16, alignItems: 'center', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${im.accentFrom}, ${im.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E' }}><CITabIcon name={it.type === 'Script' ? 'script' : it.type === 'Thumbnail' ? 'thumb' : it.type === 'Title' ? 'title' : 'ads'} /></span>
-                <span style={{ fontSize: 12.5, fontWeight: 600 }}>{it.type}</span>
-              </div>
-              <div style={{ fontSize: 13.5, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.preview}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>{it.date}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span className={'ci-dot ' + it.verdict} />
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: it.verdict === 'green' ? '#8FD86A' : it.verdict === 'yellow' ? '#F0C85A' : '#F06A7E' }}>{it.score}</span>
-              </div>
-              <button style={{ background: 'transparent', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 16 }}>×</button>
-            </div>
-          );
-        })}
-      </div>
+      {items.length === 0 ? (
+        <div className="ci-block" style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}>
+          <div style={{ fontSize: 30, marginBottom: 10 }}>🗂️</div>
+          <div style={{ fontSize: 15, color: 'var(--text-2)', fontWeight: 600 }}>No checks yet</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Run a Script, Thumbnail, Title or Ads check and it'll be saved here (on this device).</div>
+        </div>
+      ) : (
+        <>
+          <div className="ci-chiprow" style={{ marginBottom: 16 }}>
+            {['All', 'Scripts', 'Thumbnails', 'Titles', 'Ads'].map(f => (
+              <button key={f} className={'pill' + (filter === f ? ' active' : '')} onClick={() => setFilter(f)} style={{ height: 30, fontSize: 12.5 }}>{f}</button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {filtered.map((it, i) => {
+              const im = TM[tmoodOf[it.type] || 'navy'];
+              const lvl = it.level || 'yellow';
+              return (
+                <div key={i} className="ci-block" style={{ padding: 16, display: 'grid', gridTemplateColumns: '120px 1fr 90px 50px', gap: 16, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${im.accentFrom}, ${im.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E' }}><CITabIcon name={it.type === 'script' ? 'script' : it.type === 'thumbnail' ? 'thumb' : it.type === 'title' ? 'title' : 'ads'} /></span>
+                    <span style={{ fontSize: 12.5, fontWeight: 600 }}>{TYPE_LABEL[it.type] || it.type}</span>
+                  </div>
+                  <div style={{ fontSize: 13.5, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>{timeAgo(it.t)}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span className={'ci-dot ' + lvl} />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: lvl === 'green' ? '#8FD86A' : lvl === 'yellow' ? '#F0C85A' : '#F06A7E' }}>{it.score != null ? it.score : '—'}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -63,6 +63,18 @@ function clearLocalResearch() {
 function hasLocalResearch() { try { return !!localStorage.getItem(LS_RESEARCH); } catch (e) { return false; } }
 loadLocalResearch();
 
+// ── Analysis history (saved locally per browser) ─────────────────────────────
+const LS_HISTORY = "ci_history";
+function loadHistory() { try { return JSON.parse(localStorage.getItem(LS_HISTORY)) || []; } catch (e) { return []; } }
+function saveHistory(rec) {
+  try {
+    const arr = loadHistory();
+    arr.unshift(rec);
+    localStorage.setItem(LS_HISTORY, JSON.stringify(arr.slice(0, 50)));
+  } catch (e) {}
+}
+function clearHistory() { try { localStorage.removeItem(LS_HISTORY); } catch (e) {} }
+
 // ── Token estimate (rough: ~4 chars/token) ───────────────────────────────────
 function estTokens(...strings) {
   const chars = strings.filter(Boolean).join(" ").length;
@@ -286,6 +298,12 @@ function useAnalysis(type) {
         json = { sections: [{ type: "text", title: "Analysis", body }] };
       }
       setReport(json); setUsage(usage); setState("done");
+      try {
+        const vd = json.verdict || {};
+        saveHistory({ type, t: Date.now(), level: vd.level || "yellow",
+          score: typeof json.overall === "number" ? Math.round(json.overall) : null,
+          title: vd.title || (json.winner && json.winner.label) || "Analysis" });
+      } catch (e) {}
     } catch (e) {
       if (String(e.message) === "NO_KEY") { setTimeout(() => setState("done"), 600); return; }
       setErr(e.message || "Something went wrong."); setState("error");
@@ -524,5 +542,5 @@ Object.assign(window, {
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
-  nicheNames, splitPlaybookBlocks,
+  nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
 });
