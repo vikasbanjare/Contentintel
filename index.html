@@ -3526,6 +3526,7 @@ const IMG_MODELS = [
 function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
   const m = TM[mood];
+  const [mode, setMode] = React.useState('Check');
   const [cmpMode, setCmpMode] = React.useState('Single');
   const count = cmpMode === 'A/B/C' ? 3 : cmpMode === 'A/B' ? 2 : 1;
   const compare = count > 1;
@@ -3639,9 +3640,31 @@ function ThumbnailTab({ onOpenKey }) {
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
-      <TWH mood={mood} eyebrow="Thumbnail check" title="Check your thumbnail"
-        sub="Upload your thumbnail. We'll check if it'll get clicks — based on what actually works, not how pretty it looks." />
+      <TWH mood={mood} eyebrow="Thumbnail studio" title={mode === 'Generate' ? 'Generate a thumbnail' : 'Check your thumbnail'}
+        sub={mode === 'Generate' ? 'Describe what you want (and optionally upload one to remix) — generate straight away, no analysis.' : "Upload your thumbnail. We'll check if it'll get clicks — based on what actually works, not how pretty it looks."} />
 
+      <div style={{ marginBottom: 16 }}>
+        <TCG label="Mode" options={['Check', 'Generate']} value={mode} onChange={setMode} />
+      </div>
+
+      {mode === 'Generate' && (
+        <TB mood={mood}>
+          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— optional (required for Gemini edit; FLUX can work from text alone)</span></label>
+          <ImageDrop image={imgA} onPick={setImgA} label="Drop an image — JPG or PNG (optional)" />
+          <label className="ci-label" style={{ marginTop: 16 }}>Describe the thumbnail you want</label>
+          <textarea className="ci-textarea" style={{ minHeight: 90 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
+            placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
+            <ModelPicker />
+            <window.GlowButton mood={mood} size="lg" onClick={() => runGenerate(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', 'gen')}>
+              {gen.loading && gen.surface === 'gen' ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
+            </window.GlowButton>
+          </div>
+          <GenResult surface="gen" />
+        </TB>
+      )}
+
+      {mode === 'Check' && (<>
       <TB mood={mood}>
         <div style={{ marginBottom: 14 }}>
           <TCG label="Test" options={['Single', 'A/B', 'A/B/C']} value={cmpMode} onChange={setCmpMode} />
@@ -3670,26 +3693,6 @@ function ThumbnailTab({ onOpenKey }) {
             </div>
           ))}
         </div>
-
-        {!compare && imgA && (
-          <details className="ci-collapse" style={{ marginTop: 14, border: `1px solid ${m.accentGlow}`, borderRadius: 12, background: `linear-gradient(135deg, ${m.orbB}33, var(--surface-1))` }}>
-            <summary style={{ cursor: 'pointer', padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700, fontSize: 13.5, color: 'var(--text-1)' }}>
-              <span>✨ Just regenerate from a prompt — skip the check</span>
-              <span className="ci-collapse-caret" style={{ opacity: 0.5, fontSize: 11.5 }}>open ▾</span>
-            </summary>
-            <div style={{ padding: '0 16px 16px' }}>
-              <textarea className="ci-textarea" style={{ minHeight: 64 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
-                placeholder="Describe the new version… e.g. 'add a shocked face on the right, huge yellow ₹500 Cr, dark navy background'" />
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-                <ModelPicker />
-                <window.GlowButton mood={mood} onClick={() => runGenerate(genPrompt.trim() || 'Improve this thumbnail for higher click-through.', 'inline')}>
-                  {gen.loading && gen.surface === 'inline' ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
-                </window.GlowButton>
-              </div>
-              <GenResult surface="inline" />
-            </div>
-          </details>
-        )}
 
         <div style={{ marginTop: 16 }}>
           <TTg on={showTitle} onChange={setShowTitle} mood={mood}>Pair with a title (checks if thumb + title work together)</TTg>
@@ -3853,6 +3856,7 @@ function ThumbnailTab({ onOpenKey }) {
           </TB>
         </div>
       )}
+      </>)}
     </div>
   );
 }
