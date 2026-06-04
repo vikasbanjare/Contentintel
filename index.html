@@ -1930,6 +1930,15 @@ const setGoogleKeyLS = (k) => { try { k ? localStorage.setItem(LS_GKEY, k) : loc
 const LS_NVKEY = "ci_nvidia_key";
 const getNvidiaKey   = () => { try { return localStorage.getItem(LS_NVKEY) || ""; } catch (e) { return ""; } };
 const setNvidiaKeyLS = (k) => { try { k ? localStorage.setItem(LS_NVKEY, k) : localStorage.removeItem(LS_NVKEY); } catch (e) {} };
+// Optional Reve key — image generation (provider varies; default AI/ML API style).
+const LS_REVE = "ci_reve_key";
+const getReveKey   = () => { try { return localStorage.getItem(LS_REVE) || ""; } catch (e) { return ""; } };
+const setReveKeyLS = (k) => { try { k ? localStorage.setItem(LS_REVE, k) : localStorage.removeItem(LS_REVE); } catch (e) {} };
+// Optional proxy URL (Cloudflare Worker). When set, image calls go through it
+// so keys stay server-side and browser CORS is bypassed.
+const LS_PROXY = "ci_proxy_url";
+const getProxyUrl   = () => { try { return (localStorage.getItem(LS_PROXY) || "").trim(); } catch (e) { return ""; } };
+const setProxyUrlLS = (u) => { try { u ? localStorage.setItem(LS_PROXY, u) : localStorage.removeItem(LS_PROXY); } catch (e) {} };
 const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAULT_MODEL; } catch (e) { return CI_DEFAULT_MODEL; } };
 const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
 const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
@@ -2054,15 +2063,22 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
 // ── Image generation (Gemini) — edits the user's thumbnail per the instruction ─
 // BYO Google AI Studio key. Returns a data: URL (or throws a clear error).
 async function generateThumbnail({ instruction, image, model }) {
-  const key = getGoogleKey();
-  if (!key) throw new Error("NO_GOOGLE_KEY");
   const mdl = model || "gemini-2.5-flash-image";
   const parts = [{ text: instruction }];
   if (image && image.data) parts.push({ inline_data: { mime_type: image.mime || "image/png", data: image.data } });
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ["IMAGE"] } }),
-  });
+  const payload = { contents: [{ parts }], generationConfig: { responseModalities: ["IMAGE"] } };
+  const proxy = getProxyUrl();
+  let res;
+  if (proxy) {
+    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL — check it in Settings."); }
+  } else {
+    const key = getGoogleKey();
+    if (!key) throw new Error("NO_GOOGLE_KEY");
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    });
+  }
   if (!res.ok) {
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
     if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid — check it in Settings.");
@@ -2081,17 +2097,24 @@ async function generateThumbnail({ instruction, image, model }) {
 // flux.2-klein-4b is text-to-image, so it generates FROM the description (it
 // can't preserve the user's exact photo the way Gemini's image edit can).
 async function generateThumbnailFlux({ prompt, model, size }) {
-  const key = getNvidiaKey();
-  if (!key) throw new Error("NO_NV_KEY");
   const mdl = model || "black-forest-labs/flux.2-klein-4b";
+  const payload = { model: mdl, prompt, n: 1, response_format: "b64_json", size: size || "1024x1024" };
+  const proxy = getProxyUrl();
   let res;
-  try {
-    res = await fetch("https://integrate.api.nvidia.com/v1/images/generations", {
-      method: "POST",
-      headers: { "content-type": "application/json", "accept": "application/json", "authorization": "Bearer " + key },
-      body: JSON.stringify({ model: mdl, prompt, n: 1, response_format: "b64_json", size: size || "1024x1024" }),
-    });
-  } catch (e) { throw new Error("Couldn't reach NVIDIA from the browser (likely CORS). It may need a small proxy — tell me and I'll add one."); }
+  if (proxy) {
+    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "flux", payload }) }); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL — check it in Settings."); }
+  } else {
+    const key = getNvidiaKey();
+    if (!key) throw new Error("NO_NV_KEY");
+    try {
+      res = await fetch("https://integrate.api.nvidia.com/v1/images/generations", {
+        method: "POST",
+        headers: { "content-type": "application/json", "accept": "application/json", "authorization": "Bearer " + key },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) { throw new Error("Couldn't reach NVIDIA from the browser (CORS). Add a proxy URL in Settings (the Cloudflare Worker)."); }
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     if (res.status === 401 || res.status === 403) throw new Error("NVIDIA key was rejected — check it in Settings.");
@@ -2103,6 +2126,41 @@ async function generateThumbnailFlux({ prompt, model, size }) {
   b64 = String(b64).replace(/^data:[^,]+,/, "");
   if (!b64) throw new Error("FLUX returned no image. Try again.");
   return "data:image/png;base64," + b64;
+}
+
+// Image generation via Reve (text-to-image). Default endpoint = AI/ML API
+// OpenAI-style; adjust in the Worker (REVE_URL) if your key is from another
+// Reve provider. Prefer the proxy (direct browser calls are likely CORS-blocked).
+async function generateThumbnailReve({ prompt, model, size }) {
+  const mdl = model || "reve/create-image";
+  const payload = { model: mdl, prompt, n: 1, response_format: "b64_json" };
+  const proxy = getProxyUrl();
+  let res;
+  if (proxy) {
+    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "reve", payload }) }); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL — check it in Settings."); }
+  } else {
+    const key = getReveKey();
+    if (!key) throw new Error("NO_REVE_KEY");
+    try {
+      res = await fetch("https://api.aimlapi.com/v1/images/generations", {
+        method: "POST", headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) { throw new Error("Couldn't reach Reve from the browser (likely CORS). Add a proxy URL in Settings."); }
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) throw new Error("Reve key was rejected — check it in Settings.");
+    throw new Error(err.detail || (err.error && err.error.message) || ("Reve request failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const item = ((data.data || data.images || data.artifacts || [])[0]) || {};
+  if (item.b64_json) return "data:image/png;base64," + item.b64_json;
+  if (item.base64) return "data:image/png;base64," + item.base64;
+  if (item.url) return item.url;
+  if (data.url) return data.url;
+  throw new Error("Reve returned no image (the response format may differ — share your provider's docs and I'll adjust).");
 }
 
 // Pull the grounded regen prompt out of a report (falls back to the biggest fix).
@@ -2470,11 +2528,13 @@ function KeyModal({ open, onClose }) {
   const [key, setKey] = React.useState(getKey());
   const [gkey, setGkey] = React.useState(getGoogleKey());
   const [nvkey, setNvkey] = React.useState(getNvidiaKey());
+  const [rvkey, setRvkey] = React.useState(getReveKey());
+  const [proxy, setProxy] = React.useState(getProxyUrl());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow] = React.useState(false);
-  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setNvkey(getNvidiaKey()); setModel(getModel()); } }, [open]);
+  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); } }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setNvidiaKeyLS(nvkey.trim()); setModelLS(model); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
   return (
     <div className="ci-modal-scrim" onClick={() => onClose(false)}>
@@ -2499,8 +2559,15 @@ function KeyModal({ open, onClose }) {
         <label className="ci-label" style={{ marginTop: 18 }}>Image generation key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, to generate thumbnails</span></label>
         <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="NVIDIA key — nvapi-… (FLUX, free)" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
         <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="Google AI key — AIza… (Gemini, edits your image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
+        <input className="ci-input" type={show ? "text" : "password"} value={rvkey} onChange={e => setRvkey(e.target.value)} placeholder="Reve key (image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
         <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
           The Thumbnail tab generates an improved image from the feedback. Uses <b>NVIDIA FLUX</b> if set (free — <a href="https://build.nvidia.com/black-forest-labs/flux_1-dev" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>build.nvidia.com</a>), otherwise <b>Google Gemini</b> (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>free key</a>) which edits your actual image.
+        </div>
+
+        <label className="ci-label" style={{ marginTop: 18 }}>Image proxy URL <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional; fixes NVIDIA CORS & keeps keys private when sharing</span></label>
+        <input className="ci-input" value={proxy} onChange={e => setProxy(e.target.value)} placeholder="https://your-worker.workers.dev" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+        <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
+          If set, image generation goes through your Cloudflare Worker (keys live there, not in the browser). Leave blank to call providers directly with the keys above.
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -2528,7 +2595,8 @@ Object.assign(window, {
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
-  getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux,
+  getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
+  getReveKey, setReveKeyLS, generateThumbnailReve,
 });
 
 </script>
@@ -3520,6 +3588,7 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 const IMG_MODELS = [
   { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA, free (fresh image)', provider: 'nvidia' },
   { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key)', provider: 'gemini' },
+  { id: 'reve/create-image', label: 'Reve — image (Reve key)', provider: 'reve' },
 ];
 
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
@@ -3605,6 +3674,9 @@ function ThumbnailTab({ onOpenKey }) {
       if (genModel.provider === 'nvidia') {
         const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
         out = await window.generateThumbnailFlux({ prompt, model: genModel.id }); via = 'NVIDIA FLUX (klein-4B)';
+      } else if (genModel.provider === 'reve') {
+        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
+        out = await window.generateThumbnailReve({ prompt, model: genModel.id }); via = 'Reve';
       } else {
         const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and palette — change only what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${basePrompt}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail.`;
         out = await window.generateThumbnail({ instruction, image: imgA }); via = 'Google Gemini';
