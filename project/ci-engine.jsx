@@ -29,6 +29,10 @@ const setGoogleKeyLS = (k) => { try { k ? localStorage.setItem(LS_GKEY, k) : loc
 const LS_NVKEY = "ci_nvidia_key";
 const getNvidiaKey   = () => { try { return localStorage.getItem(LS_NVKEY) || ""; } catch (e) { return ""; } };
 const setNvidiaKeyLS = (k) => { try { k ? localStorage.setItem(LS_NVKEY, k) : localStorage.removeItem(LS_NVKEY); } catch (e) {} };
+// Optional Reve key — image generation (provider varies; default AI/ML API style).
+const LS_REVE = "ci_reve_key";
+const getReveKey   = () => { try { return localStorage.getItem(LS_REVE) || ""; } catch (e) { return ""; } };
+const setReveKeyLS = (k) => { try { k ? localStorage.setItem(LS_REVE, k) : localStorage.removeItem(LS_REVE); } catch (e) {} };
 // Optional proxy URL (Cloudflare Worker). When set, image calls go through it
 // so keys stay server-side and browser CORS is bypassed.
 const LS_PROXY = "ci_proxy_url";
@@ -221,6 +225,41 @@ async function generateThumbnailFlux({ prompt, model, size }) {
   b64 = String(b64).replace(/^data:[^,]+,/, "");
   if (!b64) throw new Error("FLUX returned no image. Try again.");
   return "data:image/png;base64," + b64;
+}
+
+// Image generation via Reve (text-to-image). Default endpoint = AI/ML API
+// OpenAI-style; adjust in the Worker (REVE_URL) if your key is from another
+// Reve provider. Prefer the proxy (direct browser calls are likely CORS-blocked).
+async function generateThumbnailReve({ prompt, model, size }) {
+  const mdl = model || "reve/create-image";
+  const payload = { model: mdl, prompt, n: 1, response_format: "b64_json" };
+  const proxy = getProxyUrl();
+  let res;
+  if (proxy) {
+    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "reve", payload }) }); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL — check it in Settings."); }
+  } else {
+    const key = getReveKey();
+    if (!key) throw new Error("NO_REVE_KEY");
+    try {
+      res = await fetch("https://api.aimlapi.com/v1/images/generations", {
+        method: "POST", headers: { "content-type": "application/json", "authorization": "Bearer " + key },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) { throw new Error("Couldn't reach Reve from the browser (likely CORS). Add a proxy URL in Settings."); }
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) throw new Error("Reve key was rejected — check it in Settings.");
+    throw new Error(err.detail || (err.error && err.error.message) || ("Reve request failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const item = ((data.data || data.images || data.artifacts || [])[0]) || {};
+  if (item.b64_json) return "data:image/png;base64," + item.b64_json;
+  if (item.base64) return "data:image/png;base64," + item.base64;
+  if (item.url) return item.url;
+  if (data.url) return data.url;
+  throw new Error("Reve returned no image (the response format may differ — share your provider's docs and I'll adjust).");
 }
 
 // Pull the grounded regen prompt out of a report (falls back to the biggest fix).
@@ -588,12 +627,13 @@ function KeyModal({ open, onClose }) {
   const [key, setKey] = React.useState(getKey());
   const [gkey, setGkey] = React.useState(getGoogleKey());
   const [nvkey, setNvkey] = React.useState(getNvidiaKey());
+  const [rvkey, setRvkey] = React.useState(getReveKey());
   const [proxy, setProxy] = React.useState(getProxyUrl());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow] = React.useState(false);
-  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setNvkey(getNvidiaKey()); setProxy(getProxyUrl()); setModel(getModel()); } }, [open]);
+  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); } }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setNvidiaKeyLS(nvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
   return (
     <div className="ci-modal-scrim" onClick={() => onClose(false)}>
@@ -618,6 +658,7 @@ function KeyModal({ open, onClose }) {
         <label className="ci-label" style={{ marginTop: 18 }}>Image generation key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, to generate thumbnails</span></label>
         <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="NVIDIA key — nvapi-… (FLUX, free)" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
         <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="Google AI key — AIza… (Gemini, edits your image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
+        <input className="ci-input" type={show ? "text" : "password"} value={rvkey} onChange={e => setRvkey(e.target.value)} placeholder="Reve key (image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
         <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
           The Thumbnail tab generates an improved image from the feedback. Uses <b>NVIDIA FLUX</b> if set (free — <a href="https://build.nvidia.com/black-forest-labs/flux_1-dev" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>build.nvidia.com</a>), otherwise <b>Google Gemini</b> (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>free key</a>) which edits your actual image.
         </div>
@@ -654,4 +695,5 @@ Object.assign(window, {
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
+  getReveKey, setReveKeyLS, generateThumbnailReve,
 });

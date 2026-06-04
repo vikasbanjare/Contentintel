@@ -49,6 +49,7 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 const IMG_MODELS = [
   { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA, free (fresh image)', provider: 'nvidia' },
   { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key)', provider: 'gemini' },
+  { id: 'reve/create-image', label: 'Reve — image (Reve key)', provider: 'reve' },
 ];
 
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
@@ -134,6 +135,9 @@ function ThumbnailTab({ onOpenKey }) {
       if (genModel.provider === 'nvidia') {
         const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
         out = await window.generateThumbnailFlux({ prompt, model: genModel.id }); via = 'NVIDIA FLUX (klein-4B)';
+      } else if (genModel.provider === 'reve') {
+        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
+        out = await window.generateThumbnailReve({ prompt, model: genModel.id }); via = 'Reve';
       } else {
         const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and palette — change only what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${basePrompt}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail.`;
         out = await window.generateThumbnail({ instruction, image: imgA }); via = 'Google Gemini';

@@ -49,7 +49,18 @@ export default {
         });
         return passthrough(r, cors);
       }
-      // Add more providers here later (e.g. Reve) following the same pattern.
+      if (provider === "reve") {
+        if (!env.REVE_KEY) return j({ error: "Worker is missing REVE_KEY secret" }, 500, cors);
+        // Default = AI/ML API OpenAI-style. If your Reve key is from another
+        // provider, set REVE_URL (and adjust the body in the app) to match.
+        const url = env.REVE_URL || "https://api.aimlapi.com/v1/images/generations";
+        const r = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json", "authorization": "Bearer " + env.REVE_KEY },
+          body: JSON.stringify(body.payload || {}),
+        });
+        return passthrough(r, cors);
+      }
       return j({ error: "unknown provider" }, 400, cors);
     } catch (e) {
       return j({ error: String(e && e.message || e) }, 502, cors);
