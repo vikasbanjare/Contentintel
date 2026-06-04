@@ -2559,18 +2559,24 @@ function KeyModal({ open, onClose }) {
           No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
         </div>
 
-        <label className="ci-label" style={{ marginTop: 18 }}>Image generation key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, to generate thumbnails</span></label>
-        <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="NVIDIA key — nvapi-… (FLUX, free)" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-        <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="Google AI key — AIza… (Gemini, edits your image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
-        <input className="ci-input" type={show ? "text" : "password"} value={rvkey} onChange={e => setRvkey(e.target.value)} placeholder="Reve key (image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
-        <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-          The Thumbnail tab generates an improved image from the feedback. Uses <b>NVIDIA FLUX</b> if set (free — <a href="https://build.nvidia.com/black-forest-labs/flux_1-dev" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>build.nvidia.com</a>), otherwise <b>Google Gemini</b> (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>free key</a>) which edits your actual image.
-        </div>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--stroke-1)" }}>
+          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, color: "var(--text-1)" }}>Image generation (optional)</div>
+          <div style={{ fontSize: 12, color: "var(--text-4)", margin: "4px 0 14px" }}>Only needed to <i>generate</i> thumbnails. The free option needs no key at all.</div>
 
-        <label className="ci-label" style={{ marginTop: 18 }}>Image proxy URL <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional; fixes NVIDIA CORS & keeps keys private when sharing</span></label>
-        <input className="ci-input" value={proxy} onChange={e => setProxy(e.target.value)} placeholder="https://your-worker.workers.dev" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-        <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-          If set, image generation goes through your Cloudflare Worker (keys live there, not in the browser). Leave blank to call providers directly with the keys above.
+          <label className="ci-label">🟢 NVIDIA key — FLUX (free; needs the proxy URL below)</label>
+          <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="nvapi-…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+
+          <label className="ci-label" style={{ marginTop: 12 }}>🔵 Google AI key — Gemini (edits your image; paid plan required)</label>
+          <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="AIza…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+
+          <label className="ci-label" style={{ marginTop: 12 }}>🟣 Reve key</label>
+          <input className="ci-input" type={show ? "text" : "password"} value={rvkey} onChange={e => setRvkey(e.target.value)} placeholder="reve key…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+
+          <label className="ci-label" style={{ marginTop: 12 }}>⚙️ Image proxy URL — your Cloudflare Worker (required for FLUX / Reve)</label>
+          <input className="ci-input" value={proxy} onChange={e => setProxy(e.target.value)} placeholder="https://your-worker.workers.dev" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8, lineHeight: 1.5 }}>
+            Tip: in the Thumbnail tab you can pick <b>“Free — no key, no setup”</b> and skip all of this. FLUX/Reve need the proxy (browser can't call them directly). Gemini works without the proxy but needs a paid plan.
+          </div>
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -3589,8 +3595,9 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 // Image-generation models the user can pick. Extend with Reve / more FLUX once
 // their endpoints are confirmed. provider routes to the right engine + key.
 const IMG_MODELS = [
-  { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA, free (fresh image)', provider: 'nvidia' },
-  { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key)', provider: 'gemini' },
+  { id: 'pollinations', label: 'Free — no key, no setup (instant)', provider: 'pollinations' },
+  { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA (needs proxy)', provider: 'nvidia' },
+  { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key, paid)', provider: 'gemini' },
   { id: 'reve/create-image', label: 'Reve — image (Reve key)', provider: 'reve' },
 ];
 
@@ -3674,7 +3681,12 @@ function ThumbnailTab({ onOpenKey }) {
     setGen({ loading: true, out: null, err: '', via: '', surface });
     try {
       let out, via;
-      if (genModel.provider === 'nvidia') {
+      if (genModel.provider === 'pollinations') {
+        const p = `Professional YouTube thumbnail, 16:9, bold, high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
+        const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(p) + '?width=1280&height=720&nologo=true&model=flux&seed=' + Math.floor(Math.random() * 1e6);
+        await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(); im.onerror = () => reject(new Error('Free generator did not respond — try again in a moment.')); im.src = url; });
+        out = url; via = 'Pollinations (free)';
+      } else if (genModel.provider === 'nvidia') {
         const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
         out = await window.generateThumbnailFlux({ prompt, model: genModel.id }); via = 'NVIDIA FLUX (klein-4B)';
       } else if (genModel.provider === 'reve') {
