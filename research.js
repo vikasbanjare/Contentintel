@@ -107,7 +107,7 @@ OUTPUT EXPECTATIONS: a line-by-line emotion/attention read, the predicted exact 
       { name: "CTA", what: "One specific CTA tied to the payoff, well placed." },
       { name: "Audience & platform fit", what: "Authentic to the content's own language, audience and platform." },
     ],
-    notes: "Map emotion line-by-line, predict the exact drop-off line(s), and give 2–3 hook rewrites.",
+    notes: "Output a dashboard: (1) 'overall' score + verdict; (2) a 'graph' section — the predicted attention/retention curve as 6–10 points across the runtime, the VALUE dipping at slow, confusing or low-tension moments and lowest at the predicted drop-off; (3) a 'beats' section — the script split into labelled beats (HOOK, SETUP, PROOF, TURN, PAYOFF, CTA…), each with the ACTUAL line text and a level (green strong / yellow ok / red weak); (4) per-dimension 'scores'; (5) 2–3 hook rewrites in a 'copy' section; (6) the single 'bottomLine' biggest fix. The graph points and the beats must be in the same order. Keep every string tight.",
   },
 
   // ── THUMBNAIL ───────────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ STEP 0 — GROUND YOURSELF IN THIS EXACT THUMBNAIL (do this FIRST, before any ju
 - If an IMAGE is attached, describe ONLY what is actually in it: the subject, their expression and size in frame, the literal text words, the colours, the background, the layout, any objects/arrows. Do not invent anything that is not visibly there.
 - If only a TEXT DESCRIPTION is given (free mode, no vision), work strictly from that description and say "based on your description".
 - If you have NEITHER a visible image NOR a description, do NOT fabricate a thumbnail. Say you cannot see it, ask the user to attach an image (with an API key for vision) or describe it, and give only general guidance — output NO scores pretending to judge a specific image and NO regen prompt.
-Everything below — scores, fixes and especially the regeneration prompt — must refer to the ACTUAL thumbnail you grounded yourself in here.
+Everything below — scores, fixes and especially the regeneration prompt — must refer to the ACTUAL thumbnail you grounded yourself in here. Your job is to EDIT this thumbnail, not redesign it: preserve the real people, expression, exact text, typography, palette and aesthetic by default, and change only what is actually asked.
 
 STEP 1 — CLASSIFY against the DESIGN LIBRARY provided below: name which LAYOUT archetype and which COLOR scheme this thumbnail uses (or "unclear/none"), and note whether that choice fits the niche. If the user pre-selected a target layout or colour scheme, evaluate against THAT target.
 
@@ -129,10 +129,10 @@ STEP 1b — APPLY PATTERNS CONDITIONALLY (this is what must make the analysis be
 - If the thumbnail does NOT match any trained niche (e.g. cooking, travel, gaming, beauty, lifestyle, tech reviews), IGNORE the niche playbooks entirely and judge + regenerate from the UNIVERSAL principles, the thumbnail's ACTUAL content, and the brand. Do NOT import niche devices that don't belong.
 - NEVER add a device just because it is common in the library. The yellow highlight box, the ₹Crore number, the founder cut-out and the curved arrow are NICHE devices — use them only when the niche/brand genuinely calls for them. Default to nothing; earn every element from the actual content.
 COLOUR SOURCING — strict priority order (this fixes the "always yellow" problem):
-1. If the user provided BRAND COLOURS, the palette, highlight box and number MUST be built from those colours — they OVERRIDE every niche default, including yellow.
-2. Otherwise use the featured brand's / subject's own palette and a niche-appropriate scheme.
-3. Otherwise pick a high-contrast scheme that genuinely fits the topic and mood.
-Do NOT default to yellow text or a yellow highlight for non-finance/business content. The highlight colour is a choice, not a habit.
+1. If the user provided BRAND COLOURS, the palette MUST be built from those colours — they OVERRIDE every niche default.
+2. Otherwise KEEP the thumbnail's OWN existing palette and aesthetic — do not change the colours just to match a niche.
+3. Only if a colour is genuinely broken (e.g. text unreadable) suggest a minimal fix that still matches the original's mood.
+Do NOT default to yellow, and do NOT make a clean/minimal/light thumbnail dark or over-saturated. The palette is the user's, not a habit.
 
 A. THE SQUINT / HALF-SECOND TEST: at thumbnail size and a glance, is there ONE instantly clear focal point and ONE clear idea? If the eye doesn't know where to land, it fails — say so first.
 
@@ -163,15 +163,23 @@ F. CURIOSITY & PROMISE — thumb + title as ONE unit:
 
 G. PATTERN INTERRUPT: would this look DIFFERENT from the other thumbnails around it in this niche? Sameness = invisible.
 
-REGENERATION PROMPT — CRITICAL (this is where generic, unrelated output must be prevented):
-The image-generation prompt(s) you output MUST be an IMPROVED VERSION OF THIS EXACT THUMBNAIL — never a brand-new, unrelated image.
-- PRESERVE what is already there and working: the real subject / person, the actual topic and core concept, the real text message, any brand identity.
-- CHANGE ONLY the specific weak elements you flagged above (e.g. "enlarge the face to fill the left third", "switch the muddy palette to a high-contrast teal/orange scheme", "cut the text from 7 words to 3: 'I QUIT'", "add rim light to separate the subject from the background").
-- Reference the REAL observed details by name so the result is recognisably the same thumbnail, improved — not a different video.
-- Make it directly usable in an image generator: state the layout archetype, colour scheme, composition, exact text, subject, expression, lighting and background.
-- If in STEP 0 you could NOT see or read the thumbnail, output NO regen prompt — ask for the image/description instead.
+REGENERATION PROMPT — STRICT GROUNDING CONTRACT (this OVERRIDES the design library and every niche playbook):
+The regeneration prompt is an EDIT of the user's ACTUAL thumbnail, never a new design. Write it as two explicit lists — "KEEP:" and "CHANGE ONLY:" — then one line "why this helps".
+KEEP by default (carry over EXACTLY, do not touch):
+- the same person(s) — same identity, same number of people. NEVER add a person/face that isn't there and never remove one.
+- the same facial EXPRESSION — do NOT change it unless the user explicitly asked.
+- the EXACT text, word for word — never rewrite, translate, shorten or restyle it; keep the same FONT / typography.
+- the same COLOUR palette and overall aesthetic — if the original is clean / minimal / light, it STAYS clean, minimal and light.
+- the same background, layout, composition and crop.
+CHANGE ONLY: the elements the user explicitly listed in their request; if they listed none, the SINGLE highest-impact fix, applied as conservatively as possible.
+NEVER (these are hallucinations and are forbidden):
+- do NOT invent or add any company / brand NAME, logo, product, or any person/face not in the original.
+- do NOT add numbers, ₹/$ figures, badges, arrows, grids or "growth graphs".
+- do NOT darken, over-saturate, or add "drama/energy" to a clean or minimal image.
+- do NOT change the wording, the typography, or the expression.
+If in STEP 0 you could NOT actually see the thumbnail, output NO regen prompt — ask for the image instead.
 
-OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STEP 0), the layout + colour-scheme classification (STEP 1), an overall 0–100 plus per-dimension scores, the SINGLE highest-impact change, and 1–2 grounded regeneration prompts as defined above. If two thumbnails (A and B) are attached/described, compare them dimension-by-dimension and fill the "winner" field with the stronger one and why.`,
+OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STEP 0), the layout + colour-scheme classification (STEP 1), an overall 0–100 plus per-dimension scores, the SINGLE highest-impact change, and ONE grounded regeneration prompt written as the KEEP / CHANGE-ONLY contract above (a second only in compare mode). If 2–3 thumbnails (A/B/C) are attached/described, score EACH one, compare them dimension-by-dimension, and fill the "winner" field (pick = A, B or C) with the single strongest one and the one specific reason it wins.`,
     rubric: [
       { name: "Focal clarity (squint test)", what: "One instantly clear subject + idea at 120px in half a second." },
       { name: "Composition & hierarchy", what: "Figure-ground separation, placement, depth, ≤3 elements, leading gaze." },
@@ -293,17 +301,16 @@ Preserve the real subject/brand/claim shown; match the emotional register to the
     // Steers EVERY regeneration prompt (admin-editable). The brand-colour and
     // "what to add" inputs from the UI are merged in on top of this at runtime.
     regenGuidance:
-`When you output a regeneration prompt for a thumbnail:
-- It MUST be an improved version of the user's ACTUAL thumbnail (same subject, topic, brand, number) — never a generic new image.
-- Apply the matching niche playbook ONLY if the thumbnail truly belongs to that niche. If it doesn't match any trained niche, do NOT borrow that niche's devices — design from the universal principles + the actual content + the brand.
-- COLOUR PRIORITY: if the user supplied BRAND COLOURS, build the entire palette from them (background, highlight box, number, accents) — they OVERRIDE every niche default INCLUDING yellow. Never reflexively use a yellow highlight; pick the highlight colour from the brand or the content, with strong contrast and legibility.
-- If the user said WHAT TO ADD / EMPHASISE, honour it specifically (e.g. add a face, enlarge the number, add a curved arrow, add the brand logo, cut the text).
-- Make the prompt copy-paste ready for an image generator: state subject, expression, layout, exact text + the highlight treatment, colours (with hex if given), lighting, background and composition.
-- Also give a one-line "what changed and why" so the user understands the fix.`,
+`The regeneration prompt is an EDIT of the user's ACTUAL thumbnail, never a new design — and this OVERRIDES the design library and niche playbooks. Write it as "KEEP: … / CHANGE ONLY: …" + a one-line reason.
+- KEEP by default: the same person(s), identity and count; the same EXPRESSION (unless the user asked to change it); the EXACT text word-for-word; the same FONT/typography; the same colour palette and aesthetic (clean/minimal/light STAYS that way); the same layout, background and crop.
+- CHANGE ONLY what the user explicitly requested; if nothing was requested, the single highest-impact fix, applied as conservatively as possible.
+- NEVER invent or add a company/brand name, logo, product, or any person/face not in the original. NEVER add numbers, badges, arrows, grids or growth-graphs. NEVER darken or over-saturate a clean image. NEVER alter the wording, typography or expression.
+- COLOUR: if BRAND COLOURS are given, use them; otherwise keep the original's existing palette. Do not introduce dark/saturated "business" colours or a yellow highlight by default.
+- Make it copy-paste ready for an image generator, but describe ONLY the real, observed elements (plus the requested change).`,
 
     // Output guidance for A/B testing (used by the result + the Playbook page).
     abTesting:
-`Always end a single-thumbnail review with an "A/B TEST PLAN": 2–3 concrete, ONE-VARIABLE-AT-A-TIME variants worth testing, each with the hypothesis. Examples of variables to isolate: face vs no-face; calm-confident vs shocked expression; big-number hook vs "India's ___ King" frame vs curiosity-question; serif-italic vs bold-sans; yellow highlight box vs none; arrow vs no arrow; brand-colour background vs high-contrast complementary. Change ONE thing per variant so the winner is attributable.`,
+`Always end a single-thumbnail review with an "A/B TEST PLAN": 2–3 concrete, ONE-VARIABLE-AT-A-TIME variants, each with a one-line hypothesis. Isolate ONE variable per variant (e.g. face vs no-face, expression A vs B, text-left vs text-right, one headline wording vs another, accent-colour A vs B). Keep every other element identical so the winner is attributable. Base the variants on the user's ACTUAL thumbnail — never introduce niche devices, brands, people or colours that aren't already there.`,
 
   },
 

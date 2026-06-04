@@ -2036,9 +2036,12 @@ const REPORT_SHAPE =
 `Return ONLY a single valid JSON object — no markdown fences, no text before or after it — in exactly this shape:
 {
   "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
-  "winner": { "pick": "A|B|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
+  "overall": 0-100,
+  "winner": { "pick": "A|B|C|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
   "scores": [ { "name": "string", "score": 0-100, "why": "plain-English reason" } ],
   "sections": [
+     { "type": "graph",     "title": "string", "desc": "optional", "points": [ { "label": "short x-axis label e.g. '0:00 Hook'", "value": 0-100 } ] },
+     { "type": "beats",     "title": "string", "items": [ { "t": "0:00", "label": "HOOK", "text": "the actual line", "level": "green|yellow|red", "note": "optional one-liner" } ] },
      { "type": "issues",    "title": "string", "items": [ { "level": "green|yellow|red", "text": "string" } ] },
      { "type": "copy",      "title": "string", "desc": "optional", "blocks": [ { "label": "Copy", "text": "string", "mono": false } ] },
      { "type": "kv",        "title": "string", "rows": [ { "k": "label", "v": "value", "level": "green|yellow|red (optional)" } ] },
@@ -2048,6 +2051,8 @@ const REPORT_SHAPE =
   "bottomLine": "one honest paragraph: what to fix and the single highest-impact change"
 }
 Rules:
+- ALWAYS include "overall" (0-100), a single headline score for the whole piece.
+- For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats — HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. — each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
 - BE CONCISE AND SCANNABLE — this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2–3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence — only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
@@ -2055,20 +2060,41 @@ Rules:
 - The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
 - Write in the same language and script as the user's content.`;
 
-function buildSystem(type) {
+// Split provenPatterns (blocks separated by blank lines) and derive niche names.
+function splitPlaybookBlocks(text) {
+  return String(text || "").split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+}
+function nicheName(block) {
+  const nl = block.indexOf("\n");
+  const head = (nl === -1 ? block : block.slice(0, nl)).trim();
+  return head.split(/\s+\(|\s+—|\s+-\s/)[0].trim();
+}
+function nicheNames(type = "thumbnail") {
+  return splitPlaybookBlocks((getResearch(type) || {}).provenPatterns).map(nicheName);
+}
+
+// opts: { niche: "Auto-detect" | "<niche name>" | "None (universal)", relax: bool }
+function buildSystem(type, opts = {}) {
   const r = getResearch(type);
   const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
+  // Niche routing — inject ONLY the relevant playbook to stop cross-niche bias.
+  let provenText = r.provenPatterns || "";
+  const niche = opts.niche;
+  if (provenText && niche && niche !== "Auto-detect") {
+    if (niche === "None (universal)") provenText = "";
+    else provenText = splitPlaybookBlocks(provenText).filter(b => nicheName(b) === niche).join("\n\n");
+  }
   // Optional structured design library (currently used by the thumbnail check).
   const cat = (arr) => (arr || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
   const libParts = [];
   if (r.layouts && r.layouts.length)      libParts.push(`LAYOUT ARCHETYPES (classify this content as one, or "unclear"):\n${cat(r.layouts)}`);
   if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
   if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
-  if (r.provenPatterns)                    libParts.push(`PROVEN PATTERNS — niche-scoped playbooks. Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${r.provenPatterns}`);
+  if (provenText)                          libParts.push(`PROVEN PATTERNS — niche-scoped playbook(s). Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${provenText}`);
   if (r.regenGuidance)                     libParts.push(`REGENERATION-PROMPT RULES:\n${r.regenGuidance}`);
   if (r.abTesting)                         libParts.push(`A/B TESTING:\n${r.abTesting}`);
-  const library = libParts.length ? `DESIGN LIBRARY — classify against and judge by these:\n"""\n${libParts.join("\n\n")}\n"""` : "";
+  const library = libParts.length ? `DESIGN LIBRARY — reference for SCORING & classification ONLY. It is NOT a source of new elements, palette, people, brands or style for the regeneration, and it must NEVER override what is actually in the user's content. Apply a niche playbook only when the content clearly belongs to that niche; otherwise ignore it entirely:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
     `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
     `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
@@ -2076,6 +2102,7 @@ function buildSystem(type) {
     `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     library,
+    opts.relax ? `EDIT FREEDOM: the user enabled BOLD REDESIGN — you MAY change layout, composition and colours more boldly for a stronger thumbnail. But STILL keep the same person(s) and their count, the same topic, and the EXACT text & typography, unless the user explicitly asked to change them.` : "",
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
     r.notes ? `Extra: ${r.notes}` : "",
     REPORT_SHAPE,
@@ -2144,14 +2171,14 @@ function useAnalysis(type) {
   const [usage, setUsage] = React.useState(null);
   const [err, setErr] = React.useState("");
 
-  async function run({ userText, image, maxTokens }) {
+  async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setState("loading");
     if (!canRun()) { // sample mode — no key and not in a Claude preview
       setTimeout(() => setState("done"), 850);
       return;
     }
     try {
-      const { text, usage } = await callClaude({ system: buildSystem(type), userText, image, maxTokens });
+      const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
         // Model didn't return clean JSON — show its analysis as plain text rather than failing.
@@ -2240,15 +2267,37 @@ function Collapsible({ title, desc, children }) {
   );
 }
 
-// ── ReportView — renders the generic JSON report from Claude ─────────────────
+// ── ReportView — dashboard-style report renderer ─────────────────────────────
 function ReportView({ report, mood }) {
   const m = EM[mood] || EM.navy;
   if (!report || typeof report !== "object") return null;
   const v = report.verdict || {};
+  const sections = Array.isArray(report.sections) ? report.sections.filter(Boolean) : [];
+  const graphs = sections.filter(s => s.type === "graph");
+  const beats  = sections.filter(s => s.type === "beats");
+  const issues = sections.filter(s => s.type === "issues");
+  const rest   = sections.filter(s => !["graph", "beats", "issues"].includes(s.type));
+  const hasOverall = typeof report.overall === "number";
+
   return (
     <div className="ci-results" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-      {v.level && <TrafficLight level={v.level} title={v.title || "Verdict"} text={v.text || ""} />}
+      {/* Header — verdict + overall score */}
+      {(v.level || hasOverall) && (
+        <Block mood={mood}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20, justifyContent: "space-between", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 300px", display: "flex", gap: 12 }}>
+              {v.level && <span className={"ci-dot " + v.level} style={{ marginTop: 7, flexShrink: 0 }} />}
+              <div>
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 20, color: "var(--text-1)" }}>{v.title || "Verdict"}</div>
+                {v.text && <div style={{ fontSize: 14, color: "var(--text-2)", lineHeight: 1.55, marginTop: 6 }}>{v.text}</div>}
+              </div>
+            </div>
+            {hasOverall && <ScoreDonut value={report.overall} label="Overall" />}
+          </div>
+        </Block>
+      )}
 
+      {/* Winner (A/B) */}
       {report.winner && report.winner.pick && (
         <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbB}66, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
           <Eyebrow mood={mood} glow>{report.winner.pick === "tie" ? "It's a tie" : "Winner"}</Eyebrow>
@@ -2262,27 +2311,52 @@ function ReportView({ report, mood }) {
         </Block>
       )}
 
+      {/* Script quality / attention curve */}
+      {graphs.map((s, i) => (
+        <Block key={"g" + i} title={s.title || "Quality across the video"} desc={s.desc || "Predicted attention & retention — dips mark the weak spots"} mood={mood}>
+          <QualityGraph points={s.points} mood={mood} />
+        </Block>
+      ))}
+
+      {/* Scores */}
       {Array.isArray(report.scores) && report.scores.length > 0 && (
         <Block title="Scores" mood={mood}>
-          {report.scores.map((s, i) => <ScoreItem key={i} mood={mood} name={s.name} score={Math.round(s.score)} why={s.why} />)}
+          {report.scores.map((s, i) => <ScoreBar key={i} name={s.name} score={s.score} why={s.why} />)}
         </Block>
       )}
 
-      {Array.isArray(report.sections) && report.sections.map((sec, i) => {
-        if (!sec) return null;
-        // Short, high-value section stays open; long detail collapses to keep it scannable.
-        if (sec.type === "issues")
-          return <Block key={i} title={sec.title || "Fix these"} mood={mood}>{(sec.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>;
+      {/* Beat sheet — the script broken down */}
+      {beats.map((s, i) => (
+        <Block key={"b" + i} title={s.title || "Script breakdown"} desc={s.desc} mood={mood}>
+          <BeatSheet items={s.items} />
+        </Block>
+      ))}
+
+      {/* Fix these */}
+      {issues.map((s, i) => (
+        <Block key={"i" + i} title={s.title || "Fix these"} mood={mood}>{(s.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>
+      ))}
+
+      {/* Biggest fix — the one action */}
+      {report.bottomLine && (
+        <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+          <Eyebrow mood={mood} glow>Biggest fix</Eyebrow>
+          <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10, color: "var(--text-1)" }}>{report.bottomLine}</div>
+        </Block>
+      )}
+
+      {/* Everything else — collapsible to keep it scannable */}
+      {rest.map((sec, i) => {
         if (sec.type === "copy")
-          return <Collapsible key={i} title={sec.title || "Copy"} desc={sec.desc}>
+          return <Collapsible key={"r" + i} title={sec.title || "Copy & rewrites"} desc={sec.desc}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {(sec.blocks || []).map((b, j) => <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono} />)}
             </div>
           </Collapsible>;
         if (sec.type === "checklist")
-          return <Collapsible key={i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
+          return <Collapsible key={"r" + i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
         if (sec.type === "kv")
-          return <Collapsible key={i} title={sec.title || "Details"}>
+          return <Collapsible key={"r" + i} title={sec.title || "Details"}>
             {(sec.rows || []).map((r, j) => (
               <div key={j} style={{ display: "grid", gridTemplateColumns: r.level ? "20px 150px 1fr" : "150px 1fr", gap: 12, alignItems: "center", padding: "11px 0", borderTop: j ? "1px solid var(--stroke-1)" : "none", fontSize: 13 }}>
                 {r.level && <span className={"ci-dot " + r.level} />}
@@ -2292,16 +2366,9 @@ function ReportView({ report, mood }) {
             ))}
           </Collapsible>;
         if (sec.type === "text")
-          return <Collapsible key={i} title={sec.title || "More"}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Collapsible>;
+          return <Collapsible key={"r" + i} title={sec.title || "More"}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Collapsible>;
         return null;
       })}
-
-      {report.bottomLine && (
-        <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
-          <Eyebrow mood={mood} glow>Bottom line</Eyebrow>
-          <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10, color: "var(--text-1)" }}>{report.bottomLine}</div>
-        </Block>
-      )}
     </div>
   );
 }
@@ -2358,6 +2425,7 @@ Object.assign(window, {
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
+  nicheNames, splitPlaybookBlocks,
 });
 
 </script>
@@ -2689,18 +2757,51 @@ function Issue({ level, children }) {
 }
 
 // Copy-to-clipboard block
+// Robust copy — clipboard API with an execCommand fallback for sandbox / file://
+// / non-HTTPS contexts where navigator.clipboard is blocked. Resolves true/false.
+function copyText(text) {
+  const t = typeof text === 'string' ? text : String(text == null ? '' : text);
+  return new Promise((resolve) => {
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        try { ta.setSelectionRange(0, t.length); } catch (e) {}
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta); resolve(!!ok);
+      } catch (e) { resolve(false); }
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(() => resolve(true), fallback);
+      } else fallback();
+    } catch (e) { fallback(); }
+  });
+}
+function downloadText(text, filename) {
+  try {
+    const blob = new Blob([text || ''], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename || 'report.txt'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {}
+}
+
 function CopyBlock({ text, label = 'Copy', mono = false }) {
   const [done, setDone] = React.useState(false);
   function copy() {
-    try { navigator.clipboard.writeText(typeof text === 'string' ? text : ''); } catch (e) {}
-    setDone(true);
-    setTimeout(() => setDone(false), 1400);
+    copyText(text).then(ok => {
+      setDone(ok ? 'done' : 'fail');
+      setTimeout(() => setDone(false), 1600);
+    });
   }
   return (
     <div className="ci-copyblock">
       <div className="ci-copyblock-text" style={mono ? { fontFamily: 'var(--font-mono)', fontSize: 12.5 } : {}}>{text}</div>
-      <button className={'ci-copybtn' + (done ? ' done' : '')} onClick={copy}>
-        {done ? '✓ Copied' : <>⧉ {label}</>}
+      <button className={'ci-copybtn' + (done === 'done' ? ' done' : '')} onClick={copy}>
+        {done === 'done' ? '✓ Copied' : done === 'fail' ? 'Press Ctrl/⌘+C' : <>⧉ {label}</>}
       </button>
     </div>
   );
@@ -2812,9 +2913,106 @@ function Check({ state, children }) {
   );
 }
 
+// ── Dashboard primitives ─────────────────────────────────────────────────────
+// Circular overall score
+function ScoreDonut({ value = 0, size = 78, label }) {
+  const v = Math.max(0, Math.min(100, Math.round(value)));
+  const color = v >= 75 ? '#8FD86A' : v >= 55 ? '#F0C85A' : '#F06A7E';
+  const r = (size - 10) / 2, c = 2 * Math.PI * r, off = c * (1 - v / 100), cc = size / 2;
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={cc} cy={cc} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
+        <circle cx={cc} cy={cc} r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={off} transform={`rotate(-90 ${cc} ${cc})`}
+          style={{ filter: `drop-shadow(0 0 5px ${color}90)` }} />
+        <text x={cc} y={cc} textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-display)" fontWeight="800" fontSize={size * 0.34} fill="#F2F4FA">{v}</text>
+      </svg>
+      {label && <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 2, letterSpacing: '.06em', textTransform: 'uppercase' }}>{label}</div>}
+    </div>
+  );
+}
+
+// Clean dashboard score bar (name · number · gradient track)
+function ScoreBar({ name, score, why }) {
+  const v = Math.max(0, Math.min(100, Math.round(score)));
+  const color = v >= 75 ? '#8FD86A' : v >= 55 ? '#F0C85A' : '#F06A7E';
+  return (
+    <div style={{ padding: '9px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 7 }}>
+        <span style={{ fontSize: 13.5, color: 'var(--text-2)', fontWeight: 500 }}>{name}</span>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, color: 'var(--text-1)' }}>{v}</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 5, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: v + '%', borderRadius: 5, background: color, boxShadow: `0 0 10px ${color}66` }} />
+      </div>
+      {why && <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.5 }}>{why}</div>}
+    </div>
+  );
+}
+
+// Script quality / attention curve over the runtime
+function QualityGraph({ points = [], mood = 'navy' }) {
+  const m = RM[mood] || RM.navy;
+  const pts = (points || []).filter(p => p && typeof p.value === 'number').slice(0, 14);
+  if (pts.length < 2) return null;
+  const W = 1000, H = 240, padX = 34, padTop = 18, padBot = 52;
+  const innerW = W - padX * 2, innerH = H - padTop - padBot, base = padTop + innerH;
+  const xs = i => padX + (innerW * i) / (pts.length - 1);
+  const ys = v => padTop + innerH * (1 - Math.max(0, Math.min(100, v)) / 100);
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${xs(i).toFixed(1)},${ys(p.value).toFixed(1)}`).join(' ');
+  const area = `${line} L${xs(pts.length - 1).toFixed(1)},${base} L${xs(0).toFixed(1)},${base} Z`;
+  const accent = m.accentFrom;
+  const gid = 'qg-' + mood;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={accent} stopOpacity="0.32" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[25, 50, 75].map(g => (
+        <line key={g} x1={padX} y1={ys(g)} x2={W - padX} y2={ys(g)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4 6" />
+      ))}
+      <path d={area} fill={`url(#${gid})`} />
+      <path d={line} fill="none" stroke={accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${m.accentGlow})` }} />
+      {pts.map((p, i) => {
+        const low = p.value < 42;
+        return (
+          <g key={i}>
+            <circle cx={xs(i)} cy={ys(p.value)} r={low ? 6 : 4.5} fill={low ? '#F06A7E' : accent} stroke="#0b0e15" strokeWidth="2" />
+            <text x={xs(i)} y={H - 28} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="15" fill="var(--text-3)">{p.label || (i + 1)}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// Beat sheet — timestamp · beat · line, coloured by strength
+function BeatSheet({ items = [] }) {
+  const col = { green: '#8FD86A', yellow: '#F0C85A', red: '#F06A7E' };
+  return (
+    <div>
+      {(items || []).map((it, i) => {
+        const c = col[it.level] || 'var(--stroke-2)';
+        return (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '56px 92px 1fr', gap: 14, alignItems: 'flex-start', padding: '12px 0', borderTop: i ? '1px solid var(--stroke-1)' : 'none' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-3)', paddingTop: 1 }}>{it.t || ''}</span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: col[it.level] || 'var(--text-4)', paddingTop: 2 }}>{it.label || ''}</span>
+            <span style={{ fontSize: 14, color: 'var(--text-1)', lineHeight: 1.55, borderLeft: `2px solid ${c}`, paddingLeft: 12 }}>{it.text}{it.note && <span style={{ display: 'block', fontSize: 12, color: 'var(--text-4)', marginTop: 3 }}>{it.note}</span>}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 Object.assign(window, {
   TrafficLight, Block, ScoreItem, Issue, CopyBlock, CIChip, ChipGroup,
   Toggle, RunButton, WorkHead, LoadingResults, QScore, Check, setAccentVars,
+  ScoreDonut, ScoreBar, QualityGraph, BeatSheet, copyText, downloadText,
 });
 
 </script>
@@ -2843,6 +3041,22 @@ The point isn't the two minutes. It's showing up every single day.
 So pick your habit, shrink it until it feels almost silly, and just start.
 
 If this helped, save it — and tell me in the comments which habit you're starting.`;
+
+const SAMPLE_REPORT_TEXT = `ContentIntel — Script report (sample)
+
+OVERALL: 73/100 — Strong hook, soft middle.
+
+SCORES
+- Hook strength: 84
+- Retention / open loops: 58
+- Pacing & delivery: 69
+- Emotional arc: 54
+- CTA: 62
+
+BIGGEST FIX
+Cut the proof section in half — lead with the result, drop the setup list. That is the only stretch where predicted retention falls.
+
+(Add your Anthropic API key to analyse your real script and copy the full report.)`;
 
 function ScriptTab({ onOpenKey }) {
   const mood = 'navy';
@@ -2884,7 +3098,7 @@ function ScriptTab({ onOpenKey }) {
       : '');
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 4000 }); }
+  function check() { run({ userText, maxTokens: 5200 }); }
 
   // Turn the analysis report into a short brief the rewriter can act on.
   function feedbackBrief() {
@@ -2944,7 +3158,7 @@ function ScriptTab({ onOpenKey }) {
           <div className="ci-copyblock" style={{ display: 'block', marginTop: 8 }}>
             <div className="ci-copyblock-text" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{rewrite.out}</div>
             <button className="ci-copybtn" style={{ height: 34, marginTop: 12 }}
-              onClick={() => { try { navigator.clipboard.writeText(rewrite.out); } catch (e) {} }}>⧉ Copy script</button>
+              onClick={() => window.copyText(rewrite.out)}>⧉ Copy script</button>
           </div>
         </div>
       )}
@@ -3134,8 +3348,8 @@ function ScriptTab({ onOpenKey }) {
               Your hook is weak and the middle drags, but the topic is strong and the ending has potential. Fix the opening 2 lines and add a pattern break around line 6 — <span style={{ color: m.accentFrom, fontWeight: 600 }}>that alone will significantly improve retention.</span>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-              <button className="ci-copybtn" style={{ height: 34 }}>📋 Copy full report</button>
-              <button className="ci-copybtn" style={{ height: 34 }}>↓ Download as text file</button>
+              <button className="ci-copybtn" style={{ height: 34 }} onClick={() => window.copyText(SAMPLE_REPORT_TEXT)}>📋 Copy full report</button>
+              <button className="ci-copybtn" style={{ height: 34 }} onClick={() => window.downloadText(SAMPLE_REPORT_TEXT, 'script-report.txt')}>↓ Download as text file</button>
             </div>
           </SB>
 
@@ -3202,15 +3416,24 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
   const m = TM[mood];
-  const [compare, setCompare] = React.useState(false);
+  const [cmpMode, setCmpMode] = React.useState('Single');
+  const count = cmpMode === 'A/B/C' ? 3 : cmpMode === 'A/B' ? 2 : 1;
+  const compare = count > 1;
   const [title, setTitle] = React.useState('How I Learned to Cook in 30 Days');
   const [kind, setKind] = React.useState('Lifestyle');
   const [layout, setLayout] = React.useState('Auto-detect');
   const [scheme, setScheme] = React.useState('Auto-detect');
+  const [nicheSel, setNicheSel] = React.useState('Auto-detect');
+  const [strict, setStrict] = React.useState(true);
   const [imgA, setImgA] = React.useState(null);
   const [imgB, setImgB] = React.useState(null);
+  const [imgC, setImgC] = React.useState(null);
   const [descA, setDescA] = React.useState('');
   const [descB, setDescB] = React.useState('');
+  const [descC, setDescC] = React.useState('');
+  const LBL = ['A', 'B', 'C'];
+  const imgsAll = [imgA, imgB, imgC], setImgs = [setImgA, setImgB, setImgC];
+  const descsAll = [descA, descB, descC], setDescs = [setDescA, setDescB, setDescC];
   // Brand kit + regeneration guidance
   const [brand, setBrand] = React.useState(loadBrandKit);
   const [emphasis, setEmphasis] = React.useState([]);
@@ -3226,6 +3449,7 @@ function ThumbnailTab({ onOpenKey }) {
   const TLib = window.getResearch('thumbnail') || {};
   const layoutOpts = ['Auto-detect', ...((TLib.layouts || []).map(x => x.name))];
   const schemeOpts = ['Auto-detect', ...((TLib.colorSchemes || []).map(x => x.name))];
+  const nicheOpts = ['Auto-detect', ...((window.nicheNames && window.nicheNames('thumbnail')) || []), 'None (universal)'];
 
   const hasVision = !!window.getKey(); // image vision only works with an API key; the free Claude AI is text-only
   const targetLine =
@@ -3240,18 +3464,20 @@ function ThumbnailTab({ onOpenKey }) {
     addNote.trim() ? `Also for the regeneration: ${addNote.trim()}` : '',
   ].filter(Boolean).join('\n');
   const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
+  const head = `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n`;
   const userText = (compare
-    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
-      `THUMBNAIL A (= Image 1): ${descA.trim() || '(see attached Image 1)'}\n` +
-      `THUMBNAIL B (= Image 2): ${descB.trim() || '(see attached Image 2)'}\n\n` +
-      `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
-    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
+    ? head +
+      Array.from({ length: count }, (_, i) => `THUMBNAIL ${LBL[i]} (= Image ${i + 1}): ${descsAll[i].trim() || `(see attached Image ${i + 1})`}`).join('\n') + '\n\n' +
+      `Compare these ${count} thumbnails for the SAME video and declare a single winner. Fill the "winner" field with pick = A, B${count === 3 ? ' or C' : ''}; rank them and give the one specific reason it wins.`
+    : head +
       `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
-  // Vision now works for BOTH single and compare (two images) when a key is present.
-  const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
-  const estIn = window.estTokens(window.buildSystem('thumbnail'), userText) + imgs.length * 1400;
-  function check() { run({ userText, images: imgs, maxTokens: compare ? 6000 : 4200 }); }
+  // Vision works for single AND multi-image (A/B/C) when a key is present.
+  const imgs = hasVision ? (compare ? imgsAll.slice(0, count).filter(Boolean) : (imgA ? [imgA] : [])) : [];
+  // Niche routing + edit mode are baked into the system prompt (one source of truth).
+  const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict });
+  const estIn = window.estTokens(system, userText) + imgs.length * 1400;
+  function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -3259,10 +3485,16 @@ function ThumbnailTab({ onOpenKey }) {
         sub="Upload your thumbnail. We'll check if it'll get clicks — based on what actually works, not how pretty it looks." />
 
       <TB mood={mood}>
-        <div style={{ marginBottom: 14 }}><TTg on={compare} onChange={setCompare} mood={mood}>Compare two thumbnails</TTg></div>
-        <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12 }}>
-          <ImageDrop image={imgA} onPick={setImgA} label="Drop your image here — any size, JPG or PNG" />
-          {compare && <ImageDrop image={imgB} onPick={setImgB} label="Drop the second image" />}
+        <div style={{ marginBottom: 14 }}>
+          <TCG label="Test" options={['Single', 'A/B', 'A/B/C']} value={cmpMode} onChange={setCmpMode} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 12 }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i}>
+              {compare && <div style={{ fontSize: 12, fontWeight: 700, color: m.accentFrom, marginBottom: 6, letterSpacing: '.04em' }}>{LBL[i]}</div>}
+              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image — JPG or PNG' : `Drop image ${LBL[i]}`} />
+            </div>
+          ))}
         </div>
 
         {!hasVision && (
@@ -3271,20 +3503,14 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12, marginTop: 14 }}>
-          <div>
-            {compare && <label className="ci-label">Describe thumbnail A</label>}
-            {!compare && <label className="ci-label">Describe your thumbnail (text, faces, colors, layout)</label>}
-            <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descA} onChange={e => setDescA(e.target.value)}
-              placeholder="e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background, a burnt pan…" />
-          </div>
-          {compare && (
-            <div>
-              <label className="ci-label">Describe thumbnail B</label>
-              <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descB} onChange={e => setDescB(e.target.value)}
-                placeholder="Describe the second thumbnail the same way…" />
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 12, marginTop: 14 }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i}>
+              <label className="ci-label">{compare ? `Describe thumbnail ${LBL[i]}` : 'Describe your thumbnail (text, faces, colors, layout)'}</label>
+              <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descsAll[i]} onChange={e => setDescs[i](e.target.value)}
+                placeholder={i === 0 ? "e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background…" : `Describe thumbnail ${LBL[i]} the same way…`} />
             </div>
-          )}
+          ))}
         </div>
 
         <div style={{ marginTop: 16 }}>
@@ -3302,6 +3528,13 @@ function ThumbnailTab({ onOpenKey }) {
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 8 }}>
           Leave on <b>Auto-detect</b> to have the AI classify your thumbnail, or pick a target to grade against it.
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <label className="ci-label">Niche playbook <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— pick yours for a tailored playbook, or “None” for a clean, unbiased review</span></label>
+          <select className="ci-input" value={nicheSel} onChange={e => setNicheSel(e.target.value)} style={{ appearance: 'auto' }}>
+            {nicheOpts.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
         </div>
 
         {/* Brand kit + regeneration guidance */}
@@ -3339,9 +3572,15 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
           <input className="ci-input" style={{ marginTop: 10 }} value={addNote} onChange={e => setAddNote(e.target.value)}
             placeholder="Anything else for the new version… e.g. 'make the number ₹500 Cr huge, add a shocked face on the right'" />
+          <div style={{ marginTop: 14 }}>
+            <TTg on={strict} onChange={setStrict} mood={mood}>Strict edit — keep my image as-is, change only what I ask</TTg>
+            <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 6 }}>
+              {strict ? 'Preserves your face, text, fonts and colours. Turn off to allow a bolder redesign.' : 'Bold redesign allowed — layout & colours may change (people, topic and exact text stay).'}
+            </div>
+          </div>
         </div>
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
