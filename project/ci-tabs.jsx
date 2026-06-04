@@ -47,7 +47,8 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 // Image-generation models the user can pick. Extend with Reve / more FLUX once
 // their endpoints are confirmed. provider routes to the right engine + key.
 const IMG_MODELS = [
-  { id: 'pollinations', label: 'Free — no key, no setup (instant)', provider: 'pollinations' },
+  { id: 'poll-flux', label: 'Free · FLUX — no key, no setup', provider: 'pollinations', pmodel: 'flux' },
+  { id: 'poll-turbo', label: 'Free · Turbo — faster, no key', provider: 'pollinations', pmodel: 'turbo' },
   { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA (needs proxy)', provider: 'nvidia' },
   { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key, paid)', provider: 'gemini' },
   { id: 'reve/create-image', label: 'Reve — image (Reve key)', provider: 'reve' },
@@ -135,9 +136,9 @@ function ThumbnailTab({ onOpenKey }) {
       let out, via;
       if (genModel.provider === 'pollinations') {
         const p = `Professional YouTube thumbnail, 16:9, bold, high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
-        const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(p) + '?width=1280&height=720&nologo=true&model=flux&seed=' + Math.floor(Math.random() * 1e6);
-        await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(); im.onerror = () => reject(new Error('Free generator did not respond — try again in a moment.')); im.src = url; });
-        out = url; via = 'Pollinations (free)';
+        const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(p) + '?width=1280&height=720&nologo=true&model=' + (genModel.pmodel || 'flux') + '&seed=' + Math.floor(Math.random() * 1e6);
+        await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(); im.onerror = () => reject(new Error('Free generator did not respond — try again, or pick another free model.')); im.src = url; });
+        out = url; via = 'Free · ' + (genModel.pmodel || 'flux');
       } else if (genModel.provider === 'nvidia') {
         const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
         out = await window.generateThumbnailFlux({ prompt, model: genModel.id }); via = 'NVIDIA FLUX (klein-4B)';
