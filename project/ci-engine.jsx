@@ -25,6 +25,10 @@ const setKeyLS = (k) => { try { k ? localStorage.setItem(LS_KEY, k) : localStora
 const LS_GKEY = "ci_google_key";
 const getGoogleKey   = () => { try { return localStorage.getItem(LS_GKEY) || ""; } catch (e) { return ""; } };
 const setGoogleKeyLS = (k) => { try { k ? localStorage.setItem(LS_GKEY, k) : localStorage.removeItem(LS_GKEY); } catch (e) {} };
+// Optional NVIDIA API key — used for FLUX image generation (free tier).
+const LS_NVKEY = "ci_nvidia_key";
+const getNvidiaKey   = () => { try { return localStorage.getItem(LS_NVKEY) || ""; } catch (e) { return ""; } };
+const setNvidiaKeyLS = (k) => { try { k ? localStorage.setItem(LS_NVKEY, k) : localStorage.removeItem(LS_NVKEY); } catch (e) {} };
 const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAULT_MODEL; } catch (e) { return CI_DEFAULT_MODEL; } };
 const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
 const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
@@ -170,6 +174,34 @@ async function generateThumbnail({ instruction, image, model }) {
     if (inl && inl.data) return "data:" + (inl.mimeType || inl.mime_type || "image/png") + ";base64," + inl.data;
   }
   throw new Error("The image model returned no image. Try again or simplify the request.");
+}
+
+// Image generation via NVIDIA-hosted FLUX (text-to-image). BYO NVIDIA key.
+// flux.2-klein-4b is text-to-image, so it generates FROM the description (it
+// can't preserve the user's exact photo the way Gemini's image edit can).
+async function generateThumbnailFlux({ prompt, model, size }) {
+  const key = getNvidiaKey();
+  if (!key) throw new Error("NO_NV_KEY");
+  const mdl = model || "black-forest-labs/flux.2-klein-4b";
+  let res;
+  try {
+    res = await fetch("https://integrate.api.nvidia.com/v1/images/generations", {
+      method: "POST",
+      headers: { "content-type": "application/json", "accept": "application/json", "authorization": "Bearer " + key },
+      body: JSON.stringify({ model: mdl, prompt, n: 1, response_format: "b64_json", size: size || "1024x1024" }),
+    });
+  } catch (e) { throw new Error("Couldn't reach NVIDIA from the browser (likely CORS). It may need a small proxy — tell me and I'll add one."); }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) throw new Error("NVIDIA key was rejected — check it in Settings.");
+    throw new Error(err.detail || (err.error && err.error.message) || ("FLUX request failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const item = ((data.data || data.artifacts || [])[0]) || {};
+  let b64 = item.b64_json || item.base64 || item.b64 || data.image || data.b64_json || "";
+  b64 = String(b64).replace(/^data:[^,]+,/, "");
+  if (!b64) throw new Error("FLUX returned no image. Try again.");
+  return "data:image/png;base64," + b64;
 }
 
 // Pull the grounded regen prompt out of a report (falls back to the biggest fix).
@@ -536,11 +568,12 @@ function ReportView({ report, mood }) {
 function KeyModal({ open, onClose }) {
   const [key, setKey] = React.useState(getKey());
   const [gkey, setGkey] = React.useState(getGoogleKey());
+  const [nvkey, setNvkey] = React.useState(getNvidiaKey());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow] = React.useState(false);
-  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setModel(getModel()); } }, [open]);
+  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setNvkey(getNvidiaKey()); setModel(getModel()); } }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setModelLS(model); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setNvidiaKeyLS(nvkey.trim()); setModelLS(model); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
   return (
     <div className="ci-modal-scrim" onClick={() => onClose(false)}>
@@ -562,10 +595,11 @@ function KeyModal({ open, onClose }) {
           No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
         </div>
 
-        <label className="ci-label" style={{ marginTop: 18 }}>Google AI key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, only for generating thumbnails</span></label>
-        <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="AIza…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+        <label className="ci-label" style={{ marginTop: 18 }}>Image generation key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, to generate thumbnails</span></label>
+        <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="NVIDIA key — nvapi-… (FLUX, free)" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+        <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="Google AI key — AIza… (Gemini, edits your image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
         <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-          Free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>aistudio.google.com/apikey</a>. Lets the Thumbnail tab generate an improved image from the feedback.
+          The Thumbnail tab generates an improved image from the feedback. Uses <b>NVIDIA FLUX</b> if set (free — <a href="https://build.nvidia.com/black-forest-labs/flux_1-dev" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>build.nvidia.com</a>), otherwise <b>Google Gemini</b> (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>free key</a>) which edits your actual image.
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -593,4 +627,5 @@ Object.assign(window, {
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
+  getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux,
 });

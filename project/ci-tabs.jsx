@@ -112,21 +112,33 @@ function ThumbnailTab({ onOpenKey }) {
   const estIn = window.estTokens(system, userText) + imgs.length * 1400;
   function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
 
-  // ── Generate the improved thumbnail from the feedback (Gemini image model) ──
-  const [gen, setGen] = React.useState({ loading: false, out: null, err: '' });
-  React.useEffect(() => { setGen({ loading: false, out: null, err: '' }); }, [report]);
+  // ── Generate the improved thumbnail from the feedback ───────────────────────
+  // Prefers NVIDIA FLUX (free, text-to-image) → else Google Gemini (edits the image).
+  const [gen, setGen] = React.useState({ loading: false, out: null, err: '', via: '' });
+  React.useEffect(() => { setGen({ loading: false, out: null, err: '', via: '' }); }, [report]);
   async function doGenerate() {
-    setGen({ loading: true, out: null, err: '' });
+    setGen({ loading: true, out: null, err: '', via: '' });
     try {
-      const base = window.regenPromptFromReport(report) || 'Improve this thumbnail for higher click-through.';
-      const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and overall palette — only change what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${base}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail image.`;
-      const out = await window.generateThumbnail({ instruction, image: imgA });
-      setGen({ loading: false, out, err: '' });
+      const base = window.regenPromptFromReport(report) || 'A high click-through thumbnail.';
+      const nv = window.getNvidiaKey && window.getNvidiaKey();
+      const g = window.getGoogleKey && window.getGoogleKey();
+      let out, via;
+      if (nv) {
+        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${base}${guidance ? '\n' + guidance : ''}`;
+        out = await window.generateThumbnailFlux({ prompt }); via = 'NVIDIA FLUX';
+      } else if (g) {
+        const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and palette — change only what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${base}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail.`;
+        out = await window.generateThumbnail({ instruction, image: imgA }); via = 'Google Gemini';
+      } else {
+        throw new Error('Add an NVIDIA (FLUX) or Google AI key in Settings to generate images.');
+      }
+      setGen({ loading: false, out, err: '', via });
     } catch (e) {
-      const msg = String(e.message) === 'NO_GOOGLE_KEY'
-        ? 'Add a free Google AI key in Settings (top-right) to generate images.'
+      const em = String(e.message);
+      const msg = (em === 'NO_GOOGLE_KEY' || em === 'NO_NV_KEY')
+        ? 'Add an NVIDIA (FLUX) or Google AI key in Settings (top-right) to generate images.'
         : (e.message || 'Could not generate — try again.');
-      setGen({ loading: false, out: null, err: msg });
+      setGen({ loading: false, out: null, err: msg, via: '' });
     }
   }
 
@@ -248,7 +260,7 @@ function ThumbnailTab({ onOpenKey }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>✨ Generate the improved thumbnail</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>Edits your image from the feedback above. Needs a free Google AI key.</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>Uses NVIDIA FLUX (free) or Google Gemini from the feedback above. Add a key in Settings.</div>
                 </div>
                 <window.GlowButton mood={mood} onClick={doGenerate}>
                   {gen.loading ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
@@ -257,6 +269,7 @@ function ThumbnailTab({ onOpenKey }) {
               {gen.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12, lineHeight: 1.5 }}>{gen.err}</div>}
               {gen.out && (
                 <div style={{ marginTop: 14 }}>
+                  {gen.via && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 6 }}>Generated with {gen.via}</div>}
                   <img src={gen.out} alt="generated thumbnail" style={{ width: '100%', maxWidth: 640, borderRadius: 12, display: 'block', border: '1px solid var(--stroke-2)' }} />
                   <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                     <a className="ci-copybtn" href={gen.out} download="thumbnail.png" style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none' }}>↓ Download</a>
