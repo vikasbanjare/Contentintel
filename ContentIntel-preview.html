@@ -1010,7 +1010,7 @@ NEVER (these are hallucinations and are forbidden):
 - do NOT change the wording, the typography, or the expression.
 If in STEP 0 you could NOT actually see the thumbnail, output NO regen prompt — ask for the image instead.
 
-OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STEP 0), the layout + colour-scheme classification (STEP 1), an overall 0–100 plus per-dimension scores, the SINGLE highest-impact change, and ONE grounded regeneration prompt written as the KEEP / CHANGE-ONLY contract above (a second only in A/B compare). If two thumbnails (A and B) are attached/described, compare them dimension-by-dimension and fill the "winner" field with the stronger one and why.`,
+OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STEP 0), the layout + colour-scheme classification (STEP 1), an overall 0–100 plus per-dimension scores, the SINGLE highest-impact change, and ONE grounded regeneration prompt written as the KEEP / CHANGE-ONLY contract above (a second only in compare mode). If 2–3 thumbnails (A/B/C) are attached/described, score EACH one, compare them dimension-by-dimension, and fill the "winner" field (pick = A, B or C) with the single strongest one and the one specific reason it wins.`,
     rubric: [
       { name: "Focal clarity (squint test)", what: "One instantly clear subject + idea at 120px in half a second." },
       { name: "Composition & hierarchy", what: "Figure-ground separation, placement, depth, ≤3 elements, leading gaze." },
@@ -2414,7 +2414,7 @@ const REPORT_SHAPE =
 {
   "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
   "overall": 0-100,
-  "winner": { "pick": "A|B|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
+  "winner": { "pick": "A|B|C|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
   "scores": [ { "name": "string", "score": 0-100, "why": "plain-English reason" } ],
   "sections": [
      { "type": "graph",     "title": "string", "desc": "optional", "points": [ { "label": "short x-axis label e.g. '0:00 Hook'", "value": 0-100 } ] },
@@ -3134,18 +3134,51 @@ function Issue({ level, children }) {
 }
 
 // Copy-to-clipboard block
+// Robust copy — clipboard API with an execCommand fallback for sandbox / file://
+// / non-HTTPS contexts where navigator.clipboard is blocked. Resolves true/false.
+function copyText(text) {
+  const t = typeof text === 'string' ? text : String(text == null ? '' : text);
+  return new Promise((resolve) => {
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        try { ta.setSelectionRange(0, t.length); } catch (e) {}
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta); resolve(!!ok);
+      } catch (e) { resolve(false); }
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(() => resolve(true), fallback);
+      } else fallback();
+    } catch (e) { fallback(); }
+  });
+}
+function downloadText(text, filename) {
+  try {
+    const blob = new Blob([text || ''], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename || 'report.txt'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {}
+}
+
 function CopyBlock({ text, label = 'Copy', mono = false }) {
   const [done, setDone] = React.useState(false);
   function copy() {
-    try { navigator.clipboard.writeText(typeof text === 'string' ? text : ''); } catch (e) {}
-    setDone(true);
-    setTimeout(() => setDone(false), 1400);
+    copyText(text).then(ok => {
+      setDone(ok ? 'done' : 'fail');
+      setTimeout(() => setDone(false), 1600);
+    });
   }
   return (
     <div className="ci-copyblock">
       <div className="ci-copyblock-text" style={mono ? { fontFamily: 'var(--font-mono)', fontSize: 12.5 } : {}}>{text}</div>
-      <button className={'ci-copybtn' + (done ? ' done' : '')} onClick={copy}>
-        {done ? '✓ Copied' : <>⧉ {label}</>}
+      <button className={'ci-copybtn' + (done === 'done' ? ' done' : '')} onClick={copy}>
+        {done === 'done' ? '✓ Copied' : done === 'fail' ? 'Press Ctrl/⌘+C' : <>⧉ {label}</>}
       </button>
     </div>
   );
@@ -3356,7 +3389,7 @@ function BeatSheet({ items = [] }) {
 Object.assign(window, {
   TrafficLight, Block, ScoreItem, Issue, CopyBlock, CIChip, ChipGroup,
   Toggle, RunButton, WorkHead, LoadingResults, QScore, Check, setAccentVars,
-  ScoreDonut, ScoreBar, QualityGraph, BeatSheet,
+  ScoreDonut, ScoreBar, QualityGraph, BeatSheet, copyText, downloadText,
 });
 
 </script>
@@ -3385,6 +3418,22 @@ The point isn't the two minutes. It's showing up every single day.
 So pick your habit, shrink it until it feels almost silly, and just start.
 
 If this helped, save it — and tell me in the comments which habit you're starting.`;
+
+const SAMPLE_REPORT_TEXT = `ContentIntel — Script report (sample)
+
+OVERALL: 73/100 — Strong hook, soft middle.
+
+SCORES
+- Hook strength: 84
+- Retention / open loops: 58
+- Pacing & delivery: 69
+- Emotional arc: 54
+- CTA: 62
+
+BIGGEST FIX
+Cut the proof section in half — lead with the result, drop the setup list. That is the only stretch where predicted retention falls.
+
+(Add your Anthropic API key to analyse your real script and copy the full report.)`;
 
 function ScriptTab({ onOpenKey }) {
   const mood = 'navy';
@@ -3486,7 +3535,7 @@ function ScriptTab({ onOpenKey }) {
           <div className="ci-copyblock" style={{ display: 'block', marginTop: 8 }}>
             <div className="ci-copyblock-text" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{rewrite.out}</div>
             <button className="ci-copybtn" style={{ height: 34, marginTop: 12 }}
-              onClick={() => { try { navigator.clipboard.writeText(rewrite.out); } catch (e) {} }}>⧉ Copy script</button>
+              onClick={() => window.copyText(rewrite.out)}>⧉ Copy script</button>
           </div>
         </div>
       )}
@@ -3676,8 +3725,8 @@ function ScriptTab({ onOpenKey }) {
               Your hook is weak and the middle drags, but the topic is strong and the ending has potential. Fix the opening 2 lines and add a pattern break around line 6 — <span style={{ color: m.accentFrom, fontWeight: 600 }}>that alone will significantly improve retention.</span>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-              <button className="ci-copybtn" style={{ height: 34 }}>📋 Copy full report</button>
-              <button className="ci-copybtn" style={{ height: 34 }}>↓ Download as text file</button>
+              <button className="ci-copybtn" style={{ height: 34 }} onClick={() => window.copyText(SAMPLE_REPORT_TEXT)}>📋 Copy full report</button>
+              <button className="ci-copybtn" style={{ height: 34 }} onClick={() => window.downloadText(SAMPLE_REPORT_TEXT, 'script-report.txt')}>↓ Download as text file</button>
             </div>
           </SB>
 
@@ -3744,7 +3793,9 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
   const m = TM[mood];
-  const [compare, setCompare] = React.useState(false);
+  const [cmpMode, setCmpMode] = React.useState('Single');
+  const count = cmpMode === 'A/B/C' ? 3 : cmpMode === 'A/B' ? 2 : 1;
+  const compare = count > 1;
   const [title, setTitle] = React.useState('How I Learned to Cook in 30 Days');
   const [kind, setKind] = React.useState('Lifestyle');
   const [layout, setLayout] = React.useState('Auto-detect');
@@ -3753,8 +3804,13 @@ function ThumbnailTab({ onOpenKey }) {
   const [strict, setStrict] = React.useState(true);
   const [imgA, setImgA] = React.useState(null);
   const [imgB, setImgB] = React.useState(null);
+  const [imgC, setImgC] = React.useState(null);
   const [descA, setDescA] = React.useState('');
   const [descB, setDescB] = React.useState('');
+  const [descC, setDescC] = React.useState('');
+  const LBL = ['A', 'B', 'C'];
+  const imgsAll = [imgA, imgB, imgC], setImgs = [setImgA, setImgB, setImgC];
+  const descsAll = [descA, descB, descC], setDescs = [setDescA, setDescB, setDescC];
   // Brand kit + regeneration guidance
   const [brand, setBrand] = React.useState(loadBrandKit);
   const [emphasis, setEmphasis] = React.useState([]);
@@ -3785,20 +3841,20 @@ function ThumbnailTab({ onOpenKey }) {
     addNote.trim() ? `Also for the regeneration: ${addNote.trim()}` : '',
   ].filter(Boolean).join('\n');
   const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
+  const head = `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n`;
   const userText = (compare
-    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
-      `THUMBNAIL A (= Image 1): ${descA.trim() || '(see attached Image 1)'}\n` +
-      `THUMBNAIL B (= Image 2): ${descB.trim() || '(see attached Image 2)'}\n\n` +
-      `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
-    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
+    ? head +
+      Array.from({ length: count }, (_, i) => `THUMBNAIL ${LBL[i]} (= Image ${i + 1}): ${descsAll[i].trim() || `(see attached Image ${i + 1})`}`).join('\n') + '\n\n' +
+      `Compare these ${count} thumbnails for the SAME video and declare a single winner. Fill the "winner" field with pick = A, B${count === 3 ? ' or C' : ''}; rank them and give the one specific reason it wins.`
+    : head +
       `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
-  // Vision now works for BOTH single and compare (two images) when a key is present.
-  const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
+  // Vision works for single AND multi-image (A/B/C) when a key is present.
+  const imgs = hasVision ? (compare ? imgsAll.slice(0, count).filter(Boolean) : (imgA ? [imgA] : [])) : [];
   // Niche routing + edit mode are baked into the system prompt (one source of truth).
   const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict });
   const estIn = window.estTokens(system, userText) + imgs.length * 1400;
-  function check() { run({ userText, images: imgs, maxTokens: compare ? 6000 : 4200, system }); }
+  function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -3806,10 +3862,16 @@ function ThumbnailTab({ onOpenKey }) {
         sub="Upload your thumbnail. We'll check if it'll get clicks — based on what actually works, not how pretty it looks." />
 
       <TB mood={mood}>
-        <div style={{ marginBottom: 14 }}><TTg on={compare} onChange={setCompare} mood={mood}>Compare two thumbnails</TTg></div>
-        <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12 }}>
-          <ImageDrop image={imgA} onPick={setImgA} label="Drop your image here — any size, JPG or PNG" />
-          {compare && <ImageDrop image={imgB} onPick={setImgB} label="Drop the second image" />}
+        <div style={{ marginBottom: 14 }}>
+          <TCG label="Test" options={['Single', 'A/B', 'A/B/C']} value={cmpMode} onChange={setCmpMode} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 12 }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i}>
+              {compare && <div style={{ fontSize: 12, fontWeight: 700, color: m.accentFrom, marginBottom: 6, letterSpacing: '.04em' }}>{LBL[i]}</div>}
+              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image — JPG or PNG' : `Drop image ${LBL[i]}`} />
+            </div>
+          ))}
         </div>
 
         {!hasVision && (
@@ -3818,20 +3880,14 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12, marginTop: 14 }}>
-          <div>
-            {compare && <label className="ci-label">Describe thumbnail A</label>}
-            {!compare && <label className="ci-label">Describe your thumbnail (text, faces, colors, layout)</label>}
-            <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descA} onChange={e => setDescA(e.target.value)}
-              placeholder="e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background, a burnt pan…" />
-          </div>
-          {compare && (
-            <div>
-              <label className="ci-label">Describe thumbnail B</label>
-              <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descB} onChange={e => setDescB(e.target.value)}
-                placeholder="Describe the second thumbnail the same way…" />
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 12, marginTop: 14 }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i}>
+              <label className="ci-label">{compare ? `Describe thumbnail ${LBL[i]}` : 'Describe your thumbnail (text, faces, colors, layout)'}</label>
+              <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descsAll[i]} onChange={e => setDescs[i](e.target.value)}
+                placeholder={i === 0 ? "e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background…" : `Describe thumbnail ${LBL[i]} the same way…`} />
             </div>
-          )}
+          ))}
         </div>
 
         <div style={{ marginTop: 16 }}>
@@ -3901,7 +3957,7 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         </div>
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}

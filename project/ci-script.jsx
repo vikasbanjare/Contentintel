@@ -22,6 +22,22 @@ So pick your habit, shrink it until it feels almost silly, and just start.
 
 If this helped, save it — and tell me in the comments which habit you're starting.`;
 
+const SAMPLE_REPORT_TEXT = `ContentIntel — Script report (sample)
+
+OVERALL: 73/100 — Strong hook, soft middle.
+
+SCORES
+- Hook strength: 84
+- Retention / open loops: 58
+- Pacing & delivery: 69
+- Emotional arc: 54
+- CTA: 62
+
+BIGGEST FIX
+Cut the proof section in half — lead with the result, drop the setup list. That is the only stretch where predicted retention falls.
+
+(Add your Anthropic API key to analyse your real script and copy the full report.)`;
+
 function ScriptTab({ onOpenKey }) {
   const mood = 'navy';
   const m = SM[mood];
@@ -122,7 +138,7 @@ function ScriptTab({ onOpenKey }) {
           <div className="ci-copyblock" style={{ display: 'block', marginTop: 8 }}>
             <div className="ci-copyblock-text" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{rewrite.out}</div>
             <button className="ci-copybtn" style={{ height: 34, marginTop: 12 }}
-              onClick={() => { try { navigator.clipboard.writeText(rewrite.out); } catch (e) {} }}>⧉ Copy script</button>
+              onClick={() => window.copyText(rewrite.out)}>⧉ Copy script</button>
           </div>
         </div>
       )}
@@ -312,8 +328,8 @@ function ScriptTab({ onOpenKey }) {
               Your hook is weak and the middle drags, but the topic is strong and the ending has potential. Fix the opening 2 lines and add a pattern break around line 6 — <span style={{ color: m.accentFrom, fontWeight: 600 }}>that alone will significantly improve retention.</span>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
-              <button className="ci-copybtn" style={{ height: 34 }}>📋 Copy full report</button>
-              <button className="ci-copybtn" style={{ height: 34 }}>↓ Download as text file</button>
+              <button className="ci-copybtn" style={{ height: 34 }} onClick={() => window.copyText(SAMPLE_REPORT_TEXT)}>📋 Copy full report</button>
+              <button className="ci-copybtn" style={{ height: 34 }} onClick={() => window.downloadText(SAMPLE_REPORT_TEXT, 'script-report.txt')}>↓ Download as text file</button>
             </div>
           </SB>
 

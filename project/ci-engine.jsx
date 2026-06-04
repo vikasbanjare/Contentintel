@@ -136,7 +136,7 @@ const REPORT_SHAPE =
 {
   "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
   "overall": 0-100,
-  "winner": { "pick": "A|B|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
+  "winner": { "pick": "A|B|C|tie", "label": "what won, e.g. 'Version A' or 'Thumbnail B'", "why": "one specific sentence" },
   "scores": [ { "name": "string", "score": 0-100, "why": "plain-English reason" } ],
   "sections": [
      { "type": "graph",     "title": "string", "desc": "optional", "points": [ { "label": "short x-axis label e.g. '0:00 Hook'", "value": 0-100 } ] },

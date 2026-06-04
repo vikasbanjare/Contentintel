@@ -74,18 +74,51 @@ function Issue({ level, children }) {
 }
 
 // Copy-to-clipboard block
+// Robust copy — clipboard API with an execCommand fallback for sandbox / file://
+// / non-HTTPS contexts where navigator.clipboard is blocked. Resolves true/false.
+function copyText(text) {
+  const t = typeof text === 'string' ? text : String(text == null ? '' : text);
+  return new Promise((resolve) => {
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = t; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        try { ta.setSelectionRange(0, t.length); } catch (e) {}
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta); resolve(!!ok);
+      } catch (e) { resolve(false); }
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(() => resolve(true), fallback);
+      } else fallback();
+    } catch (e) { fallback(); }
+  });
+}
+function downloadText(text, filename) {
+  try {
+    const blob = new Blob([text || ''], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename || 'report.txt'; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {}
+}
+
 function CopyBlock({ text, label = 'Copy', mono = false }) {
   const [done, setDone] = React.useState(false);
   function copy() {
-    try { navigator.clipboard.writeText(typeof text === 'string' ? text : ''); } catch (e) {}
-    setDone(true);
-    setTimeout(() => setDone(false), 1400);
+    copyText(text).then(ok => {
+      setDone(ok ? 'done' : 'fail');
+      setTimeout(() => setDone(false), 1600);
+    });
   }
   return (
     <div className="ci-copyblock">
       <div className="ci-copyblock-text" style={mono ? { fontFamily: 'var(--font-mono)', fontSize: 12.5 } : {}}>{text}</div>
-      <button className={'ci-copybtn' + (done ? ' done' : '')} onClick={copy}>
-        {done ? '✓ Copied' : <>⧉ {label}</>}
+      <button className={'ci-copybtn' + (done === 'done' ? ' done' : '')} onClick={copy}>
+        {done === 'done' ? '✓ Copied' : done === 'fail' ? 'Press Ctrl/⌘+C' : <>⧉ {label}</>}
       </button>
     </div>
   );
@@ -296,5 +329,5 @@ function BeatSheet({ items = [] }) {
 Object.assign(window, {
   TrafficLight, Block, ScoreItem, Issue, CopyBlock, CIChip, ChipGroup,
   Toggle, RunButton, WorkHead, LoadingResults, QScore, Check, setAccentVars,
-  ScoreDonut, ScoreBar, QualityGraph, BeatSheet,
+  ScoreDonut, ScoreBar, QualityGraph, BeatSheet, copyText, downloadText,
 });

@@ -179,7 +179,7 @@ NEVER (these are hallucinations and are forbidden):
 - do NOT change the wording, the typography, or the expression.
 If in STEP 0 you could NOT actually see the thumbnail, output NO regen prompt — ask for the image instead.
 
-OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STEP 0), the layout + colour-scheme classification (STEP 1), an overall 0–100 plus per-dimension scores, the SINGLE highest-impact change, and ONE grounded regeneration prompt written as the KEEP / CHANGE-ONLY contract above (a second only in A/B compare). If two thumbnails (A and B) are attached/described, compare them dimension-by-dimension and fill the "winner" field with the stronger one and why.`,
+OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STEP 0), the layout + colour-scheme classification (STEP 1), an overall 0–100 plus per-dimension scores, the SINGLE highest-impact change, and ONE grounded regeneration prompt written as the KEEP / CHANGE-ONLY contract above (a second only in compare mode). If 2–3 thumbnails (A/B/C) are attached/described, score EACH one, compare them dimension-by-dimension, and fill the "winner" field (pick = A, B or C) with the single strongest one and the one specific reason it wins.`,
     rubric: [
       { name: "Focal clarity (squint test)", what: "One instantly clear subject + idea at 120px in half a second." },
       { name: "Composition & hierarchy", what: "Figure-ground separation, placement, depth, ≤3 elements, leading gaze." },

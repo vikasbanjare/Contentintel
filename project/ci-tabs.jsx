@@ -48,7 +48,9 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 function ThumbnailTab({ onOpenKey }) {
   const mood = 'ember';
   const m = TM[mood];
-  const [compare, setCompare] = React.useState(false);
+  const [cmpMode, setCmpMode] = React.useState('Single');
+  const count = cmpMode === 'A/B/C' ? 3 : cmpMode === 'A/B' ? 2 : 1;
+  const compare = count > 1;
   const [title, setTitle] = React.useState('How I Learned to Cook in 30 Days');
   const [kind, setKind] = React.useState('Lifestyle');
   const [layout, setLayout] = React.useState('Auto-detect');
@@ -57,8 +59,13 @@ function ThumbnailTab({ onOpenKey }) {
   const [strict, setStrict] = React.useState(true);
   const [imgA, setImgA] = React.useState(null);
   const [imgB, setImgB] = React.useState(null);
+  const [imgC, setImgC] = React.useState(null);
   const [descA, setDescA] = React.useState('');
   const [descB, setDescB] = React.useState('');
+  const [descC, setDescC] = React.useState('');
+  const LBL = ['A', 'B', 'C'];
+  const imgsAll = [imgA, imgB, imgC], setImgs = [setImgA, setImgB, setImgC];
+  const descsAll = [descA, descB, descC], setDescs = [setDescA, setDescB, setDescC];
   // Brand kit + regeneration guidance
   const [brand, setBrand] = React.useState(loadBrandKit);
   const [emphasis, setEmphasis] = React.useState([]);
@@ -89,20 +96,20 @@ function ThumbnailTab({ onOpenKey }) {
     addNote.trim() ? `Also for the regeneration: ${addNote.trim()}` : '',
   ].filter(Boolean).join('\n');
   const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
+  const head = `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n`;
   const userText = (compare
-    ? `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
-      `THUMBNAIL A (= Image 1): ${descA.trim() || '(see attached Image 1)'}\n` +
-      `THUMBNAIL B (= Image 2): ${descB.trim() || '(see attached Image 2)'}\n\n` +
-      `Compare thumbnail A and thumbnail B for the same video and declare the winner (fill the "winner" field).`
-    : `Video title: ${title || '(none given)'}\nContent type: ${kind}\n${targetLine}\n` +
+    ? head +
+      Array.from({ length: count }, (_, i) => `THUMBNAIL ${LBL[i]} (= Image ${i + 1}): ${descsAll[i].trim() || `(see attached Image ${i + 1})`}`).join('\n') + '\n\n' +
+      `Compare these ${count} thumbnails for the SAME video and declare a single winner. Fill the "winner" field with pick = A, B${count === 3 ? ' or C' : ''}; rank them and give the one specific reason it wins.`
+    : head +
       `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
-  // Vision now works for BOTH single and compare (two images) when a key is present.
-  const imgs = hasVision ? (compare ? [imgA, imgB].filter(Boolean) : (imgA ? [imgA] : [])) : [];
+  // Vision works for single AND multi-image (A/B/C) when a key is present.
+  const imgs = hasVision ? (compare ? imgsAll.slice(0, count).filter(Boolean) : (imgA ? [imgA] : [])) : [];
   // Niche routing + edit mode are baked into the system prompt (one source of truth).
   const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict });
   const estIn = window.estTokens(system, userText) + imgs.length * 1400;
-  function check() { run({ userText, images: imgs, maxTokens: compare ? 6000 : 4200, system }); }
+  function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -110,10 +117,16 @@ function ThumbnailTab({ onOpenKey }) {
         sub="Upload your thumbnail. We'll check if it'll get clicks — based on what actually works, not how pretty it looks." />
 
       <TB mood={mood}>
-        <div style={{ marginBottom: 14 }}><TTg on={compare} onChange={setCompare} mood={mood}>Compare two thumbnails</TTg></div>
-        <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12 }}>
-          <ImageDrop image={imgA} onPick={setImgA} label="Drop your image here — any size, JPG or PNG" />
-          {compare && <ImageDrop image={imgB} onPick={setImgB} label="Drop the second image" />}
+        <div style={{ marginBottom: 14 }}>
+          <TCG label="Test" options={['Single', 'A/B', 'A/B/C']} value={cmpMode} onChange={setCmpMode} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 12 }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i}>
+              {compare && <div style={{ fontSize: 12, fontWeight: 700, color: m.accentFrom, marginBottom: 6, letterSpacing: '.04em' }}>{LBL[i]}</div>}
+              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image — JPG or PNG' : `Drop image ${LBL[i]}`} />
+            </div>
+          ))}
         </div>
 
         {!hasVision && (
@@ -122,20 +135,14 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12, marginTop: 14 }}>
-          <div>
-            {compare && <label className="ci-label">Describe thumbnail A</label>}
-            {!compare && <label className="ci-label">Describe your thumbnail (text, faces, colors, layout)</label>}
-            <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descA} onChange={e => setDescA(e.target.value)}
-              placeholder="e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background, a burnt pan…" />
-          </div>
-          {compare && (
-            <div>
-              <label className="ci-label">Describe thumbnail B</label>
-              <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descB} onChange={e => setDescB(e.target.value)}
-                placeholder="Describe the second thumbnail the same way…" />
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${count}, 1fr)`, gap: 12, marginTop: 14 }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i}>
+              <label className="ci-label">{compare ? `Describe thumbnail ${LBL[i]}` : 'Describe your thumbnail (text, faces, colors, layout)'}</label>
+              <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descsAll[i]} onChange={e => setDescs[i](e.target.value)}
+                placeholder={i === 0 ? "e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background…" : `Describe thumbnail ${LBL[i]} the same way…`} />
             </div>
-          )}
+          ))}
         </div>
 
         <div style={{ marginTop: 16 }}>
@@ -205,7 +212,7 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         </div>
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={compare ? 'Compare thumbnails' : 'Check my thumbnail'} /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
