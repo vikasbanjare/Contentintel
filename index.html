@@ -1926,6 +1926,10 @@ const setKeyLS = (k) => { try { k ? localStorage.setItem(LS_KEY, k) : localStora
 const LS_GKEY = "ci_google_key";
 const getGoogleKey   = () => { try { return localStorage.getItem(LS_GKEY) || ""; } catch (e) { return ""; } };
 const setGoogleKeyLS = (k) => { try { k ? localStorage.setItem(LS_GKEY, k) : localStorage.removeItem(LS_GKEY); } catch (e) {} };
+// Optional NVIDIA API key — used for FLUX image generation (free tier).
+const LS_NVKEY = "ci_nvidia_key";
+const getNvidiaKey   = () => { try { return localStorage.getItem(LS_NVKEY) || ""; } catch (e) { return ""; } };
+const setNvidiaKeyLS = (k) => { try { k ? localStorage.setItem(LS_NVKEY, k) : localStorage.removeItem(LS_NVKEY); } catch (e) {} };
 const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAULT_MODEL; } catch (e) { return CI_DEFAULT_MODEL; } };
 const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
 const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
@@ -2071,6 +2075,34 @@ async function generateThumbnail({ instruction, image, model }) {
     if (inl && inl.data) return "data:" + (inl.mimeType || inl.mime_type || "image/png") + ";base64," + inl.data;
   }
   throw new Error("The image model returned no image. Try again or simplify the request.");
+}
+
+// Image generation via NVIDIA-hosted FLUX (text-to-image). BYO NVIDIA key.
+// flux.2-klein-4b is text-to-image, so it generates FROM the description (it
+// can't preserve the user's exact photo the way Gemini's image edit can).
+async function generateThumbnailFlux({ prompt, model, size }) {
+  const key = getNvidiaKey();
+  if (!key) throw new Error("NO_NV_KEY");
+  const mdl = model || "black-forest-labs/flux.2-klein-4b";
+  let res;
+  try {
+    res = await fetch("https://integrate.api.nvidia.com/v1/images/generations", {
+      method: "POST",
+      headers: { "content-type": "application/json", "accept": "application/json", "authorization": "Bearer " + key },
+      body: JSON.stringify({ model: mdl, prompt, n: 1, response_format: "b64_json", size: size || "1024x1024" }),
+    });
+  } catch (e) { throw new Error("Couldn't reach NVIDIA from the browser (likely CORS). It may need a small proxy — tell me and I'll add one."); }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) throw new Error("NVIDIA key was rejected — check it in Settings.");
+    throw new Error(err.detail || (err.error && err.error.message) || ("FLUX request failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const item = ((data.data || data.artifacts || [])[0]) || {};
+  let b64 = item.b64_json || item.base64 || item.b64 || data.image || data.b64_json || "";
+  b64 = String(b64).replace(/^data:[^,]+,/, "");
+  if (!b64) throw new Error("FLUX returned no image. Try again.");
+  return "data:image/png;base64," + b64;
 }
 
 // Pull the grounded regen prompt out of a report (falls back to the biggest fix).
@@ -2437,11 +2469,12 @@ function ReportView({ report, mood }) {
 function KeyModal({ open, onClose }) {
   const [key, setKey] = React.useState(getKey());
   const [gkey, setGkey] = React.useState(getGoogleKey());
+  const [nvkey, setNvkey] = React.useState(getNvidiaKey());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow] = React.useState(false);
-  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setModel(getModel()); } }, [open]);
+  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setNvkey(getNvidiaKey()); setModel(getModel()); } }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setModelLS(model); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setNvidiaKeyLS(nvkey.trim()); setModelLS(model); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
   return (
     <div className="ci-modal-scrim" onClick={() => onClose(false)}>
@@ -2463,10 +2496,11 @@ function KeyModal({ open, onClose }) {
           No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
         </div>
 
-        <label className="ci-label" style={{ marginTop: 18 }}>Google AI key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, only for generating thumbnails</span></label>
-        <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="AIza…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+        <label className="ci-label" style={{ marginTop: 18 }}>Image generation key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, to generate thumbnails</span></label>
+        <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="NVIDIA key — nvapi-… (FLUX, free)" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+        <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="Google AI key — AIza… (Gemini, edits your image)" style={{ fontFamily: "var(--font-mono)", fontSize: 13, marginTop: 8 }} />
         <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-          Free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>aistudio.google.com/apikey</a>. Lets the Thumbnail tab generate an improved image from the feedback.
+          The Thumbnail tab generates an improved image from the feedback. Uses <b>NVIDIA FLUX</b> if set (free — <a href="https://build.nvidia.com/black-forest-labs/flux_1-dev" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>build.nvidia.com</a>), otherwise <b>Google Gemini</b> (<a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>free key</a>) which edits your actual image.
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -2494,6 +2528,7 @@ Object.assign(window, {
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
+  getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux,
 });
 
 </script>
@@ -3548,21 +3583,33 @@ function ThumbnailTab({ onOpenKey }) {
   const estIn = window.estTokens(system, userText) + imgs.length * 1400;
   function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
 
-  // ── Generate the improved thumbnail from the feedback (Gemini image model) ──
-  const [gen, setGen] = React.useState({ loading: false, out: null, err: '' });
-  React.useEffect(() => { setGen({ loading: false, out: null, err: '' }); }, [report]);
+  // ── Generate the improved thumbnail from the feedback ───────────────────────
+  // Prefers NVIDIA FLUX (free, text-to-image) → else Google Gemini (edits the image).
+  const [gen, setGen] = React.useState({ loading: false, out: null, err: '', via: '' });
+  React.useEffect(() => { setGen({ loading: false, out: null, err: '', via: '' }); }, [report]);
   async function doGenerate() {
-    setGen({ loading: true, out: null, err: '' });
+    setGen({ loading: true, out: null, err: '', via: '' });
     try {
-      const base = window.regenPromptFromReport(report) || 'Improve this thumbnail for higher click-through.';
-      const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and overall palette — only change what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${base}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail image.`;
-      const out = await window.generateThumbnail({ instruction, image: imgA });
-      setGen({ loading: false, out, err: '' });
+      const base = window.regenPromptFromReport(report) || 'A high click-through thumbnail.';
+      const nv = window.getNvidiaKey && window.getNvidiaKey();
+      const g = window.getGoogleKey && window.getGoogleKey();
+      let out, via;
+      if (nv) {
+        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${base}${guidance ? '\n' + guidance : ''}`;
+        out = await window.generateThumbnailFlux({ prompt }); via = 'NVIDIA FLUX';
+      } else if (g) {
+        const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and palette — change only what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${base}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail.`;
+        out = await window.generateThumbnail({ instruction, image: imgA }); via = 'Google Gemini';
+      } else {
+        throw new Error('Add an NVIDIA (FLUX) or Google AI key in Settings to generate images.');
+      }
+      setGen({ loading: false, out, err: '', via });
     } catch (e) {
-      const msg = String(e.message) === 'NO_GOOGLE_KEY'
-        ? 'Add a free Google AI key in Settings (top-right) to generate images.'
+      const em = String(e.message);
+      const msg = (em === 'NO_GOOGLE_KEY' || em === 'NO_NV_KEY')
+        ? 'Add an NVIDIA (FLUX) or Google AI key in Settings (top-right) to generate images.'
         : (e.message || 'Could not generate — try again.');
-      setGen({ loading: false, out: null, err: msg });
+      setGen({ loading: false, out: null, err: msg, via: '' });
     }
   }
 
@@ -3684,7 +3731,7 @@ function ThumbnailTab({ onOpenKey }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <div>
                   <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>✨ Generate the improved thumbnail</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>Edits your image from the feedback above. Needs a free Google AI key.</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>Uses NVIDIA FLUX (free) or Google Gemini from the feedback above. Add a key in Settings.</div>
                 </div>
                 <window.GlowButton mood={mood} onClick={doGenerate}>
                   {gen.loading ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
@@ -3693,6 +3740,7 @@ function ThumbnailTab({ onOpenKey }) {
               {gen.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12, lineHeight: 1.5 }}>{gen.err}</div>}
               {gen.out && (
                 <div style={{ marginTop: 14 }}>
+                  {gen.via && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 6 }}>Generated with {gen.via}</div>}
                   <img src={gen.out} alt="generated thumbnail" style={{ width: '100%', maxWidth: 640, borderRadius: 12, display: 'block', border: '1px solid var(--stroke-2)' }} />
                   <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                     <a className="ci-copybtn" href={gen.out} download="thumbnail.png" style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none' }}>↓ Download</a>
@@ -4150,9 +4198,51 @@ const PLAYBOOK_REGEN_EXAMPLES = [
   },
 ];
 
+// Schematic wireframe of a layout archetype — shows where the subject, text,
+// arrow, chart etc. sit. Pure SVG so it stays in the single-file app.
+function LayoutDiagram({ name }) {
+  const A = '#FF6B4A', A2 = '#FFB07A', TX = '#454b5a', HL = '#cfd5e2', BG = '#0f131b';
+  const n = (name || '').toLowerCase();
+  const W = 320, H = 180;
+  const face = (x, y, w, h) => (<g><rect x={x} y={y + h * 0.44} width={w} height={h * 0.56} rx={6} fill={A} opacity="0.85" /><circle cx={x + w / 2} cy={y + h * 0.32} r={h * 0.26} fill={A2} /></g>);
+  const bars = (x, y, w, arr) => arr.map((bw, i) => <rect key={i} x={x} y={y + i * 13} width={w * bw} height={i === 0 ? 10 : 6} rx={3} fill={i === 0 ? HL : TX} />);
+  const arrow = (d) => <path d={d} fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" markerEnd="url(#ah)" />;
+  const chart = (c) => <polyline points="20,150 65,122 105,134 150,92 200,108 250,64 300,84" fill="none" stroke={c || A} strokeWidth="3" strokeLinejoin="round" />;
+  const panel = (x, w, c) => <rect x={x} y={18} width={w} height={144} rx={6} fill={c} />;
+  const badge = (x, y) => <rect x={x} y={y} width={34} height={16} rx={4} fill={A} />;
+
+  let body;
+  if (n.includes('versus') || n.includes('duel'))
+    body = <>{face(18, 38, 96, 116)}{face(206, 38, 96, 116)}<text x={160} y={104} fill="#fff" fontFamily="var(--font-display)" fontWeight="800" fontSize="26" textAnchor="middle">VS</text></>;
+  else if (n.includes('full-bleed')) body = <>{face(92, 12, 136, 172)}{bars(118, 150, 90, [0.8])}</>;
+  else if (n.includes('chart') || n.includes('data-viz')) body = <>{chart()}{face(220, 60, 84, 110)}{bars(20, 30, 120, [0.9, 0.6])}</>;
+  else if (n.includes('triptych') || n.includes('3-panel')) body = <>{panel(14, 92, '#22405f')}{panel(114, 92, '#3a2a55')}{panel(214, 92, '#5a2a2a')}<text x={160} y={170} fill={TX} fontFamily="var(--font-mono)" fontSize="11" textAnchor="middle">A · B · C</text></>;
+  else if (n.includes('before') || n.includes('after')) body = <><rect x={14} y={18} width={142} height={144} rx={6} fill="#23303f" /><rect x={164} y={18} width={142} height={144} rx={6} fill="#5a2a2a" />{bars(28, 130, 70, [0.7])}{bars(178, 130, 70, [0.7])}</>;
+  else if (n.includes('text-dominant')) body = <>{bars(40, 56, 240, [1, 0.85, 0.6])}</>;
+  else if (n.includes('product') || n.includes('object hero')) body = <><circle cx={160} cy={86} r={48} fill={A2} /><rect x={132} y={140} width={56} height={10} rx={3} fill={HL} /></>;
+  else if (n.includes('number') || n.includes('list')) body = <><text x={70} y={120} fill={A} fontFamily="var(--font-display)" fontWeight="800" fontSize="96" textAnchor="middle">7</text>{bars(140, 70, 150, [0.9, 0.7])}</>;
+  else if (n.includes('annotated') || n.includes('arrow')) body = <>{face(196, 36, 100, 120)}<circle cx={120} cy={70} r={28} fill="none" stroke={A} strokeWidth="3" />{arrow('M120,98 C130,130 160,130 188,108')}</>;
+  else if (n.includes('scene') || n.includes('establishing')) body = <><rect x={14} y={18} width={292} height={92} rx={6} fill="#2a3a4f" /><rect x={14} y={110} width={292} height={52} rx={6} fill="#1b2735" />{bars(28, 128, 90, [0.7])}</>;
+  else if (n.includes('map') || n.includes('geo') || n.includes('series')) body = <><polygon points="40,40 90,30 110,70 95,120 55,135 30,90" fill="#2a405f" stroke={A} strokeWidth="2" />{face(210, 44, 92, 112)}{bars(150, 30, 120, [0.9])}</>;
+  else if (n.includes('interview') || n.includes('host')) body = <>{face(40, 36, 96, 110)}{face(186, 36, 96, 110)}<rect x={78} y={150} width={6} height={22} rx={3} fill={TX} /><rect x={232} y={150} width={6} height={22} rx={3} fill={TX} />{bars(120, 26, 80, [0.8])}</>;
+  else if (n.includes('cinematic') || n.includes('editorial')) body = <><rect x={14} y={18} width={292} height={144} rx={8} fill="#0b0e14" />{face(120, 22, 80, 150)}{bars(120, 150, 80, [0.6])}</>;
+  else if (n.includes('founder') || n.includes('brand scene')) body = <><rect x={14} y={18} width={292} height={144} rx={6} fill="#1d2a3d" />{chart('#9fb4d8')}{face(206, 40, 96, 116)}{badge(150, 70)}{arrow('M70,150 C100,140 140,135 168,118')}{bars(24, 120, 110, [1, 0.7])}</>;
+  else // Face + Text split (default)
+    body = <>{face(196, 22, 110, 150)}{bars(28, 60, 140, [1, 0.8, 0.55])}</>;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', borderRadius: 10, border: '1px solid var(--stroke-1)' }}>
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff" /></marker></defs>
+      <rect x="0" y="0" width={W} height={H} rx="12" fill={BG} />
+      {body}
+    </svg>
+  );
+}
+
 function PlaybookTab() {
   const mood = 'ember';
   const m = window.MOODS[mood];
+  const [openL, setOpenL] = React.useState(null);
   const r = window.getResearch('thumbnail') || {};
   const layouts = r.layouts || [];
   const schemes = r.colorSchemes || [];
@@ -4200,14 +4290,22 @@ function PlaybookTab() {
         </window.Block>
       )}
 
-      <window.Block title="Layout archetypes" desc="Pick the structure that fits your story" mood={mood}>
+      <window.Block title="Layout archetypes" desc="Tap any layout to see what it delivers" mood={mood}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(250px,1fr))', gap: 12 }}>
-          {layouts.map((l, i) => (
-            <div key={i} style={{ padding: 14, borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--stroke-1)' }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)', marginBottom: 5 }}>{l.name}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5 }}>{l.what}</div>
-            </div>
-          ))}
+          {layouts.map((l, i) => {
+            const open = openL === i;
+            return (
+              <div key={i} onClick={() => setOpenL(open ? null : i)}
+                style={{ padding: 14, borderRadius: 12, background: 'var(--surface-2)', border: `1px solid ${open ? m.accentGlow : 'var(--stroke-1)'}`, cursor: 'pointer', transition: 'border-color .15s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)' }}>{l.name}</span>
+                  <span style={{ fontSize: 11, color: open ? m.accentFrom : 'var(--text-4)' }}>{open ? 'hide' : 'preview ▸'}</span>
+                </div>
+                {open && <div style={{ margin: '4px 0 10px' }}><LayoutDiagram name={l.name} /></div>}
+                <div style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5 }}>{l.what}</div>
+              </div>
+            );
+          })}
         </div>
       </window.Block>
 
