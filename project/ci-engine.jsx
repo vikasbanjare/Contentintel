@@ -21,6 +21,10 @@ const LS_KEY = "ci_anthropic_key";
 const LS_MODEL = "ci_model";
 const getKey   = () => { try { return localStorage.getItem(LS_KEY) || ""; } catch (e) { return ""; } };
 const setKeyLS = (k) => { try { k ? localStorage.setItem(LS_KEY, k) : localStorage.removeItem(LS_KEY); } catch (e) {} };
+// Optional Google AI Studio key — used ONLY for image generation (Gemini image model).
+const LS_GKEY = "ci_google_key";
+const getGoogleKey   = () => { try { return localStorage.getItem(LS_GKEY) || ""; } catch (e) { return ""; } };
+const setGoogleKeyLS = (k) => { try { k ? localStorage.setItem(LS_GKEY, k) : localStorage.removeItem(LS_GKEY); } catch (e) {} };
 const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAULT_MODEL; } catch (e) { return CI_DEFAULT_MODEL; } };
 const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
 const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
@@ -140,6 +144,44 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
   const data = await res.json();
   const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("");
   return { text, usage: data.usage || null };
+}
+
+// ── Image generation (Gemini) — edits the user's thumbnail per the instruction ─
+// BYO Google AI Studio key. Returns a data: URL (or throws a clear error).
+async function generateThumbnail({ instruction, image, model }) {
+  const key = getGoogleKey();
+  if (!key) throw new Error("NO_GOOGLE_KEY");
+  const mdl = model || "gemini-2.5-flash-image";
+  const parts = [{ text: instruction }];
+  if (image && image.data) parts.push({ inline_data: { mime_type: image.mime || "image/png", data: image.data } });
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseModalities: ["IMAGE"] } }),
+  });
+  if (!res.ok) {
+    let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
+    if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid — check it in Settings.");
+    throw new Error(detail || ("Image request failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const ps = (((data.candidates || [])[0] || {}).content || {}).parts || [];
+  for (const p of ps) {
+    const inl = p.inlineData || p.inline_data;
+    if (inl && inl.data) return "data:" + (inl.mimeType || inl.mime_type || "image/png") + ";base64," + inl.data;
+  }
+  throw new Error("The image model returned no image. Try again or simplify the request.");
+}
+
+// Pull the grounded regen prompt out of a report (falls back to the biggest fix).
+function regenPromptFromReport(report) {
+  const secs = (report && report.sections) || [];
+  for (const s of secs) {
+    if (s && s.type === "text" && /regen|KEEP:|CHANGE ONLY/i.test((s.title || "") + " " + (s.body || ""))) return s.body;
+  }
+  for (const s of secs) {
+    if (s && s.type === "copy") for (const b of (s.blocks || [])) if (/KEEP:|CHANGE ONLY|regen/i.test((b.label || "") + " " + (b.text || ""))) return b.text;
+  }
+  return (report && report.bottomLine) || "";
 }
 
 // ── Prompt builder + JSON report parsing ─────────────────────────────────────
@@ -493,11 +535,12 @@ function ReportView({ report, mood }) {
 // ── KeyModal — settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey] = React.useState(getKey());
+  const [gkey, setGkey] = React.useState(getGoogleKey());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow] = React.useState(false);
-  React.useEffect(() => { if (open) { setKey(getKey()); setModel(getModel()); } }, [open]);
+  React.useEffect(() => { if (open) { setKey(getKey()); setGkey(getGoogleKey()); setModel(getModel()); } }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setModelLS(model); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setModelLS(model); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
   return (
     <div className="ci-modal-scrim" onClick={() => onClose(false)}>
@@ -517,6 +560,12 @@ function KeyModal({ open, onClose }) {
         </div>
         <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
           No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
+        </div>
+
+        <label className="ci-label" style={{ marginTop: 18 }}>Google AI key <span style={{ fontWeight: 400, color: "var(--text-4)" }}>— optional, only for generating thumbnails</span></label>
+        <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="AIza…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+        <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
+          Free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>aistudio.google.com/apikey</a>. Lets the Thumbnail tab generate an improved image from the feedback.
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -543,4 +592,5 @@ Object.assign(window, {
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
+  getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
 });

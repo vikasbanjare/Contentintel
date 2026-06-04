@@ -42,7 +42,7 @@ function ScriptTab({ onOpenKey }) {
   const mood = 'navy';
   const m = SM[mood];
 
-  const [text, setText] = React.useState(DEFAULT_SCRIPT);
+  const [text, setText] = React.useState('');
   const [textB, setTextB] = React.useState('');
   const [compare, setCompare] = React.useState(false);
   const [lang, setLang] = React.useState('Auto-detect');
@@ -165,7 +165,7 @@ function ScriptTab({ onOpenKey }) {
         <div style={{ display: 'grid', gridTemplateColumns: compare ? '1fr 1fr' : '1fr', gap: 12 }}>
           <div>
             {compare && <label className="ci-label">Version A</label>}
-            <textarea className="ci-textarea" value={text} onChange={e => setText(e.target.value)} placeholder="Paste your script here..." />
+            <textarea className="ci-textarea" value={text} onChange={e => setText(e.target.value)} placeholder="Type or paste your script here…" />
           </div>
           {compare && (
             <div>

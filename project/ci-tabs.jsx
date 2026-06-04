@@ -112,6 +112,24 @@ function ThumbnailTab({ onOpenKey }) {
   const estIn = window.estTokens(system, userText) + imgs.length * 1400;
   function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
 
+  // ── Generate the improved thumbnail from the feedback (Gemini image model) ──
+  const [gen, setGen] = React.useState({ loading: false, out: null, err: '' });
+  React.useEffect(() => { setGen({ loading: false, out: null, err: '' }); }, [report]);
+  async function doGenerate() {
+    setGen({ loading: true, out: null, err: '' });
+    try {
+      const base = window.regenPromptFromReport(report) || 'Improve this thumbnail for higher click-through.';
+      const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and overall palette — only change what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${base}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail image.`;
+      const out = await window.generateThumbnail({ instruction, image: imgA });
+      setGen({ loading: false, out, err: '' });
+    } catch (e) {
+      const msg = String(e.message) === 'NO_GOOGLE_KEY'
+        ? 'Add a free Google AI key in Settings (top-right) to generate images.'
+        : (e.message || 'Could not generate — try again.');
+      setGen({ loading: false, out: null, err: msg });
+    }
+  }
+
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
       <TWH mood={mood} eyebrow="Thumbnail check" title="Check your thumbnail"
@@ -155,65 +173,65 @@ function ThumbnailTab({ onOpenKey }) {
         <div style={{ marginTop: 14 }}>
           <TCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
         </div>
-        <div style={{ marginTop: 14 }}>
-          <TCG label="Layout" options={layoutOpts} value={layout} onChange={setLayout} />
-        </div>
-        <div style={{ marginTop: 14 }}>
-          <TCG label="Colour scheme" options={schemeOpts} value={scheme} onChange={setScheme} />
-        </div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 8 }}>
-          Leave on <b>Auto-detect</b> to have the AI classify your thumbnail, or pick a target to grade against it.
-        </div>
+        <details className="ci-collapse" style={{ marginTop: 16, border: '1px solid var(--stroke-1)', borderRadius: 12, background: 'var(--surface-1)' }}>
+          <summary style={{ cursor: 'pointer', padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 600, fontSize: 13.5, color: 'var(--text-2)' }}>
+            <span>⚙ Advanced — layout, niche & on-brand regeneration</span>
+            <span className="ci-collapse-caret" style={{ opacity: 0.45, fontSize: 11.5 }}>optional ▾</span>
+          </summary>
+          <div style={{ padding: '0 16px 16px' }}>
+            <div>
+              <TCG label="Layout" options={layoutOpts} value={layout} onChange={setLayout} />
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <TCG label="Colour scheme" options={schemeOpts} value={scheme} onChange={setScheme} />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <label className="ci-label">Niche playbook <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— pick yours, or “None” for a clean, unbiased review</span></label>
+              <select className="ci-input" value={nicheSel} onChange={e => setNicheSel(e.target.value)} style={{ appearance: 'auto' }}>
+                {nicheOpts.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
 
-        <div style={{ marginTop: 16 }}>
-          <label className="ci-label">Niche playbook <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— pick yours for a tailored playbook, or “None” for a clean, unbiased review</span></label>
-          <select className="ci-input" value={nicheSel} onChange={e => setNicheSel(e.target.value)} style={{ appearance: 'auto' }}>
-            {nicheOpts.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-
-        {/* Brand kit + regeneration guidance */}
-        <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--stroke-1)' }}>
-          <label className="ci-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            🎨 Brand colours <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— the regen stays on-brand (saved on this device)</span>
-          </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-            {(brand.colors || []).map((c, i) => (
-              <div key={i} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-                <input type="color" value={c} onChange={e => setColor(i, e.target.value)}
-                  style={{ width: 38, height: 38, border: '1px solid var(--stroke-1)', borderRadius: 9, background: 'none', cursor: 'pointer', padding: 2 }} />
-                <button onClick={() => delColor(i)} title="Remove"
-                  style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--stroke-1)' }}>
+              <label className="ci-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                🎨 Brand colours <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— keeps the regen on-brand (saved here)</span>
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                {(brand.colors || []).map((c, i) => (
+                  <div key={i} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                    <input type="color" value={c} onChange={e => setColor(i, e.target.value)}
+                      style={{ width: 38, height: 38, border: '1px solid var(--stroke-1)', borderRadius: 9, background: 'none', cursor: 'pointer', padding: 2 }} />
+                    <button onClick={() => delColor(i)} title="Remove"
+                      style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                  </div>
+                ))}
+                {(brand.colors || []).length < 5 && (
+                  <button className="ci-copybtn" style={{ height: 38 }} onClick={addColor}>+ Add colour</button>
+                )}
               </div>
-            ))}
-            {(brand.colors || []).length < 5 && (
-              <button className="ci-copybtn" style={{ height: 38 }} onClick={addColor}>+ Add colour</button>
-            )}
-          </div>
-          <input className="ci-input" style={{ marginTop: 10 }} value={brand.note || ''} onChange={e => setBrand(b => ({ ...b, note: e.target.value }))}
-            placeholder="Optional brand note — e.g. 'always show our logo bottom-right, use Montserrat-style bold font'" />
+              <input className="ci-input" style={{ marginTop: 10 }} value={brand.note || ''} onChange={e => setBrand(b => ({ ...b, note: e.target.value }))}
+                placeholder="Optional brand note — e.g. 'logo bottom-right, bold Montserrat-style font'" />
 
-          <label className="ci-label" style={{ marginTop: 16 }}>✨ Regeneration — what should we add or emphasise?</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
-            {EMPHASIS_CHIPS.map(c => {
-              const on = emphasis.includes(c);
-              return (
-                <button key={c} onClick={() => toggleEmph(c)} className="pill"
-                  style={{ height: 32, borderColor: on ? m.accentGlow : 'var(--stroke-1)', color: on ? m.accentFrom : 'var(--text-2)', background: on ? `${m.accentFrom}1a` : 'transparent' }}>
-                  {on ? '✓ ' : '+ '}{c}
-                </button>
-              );
-            })}
-          </div>
-          <input className="ci-input" style={{ marginTop: 10 }} value={addNote} onChange={e => setAddNote(e.target.value)}
-            placeholder="Anything else for the new version… e.g. 'make the number ₹500 Cr huge, add a shocked face on the right'" />
-          <div style={{ marginTop: 14 }}>
-            <TTg on={strict} onChange={setStrict} mood={mood}>Strict edit — keep my image as-is, change only what I ask</TTg>
-            <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 6 }}>
-              {strict ? 'Preserves your face, text, fonts and colours. Turn off to allow a bolder redesign.' : 'Bold redesign allowed — layout & colours may change (people, topic and exact text stay).'}
+              <label className="ci-label" style={{ marginTop: 16 }}>✨ Regeneration — what should we add or emphasise?</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                {EMPHASIS_CHIPS.map(c => {
+                  const on = emphasis.includes(c);
+                  return (
+                    <button key={c} onClick={() => toggleEmph(c)} className="pill"
+                      style={{ height: 32, borderColor: on ? m.accentGlow : 'var(--stroke-1)', color: on ? m.accentFrom : 'var(--text-2)', background: on ? `${m.accentFrom}1a` : 'transparent' }}>
+                      {on ? '✓ ' : '+ '}{c}
+                    </button>
+                  );
+                })}
+              </div>
+              <input className="ci-input" style={{ marginTop: 10 }} value={addNote} onChange={e => setAddNote(e.target.value)}
+                placeholder="Anything else for the new version…" />
+              <div style={{ marginTop: 14 }}>
+                <TTg on={strict} onChange={setStrict} mood={mood}>Strict edit — keep my image, change only what I ask</TTg>
+              </div>
             </div>
           </div>
-        </div>
+        </details>
 
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
       </TB>
@@ -222,7 +240,33 @@ function ThumbnailTab({ onOpenKey }) {
       {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
 
       {state === 'done' && report && (
-        <div><window.UsageBadge usage={usage} /><window.ReportView report={report} mood={mood} /></div>
+        <div>
+          <window.UsageBadge usage={usage} />
+          <window.ReportView report={report} mood={mood} />
+          {!compare && imgA && (
+            <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>✨ Generate the improved thumbnail</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>Edits your image from the feedback above. Needs a free Google AI key.</div>
+                </div>
+                <window.GlowButton mood={mood} onClick={doGenerate}>
+                  {gen.loading ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
+                </window.GlowButton>
+              </div>
+              {gen.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12, lineHeight: 1.5 }}>{gen.err}</div>}
+              {gen.out && (
+                <div style={{ marginTop: 14 }}>
+                  <img src={gen.out} alt="generated thumbnail" style={{ width: '100%', maxWidth: 640, borderRadius: 12, display: 'block', border: '1px solid var(--stroke-2)' }} />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <a className="ci-copybtn" href={gen.out} download="thumbnail.png" style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none' }}>↓ Download</a>
+                    <button className="ci-copybtn" style={{ height: 34 }} onClick={doGenerate}>↻ Regenerate</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {state === 'done' && !report && (
