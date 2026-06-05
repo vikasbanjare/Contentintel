@@ -44,6 +44,19 @@ function saveBrandKit(b) { try { localStorage.setItem(LS_BRAND, JSON.stringify(b
 
 const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Add brand logo', 'More contrast', 'Less text', 'Yellow highlight box', 'Shocked expression'];
 
+// Build a ready-to-paste image prompt + open ChatGPT with it. (ChatGPT can't be
+// sent the image via URL, so the user attaches their thumbnail there.)
+function chatgptPrompt(base, hasImage, strict, guidance) {
+  const head = hasImage
+    ? `Edit the attached YouTube thumbnail into an improved 16:9 version. ${strict ? 'KEEP the same person(s), the exact text, fonts and overall palette — change ONLY what I describe below.' : 'A bolder redesign is fine, but keep the same person(s), topic and exact text.'}`
+    : `Create a bold, high click-through 16:9 YouTube thumbnail.`;
+  return `${head}\n\n${(base || '').trim()}${guidance ? '\n\n' + guidance : ''}`;
+}
+function openInChatGPT(promptText) {
+  try { window.copyText && window.copyText(promptText); } catch (e) {}
+  window.open('https://chatgpt.com/?q=' + encodeURIComponent(String(promptText).slice(0, 6000)), '_blank', 'noopener,noreferrer');
+}
+
 // Image-generation models the user can pick. Extend with Reve / more FLUX once
 // their endpoints are confirmed. provider routes to the right engine + key.
 const IMG_MODELS = [
@@ -189,18 +202,18 @@ function ThumbnailTab({ onOpenKey }) {
 
       {mode === 'Generate' && (
         <TB mood={mood}>
-          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— optional (required for Gemini edit; FLUX can work from text alone)</span></label>
+          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— optional; attach it in ChatGPT to edit it</span></label>
           <ImageDrop image={imgA} onPick={setImgA} label="Drop an image — JPG or PNG (optional)" />
           <label className="ci-label" style={{ marginTop: 16 }}>Describe the thumbnail you want</label>
           <textarea className="ci-textarea" style={{ minHeight: 90 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
             placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-            <ModelPicker />
-            <window.GlowButton mood={mood} size="lg" onClick={() => runGenerate(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', 'gen')}>
-              {gen.loading && gen.surface === 'gen' ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
-            </window.GlowButton>
+            <window.GlowButton mood={mood} size="lg" onClick={() => openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
+            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
           </div>
-          <GenResult surface="gen" />
+          <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>
+            Opens ChatGPT with your prompt (also copied). In ChatGPT: <b>attach your thumbnail</b> (drag it in), then press enter — image generation runs there, on your ChatGPT plan.
+          </div>
         </TB>
       )}
 
@@ -315,15 +328,13 @@ function ThumbnailTab({ onOpenKey }) {
           <window.ReportView report={report} mood={mood} />
           {!compare && imgA && (
             <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>✨ Generate the improved thumbnail</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Builds it from the feedback above. Pick a model:</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>🎨 Generate the improved thumbnail</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Takes the grounded fix above into ChatGPT — attach your thumbnail there and it edits it.</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <ModelPicker />
-                <window.GlowButton mood={mood} onClick={() => runGenerate(window.regenPromptFromReport(report) || 'A high click-through thumbnail.', 'report')}>
-                  {gen.loading && gen.surface === 'report' ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
-                </window.GlowButton>
+                <window.GlowButton mood={mood} onClick={() => openInChatGPT(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
+                <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.copyText(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>⧉ Copy prompt</button>
               </div>
-              <GenResult surface="report" />
+              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>Prompt is copied + prefilled in ChatGPT. Attach your thumbnail there, then press enter.</div>
             </div>
           )}
         </div>

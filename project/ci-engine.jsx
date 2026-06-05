@@ -658,24 +658,8 @@ function KeyModal({ open, onClose }) {
           No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
         </div>
 
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--stroke-1)" }}>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, color: "var(--text-1)" }}>Image generation (optional)</div>
-          <div style={{ fontSize: 12, color: "var(--text-4)", margin: "4px 0 14px" }}>Only needed to <i>generate</i> thumbnails. The free option needs no key at all.</div>
-
-          <label className="ci-label">🟢 NVIDIA key — FLUX (free; needs the proxy URL below)</label>
-          <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="nvapi-…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-
-          <label className="ci-label" style={{ marginTop: 12 }}>🔵 Google AI key — Gemini (edits your image; paid plan required)</label>
-          <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="AIza…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-
-          <label className="ci-label" style={{ marginTop: 12 }}>🟣 Reve key</label>
-          <input className="ci-input" type={show ? "text" : "password"} value={rvkey} onChange={e => setRvkey(e.target.value)} placeholder="reve key…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-
-          <label className="ci-label" style={{ marginTop: 12 }}>⚙️ Image proxy URL — your Cloudflare Worker (required for FLUX / Reve)</label>
-          <input className="ci-input" value={proxy} onChange={e => setProxy(e.target.value)} placeholder="https://your-worker.workers.dev" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8, lineHeight: 1.5 }}>
-            Tip: in the Thumbnail tab you can pick <b>“Free — no key, no setup”</b> and skip all of this. FLUX/Reve need the proxy (browser can't call them directly). Gemini works without the proxy but needs a paid plan.
-          </div>
+        <div style={{ marginTop: 18, padding: "12px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--stroke-1)", fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>
+          🎨 <b>Thumbnail images</b> are generated in <b>ChatGPT</b> now — the Thumbnail tab gives you a ready prompt and a “Generate in ChatGPT” button (no extra keys needed here).
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
