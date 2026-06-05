@@ -3887,21 +3887,17 @@ Prompt rules:
             )}
             {deepState === 'loading' && <div style={{ marginTop: 12 }}><TLR rows={3} /></div>}
             {deepState === 'error' && deepErr && <div style={{ color: '#f5788c', fontSize: 13, marginTop: 10, lineHeight: 1.5 }}>{deepErr}</div>}
-            {deepState === 'done' && deepVariants.length > 0 && (() => {
-              const ctx = deepVariants[0]?._context;
-              const cards = ctx ? deepVariants.slice(1) : deepVariants;
-              return (
-                <div>
-                  {ctx && (
-                    <div style={{ fontSize: 12.5, color: 'var(--text-3)', padding: '10px 13px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--stroke-1)', marginBottom: 12, lineHeight: 1.55 }}>
-                      <span style={{ fontWeight: 700, color: 'var(--text-2)' }}>What Claude sees: </span>{ctx}
-                    </div>
-                  )}
-                  <VariantCards variants={cards} />
-                  <button className="ci-copybtn" style={{ marginTop: 10, height: 30, fontSize: 12 }} onClick={() => { setDeepState('idle'); setDeepVariants([]); }}>↺ Regenerate</button>
-                </div>
-              );
-            })()}
+            {deepState === 'done' && deepVariants.length > 0 && (
+              <div>
+                {deepVariants[0] && deepVariants[0]._context && (
+                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', padding: '10px 13px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--stroke-1)', marginBottom: 12, lineHeight: 1.55 }}>
+                    <span style={{ fontWeight: 700, color: 'var(--text-2)' }}>What Claude sees: </span>{deepVariants[0]._context}
+                  </div>
+                )}
+                <VariantCards variants={deepVariants[0] && deepVariants[0]._context ? deepVariants.slice(1) : deepVariants} />
+                <button className="ci-copybtn" style={{ marginTop: 10, height: 30, fontSize: 12 }} onClick={() => { setDeepState('idle'); setDeepVariants([]); }}>↺ Regenerate</button>
+              </div>
+            )}
           </div>
         </TB>
       )}
