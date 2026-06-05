@@ -3589,6 +3589,52 @@ function openInChatGPT(promptText) {
   window.open('https://chatgpt.com/?q=' + encodeURIComponent(String(promptText).slice(0, 6000)), '_blank', 'noopener,noreferrer');
 }
 
+// Three distinct generation directions — surgical, layout-focused, viral.
+const VARIANT_COLORS = ['#8FD86A', '#F0C85A', '#FF6B4A'];
+function makeVariants(base, hasImage, guidance) {
+  return [
+    {
+      emoji: '🔧', label: 'Surgical fix', tag: 'Minimal changes',
+      hint: 'Fix only the specific issues listed — keep everything else identical.',
+      prompt: chatgptPrompt(base + '\n\nIMPORTANT: Make the smallest possible edits — fix only what is listed above. Keep all other elements exactly the same.', hasImage, true, guidance),
+    },
+    {
+      emoji: '⚡', label: 'Bold upgrade', tag: 'Layout & composition',
+      hint: 'Apply proven YouTube layout: face placement, oversized text, high contrast.',
+      prompt: chatgptPrompt(base + '\n\nApply a proven YouTube thumbnail layout: face on one side taking 35–45% of the frame, bold oversized text on the other side, strong foreground/background contrast, single clear focal point. Keep the same person(s), topic and core text.', hasImage, false, guidance),
+    },
+    {
+      emoji: '🚀', label: 'Viral reinvention', tag: 'Max click-through',
+      hint: 'Full creative push — shock, emotion, curiosity gap, impossible to scroll past.',
+      prompt: chatgptPrompt(base + '\n\nOptimise purely for click-through: maximum emotional expression on the face (shock, excitement, disbelief), the most provocative text in the largest font, a single high-contrast highlight element (yellow box, neon glow, or bold arrow). Make it impossible to ignore at small thumbnail size. Bold, dramatic, scroll-stopping.', hasImage, false, guidance),
+    },
+  ];
+}
+function VariantCards({ variants }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+      {variants.map((v, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.22)', border: `1px solid ${VARIANT_COLORS[i]}44` }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>{v.emoji}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--text-1)', display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+              {v.label}
+              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20, background: `${VARIANT_COLORS[i]}22`, color: VARIANT_COLORS[i], letterSpacing: '0.05em', textTransform: 'uppercase' }}>{v.tag}</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 3 }}>{v.hint}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button className="ci-copybtn" style={{ height: 34, padding: '0 13px', fontSize: 12.5, background: `${VARIANT_COLORS[i]}18`, borderColor: `${VARIANT_COLORS[i]}77`, color: VARIANT_COLORS[i] }}
+              onClick={() => openInChatGPT(v.prompt)}>Open →</button>
+            <button className="ci-copybtn" style={{ height: 34, padding: '0 10px', fontSize: 12 }}
+              onClick={() => window.copyText(v.prompt)}>⧉</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Image-generation models the user can pick. Extend with Reve / more FLUX once
 // their endpoints are confirmed. provider routes to the right engine + key.
 const IMG_MODELS = [
@@ -3739,12 +3785,10 @@ function ThumbnailTab({ onOpenKey }) {
           <label className="ci-label" style={{ marginTop: 16 }}>Describe the thumbnail you want</label>
           <textarea className="ci-textarea" style={{ minHeight: 90 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
             placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-            <window.GlowButton mood={mood} size="lg" onClick={() => openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
-            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>
-            Opens ChatGPT with your prompt (also copied). In ChatGPT: <b>attach your thumbnail</b> (drag it in), then press enter — image generation runs there, on your ChatGPT plan.
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 2 }}>Pick a generation style</div>
+            <div style={{ fontSize: 12, color: 'var(--text-4)', marginBottom: 4 }}>Each opens ChatGPT with a different creative direction. Attach your thumbnail there, then press Enter.</div>
+            <VariantCards variants={makeVariants(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, guidance)} />
           </div>
         </TB>
       )}
@@ -3848,6 +3892,18 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         </details>
 
+        {!compare && imgA && state !== 'loading' && (
+          <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,107,74,0.07)', border: '1px solid rgba(255,107,74,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.4 }}>
+              <b style={{ color: 'var(--text-1)' }}>Skip analysis?</b> Go straight to ChatGPT to edit your thumbnail now.
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <window.GlowButton mood={mood} size="sm" onClick={() => openInChatGPT(chatgptPrompt(descA.trim() || 'Improve this YouTube thumbnail for higher click-through rate.', true, strict, guidance))}>🎨 Edit in ChatGPT →</window.GlowButton>
+              <button className="ci-copybtn" style={{ height: 34, padding: '0 12px', fontSize: 12 }} onClick={() => window.copyText(chatgptPrompt(descA.trim() || 'Improve this YouTube thumbnail for higher click-through rate.', true, strict, guidance))}>⧉ Copy</button>
+            </div>
+          </div>
+        )}
+
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
       </TB>
 
@@ -3858,15 +3914,17 @@ function ThumbnailTab({ onOpenKey }) {
         <div>
           <window.UsageBadge usage={usage} />
           <window.ReportView report={report} mood={mood} />
-          {!compare && imgA && (
-            <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>🎨 Generate the improved thumbnail</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Takes the grounded fix above into ChatGPT — attach your thumbnail there and it edits it.</div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <window.GlowButton mood={mood} onClick={() => openInChatGPT(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
-                <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.copyText(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>⧉ Copy prompt</button>
+          {!compare && (
+            <div style={{ marginTop: 18, padding: '20px 18px', borderRadius: 16, background: `linear-gradient(135deg, ${m.orbB}55 0%, var(--surface-1) 100%)`, border: `1.5px solid ${m.accentGlow}`, boxShadow: `0 0 28px ${m.accentGlow}33` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <span style={{ fontSize: 22 }}>🎨</span>
+                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 19, color: 'var(--text-1)', letterSpacing: '-0.01em' }}>Now generate the better version</div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>Prompt is copied + prefilled in ChatGPT. Attach your thumbnail there, then press enter.</div>
+              <div style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 4, lineHeight: 1.55 }}>
+                Your analysis is baked into each prompt — fixes, brand colours, and guidance all pre-filled. Pick how bold you want to go.
+                {imgA ? ' Attach your thumbnail in ChatGPT, then press Enter.' : ''}
+              </div>
+              <VariantCards variants={makeVariants(window.regenPromptFromReport(report) || '', !!imgA, guidance)} />
             </div>
           )}
         </div>
