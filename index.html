@@ -3719,6 +3719,74 @@ function ThumbnailTab({ onOpenKey }) {
   const [genPrompt, setGenPrompt] = React.useState('');
   const [gen, setGen] = React.useState({ loading: false, out: null, err: '', via: '', surface: '' });
   React.useEffect(() => { setGen({ loading: false, out: null, err: '', via: '', surface: '' }); }, [report]);
+  // Deep creative analysis — Claude reads the thumbnail, outputs designer-quality prompts
+  const [deepState, setDeepState] = React.useState('idle'); // idle | loading | done | error
+  const [deepVariants, setDeepVariants] = React.useState([]);
+  const [deepErr, setDeepErr] = React.useState('');
+  async function runDeepGenerate() {
+    const key = window.getKey ? window.getKey() : null;
+    if (!key) { setDeepErr('Add your Claude API key in Settings (top-right) to use deep analysis.'); setDeepState('error'); return; }
+    if (!imgA && !genPrompt.trim()) { setDeepErr('Upload a thumbnail or describe what you want first.'); setDeepState('error'); return; }
+    setDeepState('loading'); setDeepErr(''); setDeepVariants([]);
+    const system = `You are a world-class YouTube thumbnail art director. A creator wants to upgrade their thumbnail.
+
+YOUR TASK: Study this thumbnail deeply — every word of text, the person, the composition, the emotional hook — then produce exactly 3 image-generation prompts. Each must be a genuinely different creative concept, not just layout variations of the same idea.
+
+Think like a senior designer who spent a full week on this brief:
+- Read EVERY word of text on the thumbnail. What is the video actually promising?
+- Who is shown? What emotion, status, or energy do they project?
+- What is the deeper tension or curiosity gap the video creates?
+- What visual metaphor or unexpected approach would make this specific content unmissable?
+
+Return ONLY valid JSON — no other text:
+{
+  "context": "2-sentence summary of what you see and the video's deeper topic/hook",
+  "variants": [
+    { "concept": "3-word concept name", "angle": "The creative strategy", "prompt": "Full image-generation brief, 4-6 sentences — names exact subject position, facial expression, text content and placement, background/lighting, colour palette, mood. Specific to this content, not generic." },
+    { "concept": "...", "angle": "...", "prompt": "..." },
+    { "concept": "...", "angle": "...", "prompt": "..." }
+  ]
+}
+
+Prompt rules:
+- Each concept must use a different emotional strategy and visual logic
+- Be completely specific to THIS video's topic — no generic YouTube advice
+- Go beyond the obvious (shocked face + big text is the baseline, not the goal)
+- A strong prompt makes the reader see the finished thumbnail in their mind instantly`;
+    const userContent = imgA
+      ? [
+          { type: 'image', source: { type: 'base64', media_type: imgA.mime, data: imgA.data } },
+          { type: 'text', text: genPrompt.trim() ? `Creator context: ${genPrompt.trim()}\n\nAnalyze this thumbnail and generate 3 unique designer-quality prompts.` : 'Analyze this thumbnail and generate 3 unique designer-quality prompts.' },
+        ]
+      : `${genPrompt.trim()}\n\nGenerate 3 unique designer-quality image generation prompts for this thumbnail concept.`;
+    try {
+      const model = window.getModel ? window.getModel() : 'claude-opus-4-8';
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model, max_tokens: 2000, system, messages: [{ role: 'user', content: userContent }] }),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({})); throw new Error(e.error?.message || `API ${resp.status}`); }
+      const data = await resp.json();
+      const raw = (data.content?.[0]?.text || '').trim();
+      const jsonStr = raw.match(/\{[\s\S]*\}/)?.[0];
+      if (!jsonStr) throw new Error('Could not parse AI response — try again.');
+      const parsed = JSON.parse(jsonStr);
+      const DEEP_EMOJIS = ['✨', '🎯', '💡'];
+      const vars = (parsed.variants || []).slice(0, 3).map((v, i) => ({
+        emoji: DEEP_EMOJIS[i] || '🎨',
+        label: v.concept || `Concept ${i + 1}`,
+        tag: v.angle || '',
+        hint: v.angle || '',
+        prompt: chatgptPrompt(v.prompt, !!imgA, false, guidance),
+      }));
+      if (parsed.context) { setDeepVariants([{ _context: parsed.context }, ...vars]); } else { setDeepVariants(vars); }
+      setDeepState('done');
+    } catch (e) {
+      setDeepErr(String(e.message || e));
+      setDeepState('error');
+    }
+  }
   const genModel = IMG_MODELS.find(x => x.id === genModelId) || IMG_MODELS[0];
   async function runGenerate(basePrompt, surface) {
     if (genModel.provider === 'gemini' && !imgA) { setGen({ loading: false, out: null, err: 'Upload an image first (Gemini edits your image).', via: '', surface }); return; }
@@ -3785,10 +3853,53 @@ function ThumbnailTab({ onOpenKey }) {
           <label className="ci-label" style={{ marginTop: 16 }}>Describe the thumbnail you want</label>
           <textarea className="ci-textarea" style={{ minHeight: 90 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
             placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-2)', marginBottom: 2 }}>Pick a generation style</div>
-            <div style={{ fontSize: 12, color: 'var(--text-4)', marginBottom: 4 }}>Each opens ChatGPT with a different creative direction. Attach your thumbnail there, then press Enter.</div>
+          {/* ── Option A: Quick generate (no analysis) ── */}
+          <div style={{ marginTop: 18, padding: '16px', borderRadius: 13, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--stroke-1)' }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-1)', marginBottom: 3 }}>⚡ Quick generate — no analysis</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-4)', marginBottom: 2, lineHeight: 1.5 }}>Three directions, no waiting. Good for when you already know roughly what you want.</div>
             <VariantCards variants={makeVariants(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, guidance)} />
+          </div>
+
+          {/* ── Divider ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '18px 0' }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--stroke-1)' }} />
+            <span style={{ fontSize: 11, color: 'var(--text-5)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>or go deeper</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--stroke-1)' }} />
+          </div>
+
+          {/* ── Option B: Deep creative brief ── */}
+          <div style={{ padding: '18px 16px', borderRadius: 14, background: 'rgba(0,0,0,0.22)', border: '1px solid var(--stroke-2)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-1)', marginBottom: 5 }}>🧠 AI reads your thumbnail, then builds unique concepts</div>
+            <div style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.6, marginBottom: 14 }}>
+              Claude reads every word written on your thumbnail, understands the real story behind it, and creates 3 concepts a professional designer would spend a week on.
+              Not "add a shocked face" — actual creative direction unique to your content.
+            </div>
+            {!imgA && !genPrompt.trim() && (
+              <div style={{ fontSize: 12.5, color: 'var(--text-4)', padding: '8px 12px', borderRadius: 9, background: 'rgba(255,255,255,0.04)' }}>Upload a thumbnail or add a description above first.</div>
+            )}
+            {(imgA || genPrompt.trim()) && deepState !== 'done' && (
+              <button className="ci-run-btn" style={{ width: '100%', opacity: deepState === 'loading' ? 0.7 : 1, cursor: deepState === 'loading' ? 'wait' : 'pointer' }}
+                onClick={runDeepGenerate} disabled={deepState === 'loading'}>
+                {deepState === 'loading' ? '⏳ Claude is reading your thumbnail…' : '🧠 Analyse & create unique concepts'}
+              </button>
+            )}
+            {deepState === 'loading' && <div style={{ marginTop: 12 }}><TLR rows={3} /></div>}
+            {deepState === 'error' && deepErr && <div style={{ color: '#f5788c', fontSize: 13, marginTop: 10, lineHeight: 1.5 }}>{deepErr}</div>}
+            {deepState === 'done' && deepVariants.length > 0 && (() => {
+              const ctx = deepVariants[0]?._context;
+              const cards = ctx ? deepVariants.slice(1) : deepVariants;
+              return (
+                <div>
+                  {ctx && (
+                    <div style={{ fontSize: 12.5, color: 'var(--text-3)', padding: '10px 13px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--stroke-1)', marginBottom: 12, lineHeight: 1.55 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--text-2)' }}>What Claude sees: </span>{ctx}
+                    </div>
+                  )}
+                  <VariantCards variants={cards} />
+                  <button className="ci-copybtn" style={{ marginTop: 10, height: 30, fontSize: 12 }} onClick={() => { setDeepState('idle'); setDeepVariants([]); }}>↺ Regenerate</button>
+                </div>
+              );
+            })()}
           </div>
         </TB>
       )}
