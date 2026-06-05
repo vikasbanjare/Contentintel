@@ -2559,24 +2559,8 @@ function KeyModal({ open, onClose }) {
           No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
         </div>
 
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--stroke-1)" }}>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15, color: "var(--text-1)" }}>Image generation (optional)</div>
-          <div style={{ fontSize: 12, color: "var(--text-4)", margin: "4px 0 14px" }}>Only needed to <i>generate</i> thumbnails. The free option needs no key at all.</div>
-
-          <label className="ci-label">🟢 NVIDIA key — FLUX (free; needs the proxy URL below)</label>
-          <input className="ci-input" type={show ? "text" : "password"} value={nvkey} onChange={e => setNvkey(e.target.value)} placeholder="nvapi-…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-
-          <label className="ci-label" style={{ marginTop: 12 }}>🔵 Google AI key — Gemini (edits your image; paid plan required)</label>
-          <input className="ci-input" type={show ? "text" : "password"} value={gkey} onChange={e => setGkey(e.target.value)} placeholder="AIza…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-
-          <label className="ci-label" style={{ marginTop: 12 }}>🟣 Reve key</label>
-          <input className="ci-input" type={show ? "text" : "password"} value={rvkey} onChange={e => setRvkey(e.target.value)} placeholder="reve key…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-
-          <label className="ci-label" style={{ marginTop: 12 }}>⚙️ Image proxy URL — your Cloudflare Worker (required for FLUX / Reve)</label>
-          <input className="ci-input" value={proxy} onChange={e => setProxy(e.target.value)} placeholder="https://your-worker.workers.dev" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8, lineHeight: 1.5 }}>
-            Tip: in the Thumbnail tab you can pick <b>“Free — no key, no setup”</b> and skip all of this. FLUX/Reve need the proxy (browser can't call them directly). Gemini works without the proxy but needs a paid plan.
-          </div>
+        <div style={{ marginTop: 18, padding: "12px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--stroke-1)", fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>
+          🎨 <b>Thumbnail images</b> are generated in <b>ChatGPT</b> now — the Thumbnail tab gives you a ready prompt and a “Generate in ChatGPT” button (no extra keys needed here).
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -3592,10 +3576,24 @@ function saveBrandKit(b) { try { localStorage.setItem(LS_BRAND, JSON.stringify(b
 
 const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Add brand logo', 'More contrast', 'Less text', 'Yellow highlight box', 'Shocked expression'];
 
+// Build a ready-to-paste image prompt + open ChatGPT with it. (ChatGPT can't be
+// sent the image via URL, so the user attaches their thumbnail there.)
+function chatgptPrompt(base, hasImage, strict, guidance) {
+  const head = hasImage
+    ? `Edit the attached YouTube thumbnail into an improved 16:9 version. ${strict ? 'KEEP the same person(s), the exact text, fonts and overall palette — change ONLY what I describe below.' : 'A bolder redesign is fine, but keep the same person(s), topic and exact text.'}`
+    : `Create a bold, high click-through 16:9 YouTube thumbnail.`;
+  return `${head}\n\n${(base || '').trim()}${guidance ? '\n\n' + guidance : ''}`;
+}
+function openInChatGPT(promptText) {
+  try { window.copyText && window.copyText(promptText); } catch (e) {}
+  window.open('https://chatgpt.com/?q=' + encodeURIComponent(String(promptText).slice(0, 6000)), '_blank', 'noopener,noreferrer');
+}
+
 // Image-generation models the user can pick. Extend with Reve / more FLUX once
 // their endpoints are confirmed. provider routes to the right engine + key.
 const IMG_MODELS = [
-  { id: 'pollinations', label: 'Free — no key, no setup (instant)', provider: 'pollinations' },
+  { id: 'poll-flux', label: 'Free · FLUX — no key, no setup', provider: 'pollinations', pmodel: 'flux' },
+  { id: 'poll-turbo', label: 'Free · Turbo — faster, no key', provider: 'pollinations', pmodel: 'turbo' },
   { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA (needs proxy)', provider: 'nvidia' },
   { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key, paid)', provider: 'gemini' },
   { id: 'reve/create-image', label: 'Reve — image (Reve key)', provider: 'reve' },
@@ -3683,9 +3681,9 @@ function ThumbnailTab({ onOpenKey }) {
       let out, via;
       if (genModel.provider === 'pollinations') {
         const p = `Professional YouTube thumbnail, 16:9, bold, high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
-        const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(p) + '?width=1280&height=720&nologo=true&model=flux&seed=' + Math.floor(Math.random() * 1e6);
-        await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(); im.onerror = () => reject(new Error('Free generator did not respond — try again in a moment.')); im.src = url; });
-        out = url; via = 'Pollinations (free)';
+        const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(p) + '?width=1280&height=720&nologo=true&model=' + (genModel.pmodel || 'flux') + '&seed=' + Math.floor(Math.random() * 1e6);
+        await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(); im.onerror = () => reject(new Error('Free generator did not respond — try again, or pick another free model.')); im.src = url; });
+        out = url; via = 'Free · ' + (genModel.pmodel || 'flux');
       } else if (genModel.provider === 'nvidia') {
         const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
         out = await window.generateThumbnailFlux({ prompt, model: genModel.id }); via = 'NVIDIA FLUX (klein-4B)';
@@ -3736,18 +3734,18 @@ function ThumbnailTab({ onOpenKey }) {
 
       {mode === 'Generate' && (
         <TB mood={mood}>
-          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— optional (required for Gemini edit; FLUX can work from text alone)</span></label>
+          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— optional; attach it in ChatGPT to edit it</span></label>
           <ImageDrop image={imgA} onPick={setImgA} label="Drop an image — JPG or PNG (optional)" />
           <label className="ci-label" style={{ marginTop: 16 }}>Describe the thumbnail you want</label>
           <textarea className="ci-textarea" style={{ minHeight: 90 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
             placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-            <ModelPicker />
-            <window.GlowButton mood={mood} size="lg" onClick={() => runGenerate(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', 'gen')}>
-              {gen.loading && gen.surface === 'gen' ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
-            </window.GlowButton>
+            <window.GlowButton mood={mood} size="lg" onClick={() => openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
+            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
           </div>
-          <GenResult surface="gen" />
+          <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>
+            Opens ChatGPT with your prompt (also copied). In ChatGPT: <b>attach your thumbnail</b> (drag it in), then press enter — image generation runs there, on your ChatGPT plan.
+          </div>
         </TB>
       )}
 
@@ -3862,15 +3860,13 @@ function ThumbnailTab({ onOpenKey }) {
           <window.ReportView report={report} mood={mood} />
           {!compare && imgA && (
             <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
-              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>✨ Generate the improved thumbnail</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Builds it from the feedback above. Pick a model:</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>🎨 Generate the improved thumbnail</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Takes the grounded fix above into ChatGPT — attach your thumbnail there and it edits it.</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <ModelPicker />
-                <window.GlowButton mood={mood} onClick={() => runGenerate(window.regenPromptFromReport(report) || 'A high click-through thumbnail.', 'report')}>
-                  {gen.loading && gen.surface === 'report' ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</> : 'Generate →'}
-                </window.GlowButton>
+                <window.GlowButton mood={mood} onClick={() => openInChatGPT(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
+                <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.copyText(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>⧉ Copy prompt</button>
               </div>
-              <GenResult surface="report" />
+              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>Prompt is copied + prefilled in ChatGPT. Attach your thumbnail there, then press enter.</div>
             </div>
           )}
         </div>
