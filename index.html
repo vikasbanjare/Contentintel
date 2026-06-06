@@ -1899,18 +1899,18 @@ Object.assign(window, {
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-engine.jsx ===== */
-// ContentIntel — engine: BYO-key auth, real Claude calls, token estimate,
+// ContentIntel -- engine: BYO-key auth, real Claude calls, token estimate,
 // generic report renderer, analysis hook. (Client-side, no backend.)
 
 const { MOODS: EM } = window;
 
 // ── Config (editable) ────────────────────────────────────────────────────────
-// Prices are per 1,000,000 tokens (USD) and are APPROXIMATE — adjust to match
+// Prices are per 1,000,000 tokens (USD) and are APPROXIMATE -- adjust to match
 // Anthropic's current pricing. They only drive the on-screen cost estimate.
 const CI_MODELS = [
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 — fastest & cheapest", inP: 1.0,  outP: 5.0  },
-  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6 — balanced (default)", inP: 3.0,  outP: 15.0 },
-  { id: "claude-opus-4-8",           label: "Opus 4.8 — most thorough",        inP: 15.0, outP: 75.0 },
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 -- fastest & cheapest", inP: 1.0,  outP: 5.0  },
+  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6 -- balanced (default)", inP: 3.0,  outP: 15.0 },
+  { id: "claude-opus-4-8",           label: "Opus 4.8 -- most thorough",        inP: 15.0, outP: 75.0 },
 ];
 const CI_DEFAULT_MODEL = "claude-sonnet-4-6";
 const CI_OUTPUT_GUESS = 900; // tokens assumed for the report when estimating cost
@@ -1922,15 +1922,15 @@ const LS_KEY = "ci_anthropic_key";
 const LS_MODEL = "ci_model";
 const getKey   = () => { try { return localStorage.getItem(LS_KEY) || ""; } catch (e) { return ""; } };
 const setKeyLS = (k) => { try { k ? localStorage.setItem(LS_KEY, k) : localStorage.removeItem(LS_KEY); } catch (e) {} };
-// Optional Google AI Studio key — used ONLY for image generation (Gemini image model).
+// Optional Google AI Studio key -- used ONLY for image generation (Gemini image model).
 const LS_GKEY = "ci_google_key";
 const getGoogleKey   = () => { try { return localStorage.getItem(LS_GKEY) || ""; } catch (e) { return ""; } };
 const setGoogleKeyLS = (k) => { try { k ? localStorage.setItem(LS_GKEY, k) : localStorage.removeItem(LS_GKEY); } catch (e) {} };
-// Optional NVIDIA API key — used for FLUX image generation (free tier).
+// Optional NVIDIA API key -- used for FLUX image generation (free tier).
 const LS_NVKEY = "ci_nvidia_key";
 const getNvidiaKey   = () => { try { return localStorage.getItem(LS_NVKEY) || ""; } catch (e) { return ""; } };
 const setNvidiaKeyLS = (k) => { try { k ? localStorage.setItem(LS_NVKEY, k) : localStorage.removeItem(LS_NVKEY); } catch (e) {} };
-// Optional Reve key — image generation (provider varies; default AI/ML API style).
+// Optional Reve key -- image generation (provider varies; default AI/ML API style).
 const LS_REVE = "ci_reve_key";
 const getReveKey   = () => { try { return localStorage.getItem(LS_REVE) || ""; } catch (e) { return ""; } };
 const setReveKeyLS = (k) => { try { k ? localStorage.setItem(LS_REVE, k) : localStorage.removeItem(LS_REVE); } catch (e) {} };
@@ -2010,7 +2010,7 @@ function fmtCost(usd) {
   return "$" + usd.toFixed(2);
 }
 
-// ── The real call — direct browser → Anthropic (BYO key) ─────────────────────
+// ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
 async function callClaude({ system, userText, image, images, model, maxTokens = 1800 }) {
   const key = getKey();
   // Normalise to an array so single- and multi-image (compare) paths share code.
@@ -2020,7 +2020,7 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
     if (hasSandbox()) {
       const prompt = [
         system, "",
-        imgs.length ? "(IMPORTANT: " + imgs.length + " image(s) were attached but the free preview AI CANNOT see images. Do NOT guess what the image looks like or invent a thumbnail. Judge ONLY from any text description the user wrote; if there is none, say you cannot see the image and ask them to describe it or add an API key — and give no scores or regen prompt for an image you cannot see.)" : "",
+        imgs.length ? "(IMPORTANT: " + imgs.length + " image(s) were attached but the free preview AI CANNOT see images. Do NOT guess what the image looks like or invent a thumbnail. Judge ONLY from any text description the user wrote; if there is none, say you cannot see the image and ask them to describe it or add an API key -- and give no scores or regen prompt for an image you cannot see.)" : "",
         userText,
       ].filter(Boolean).join("\n");
       // Claude artifact API: takes a single STRING prompt, returns a STRING.
@@ -2060,7 +2060,7 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
   return { text, usage: data.usage || null };
 }
 
-// ── Image generation (Gemini) — edits the user's thumbnail per the instruction ─
+// ── Image generation (Gemini) -- edits the user's thumbnail per the instruction ─
 // BYO Google AI Studio key. Returns a data: URL (or throws a clear error).
 async function generateThumbnail({ instruction, image, model }) {
   const mdl = model || "gemini-2.5-flash-image";
@@ -2084,7 +2084,7 @@ async function generateThumbnail({ instruction, image, model }) {
   }
   if (!res.ok) {
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
-    if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid — check it in Settings.");
+    if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid -- check it in Settings.");
     throw new Error(detail || ("Image request failed (" + res.status + ")."));
   }
   const data = await res.json();
@@ -2106,7 +2106,7 @@ async function generateThumbnailFlux({ prompt, model, size }) {
   let res;
   if (proxy) {
     try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "flux", payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser — it should say 'POST only'. Check it in Settings."); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser -- it should say 'POST only'. Check it in Settings."); }
   } else {
     const key = getNvidiaKey();
     if (!key) throw new Error("NO_NV_KEY");
@@ -2120,7 +2120,7 @@ async function generateThumbnailFlux({ prompt, model, size }) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    if (res.status === 401 || res.status === 403) throw new Error("NVIDIA key was rejected — check it in Settings.");
+    if (res.status === 401 || res.status === 403) throw new Error("NVIDIA key was rejected -- check it in Settings.");
     throw new Error(err.detail || (err.error && err.error.message) || ("FLUX request failed (" + res.status + ")."));
   }
   const data = await res.json();
@@ -2141,7 +2141,7 @@ async function generateThumbnailReve({ prompt, model, size }) {
   let res;
   if (proxy) {
     try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "reve", payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser — it should say 'POST only'. Check it in Settings."); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser -- it should say 'POST only'. Check it in Settings."); }
   } else {
     const key = getReveKey();
     if (!key) throw new Error("NO_REVE_KEY");
@@ -2154,7 +2154,7 @@ async function generateThumbnailReve({ prompt, model, size }) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    if (res.status === 401 || res.status === 403) throw new Error("Reve key was rejected — check it in Settings.");
+    if (res.status === 401 || res.status === 403) throw new Error("Reve key was rejected -- check it in Settings.");
     throw new Error(err.detail || (err.error && err.error.message) || ("Reve request failed (" + res.status + ")."));
   }
   const data = await res.json();
@@ -2163,7 +2163,7 @@ async function generateThumbnailReve({ prompt, model, size }) {
   if (item.base64) return "data:image/png;base64," + item.base64;
   if (item.url) return item.url;
   if (data.url) return data.url;
-  throw new Error("Reve returned no image (the response format may differ — share your provider's docs and I'll adjust).");
+  throw new Error("Reve returned no image (the response format may differ -- share your provider's docs and I'll adjust).");
 }
 
 // Pull the grounded regen prompt out of a report (falls back to the biggest fix).
@@ -2180,7 +2180,7 @@ function regenPromptFromReport(report) {
 
 // ── Prompt builder + JSON report parsing ─────────────────────────────────────
 const REPORT_SHAPE =
-`Return ONLY a single valid JSON object — no markdown fences, no text before or after it — in exactly this shape:
+`Return ONLY a single valid JSON object -- no markdown fences, no text before or after it -- in exactly this shape:
 {
   "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
   "overall": 0-100,
@@ -2199,12 +2199,12 @@ const REPORT_SHAPE =
 }
 Rules:
 - ALWAYS include "overall" (0-100), a single headline score for the whole piece.
-- For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats — HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. — each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
+- For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats -- HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. -- each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
-- BE CONCISE AND SCANNABLE — this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2–3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence — only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
+- BE CONCISE AND SCANNABLE -- this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2-3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence -- only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
 - Quote the user's actual words; pair each criticism with a one-line, copy-ready fix.
-- The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
+- The JSON must be COMPLETE and valid -- close every brace and bracket, escape quotes inside strings, and never stop mid-object.
 - Write in the same language and script as the user's content.`;
 
 // Split provenPatterns (blocks separated by blank lines) and derive niche names.
@@ -2214,7 +2214,7 @@ function splitPlaybookBlocks(text) {
 function nicheName(block) {
   const nl = block.indexOf("\n");
   const head = (nl === -1 ? block : block.slice(0, nl)).trim();
-  return head.split(/\s+\(|\s+—|\s+-\s/)[0].trim();
+  return head.split(/\s+\(|\s+--|\s+-\s/)[0].trim();
 }
 function nicheNames(type = "thumbnail") {
   return splitPlaybookBlocks((getResearch(type) || {}).provenPatterns).map(nicheName);
@@ -2225,7 +2225,7 @@ function buildSystem(type, opts = {}) {
   const r = getResearch(type);
   const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
-  // Niche routing — inject ONLY the relevant playbook to stop cross-niche bias.
+  // Niche routing -- inject ONLY the relevant playbook to stop cross-niche bias.
   let provenText = r.provenPatterns || "";
   const niche = opts.niche;
   if (provenText && niche && niche !== "Auto-detect") {
@@ -2237,19 +2237,19 @@ function buildSystem(type, opts = {}) {
   const libParts = [];
   if (r.layouts && r.layouts.length)      libParts.push(`LAYOUT ARCHETYPES (classify this content as one, or "unclear"):\n${cat(r.layouts)}`);
   if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
-  if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
-  if (provenText)                          libParts.push(`PROVEN PATTERNS — niche-scoped playbook(s). Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${provenText}`);
+  if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers -- apply where relevant):\n${r.designPrinciples}`);
+  if (provenText)                          libParts.push(`PROVEN PATTERNS -- niche-scoped playbook(s). Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${provenText}`);
   if (r.regenGuidance)                     libParts.push(`REGENERATION-PROMPT RULES:\n${r.regenGuidance}`);
   if (r.abTesting)                         libParts.push(`A/B TESTING:\n${r.abTesting}`);
-  const library = libParts.length ? `DESIGN LIBRARY — reference for SCORING & classification ONLY. It is NOT a source of new elements, palette, people, brands or style for the regeneration, and it must NEVER override what is actually in the user's content. Apply a niche playbook only when the content clearly belongs to that niche; otherwise ignore it entirely:\n"""\n${libParts.join("\n\n")}\n"""` : "";
+  const library = libParts.length ? `DESIGN LIBRARY -- reference for SCORING & classification ONLY. It is NOT a source of new elements, palette, people, brands or style for the regeneration, and it must NEVER override what is actually in the user's content. Apply a niche playbook only when the content clearly belongs to that niche; otherwise ignore it entirely:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
-    `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
+    `You are ContentIntel -- a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
     `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
-    core ? `RESEARCH CONTEXT (principles — apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
-    `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
+    core ? `RESEARCH CONTEXT (principles -- apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
+    `${r.label || type}-SPECIFIC METHODOLOGY -- use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     library,
-    opts.relax ? `EDIT FREEDOM: the user enabled BOLD REDESIGN — you MAY change layout, composition and colours more boldly for a stronger thumbnail. But STILL keep the same person(s) and their count, the same topic, and the EXACT text & typography, unless the user explicitly asked to change them.` : "",
+    opts.relax ? `EDIT FREEDOM: the user enabled BOLD REDESIGN -- you MAY change layout, composition and colours more boldly for a stronger thumbnail. But STILL keep the same person(s) and their count, the same topic, and the EXACT text & typography, unless the user explicitly asked to change them.` : "",
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
     r.notes ? `Extra: ${r.notes}` : "",
     REPORT_SHAPE,
@@ -2289,7 +2289,7 @@ function parseReport(text) {
   if (fence) t = fence[1].trim();
   const s = t.indexOf("{");
   if (s === -1) return null;
-  t = t.slice(s); // from first "{" to the end — don't trim the tail (handle cut-offs)
+  t = t.slice(s); // from first "{" to the end -- don't trim the tail (handle cut-offs)
   const tryParse = (x) => { try { return JSON.parse(x); } catch (e) { return undefined; } };
   let r = tryParse(t);
   if (r !== undefined) return r;
@@ -2309,7 +2309,7 @@ function parseReport(text) {
   return null;
 }
 
-// ── useAnalysis — shared runner for every checker tab ────────────────────────
+// ── useAnalysis -- shared runner for every checker tab ────────────────────────
 // state: idle | loading | done | error
 // when done with report=null → the tab shows its built-in SAMPLE (no key path)
 function useAnalysis(type) {
@@ -2320,7 +2320,7 @@ function useAnalysis(type) {
 
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setState("loading");
-    if (!canRun()) { // sample mode — no key and not in a Claude preview
+    if (!canRun()) { // sample mode -- no key and not in a Claude preview
       setTimeout(() => setState("done"), 850);
       return;
     }
@@ -2328,7 +2328,7 @@ function useAnalysis(type) {
       const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
-        // Model didn't return clean JSON — show its analysis as plain text rather than failing.
+        // Model didn't return clean JSON -- show its analysis as plain text rather than failing.
         const body = (text || "").trim();
         if (!body) throw new Error("The AI returned an empty response. Try again.");
         json = { sections: [{ type: "text", title: "Analysis", body }] };
@@ -2348,7 +2348,42 @@ function useAnalysis(type) {
   return { state, report, usage, err, run, reset: () => setState("idle") };
 }
 
-// ── AnalyzeButton — Run button that shows the token estimate ─────────────────
+// ── Free mode helper -- opens Claude.ai with the combined analysis prompt ──────
+function openInClaudeAi(system, userText) {
+  const combined = [system, '', '---', '', userText].join('\n');
+  try {
+    navigator.clipboard.writeText(combined).catch(() => {});
+  } catch (e) {}
+  window.open('https://claude.ai/new', '_blank', 'noopener,noreferrer');
+}
+
+// Shown when no API key and not in a Claude artifact sandbox.
+function FreeModeHint({ system, userText }) {
+  const [copied, setCopied] = React.useState(false);
+  if (hasSandbox() || getKey()) return null;
+  function go() {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+    openInClaudeAi(system || '', userText || '');
+  }
+  return (
+    <div style={{ marginTop: 12, padding: '13px 15px', borderRadius: 12, background: 'rgba(120,200,255,0.06)', border: '1px solid rgba(120,200,255,0.18)', lineHeight: 1.5 }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-2)', marginBottom: 5 }}>Use for free -- no API key needed</div>
+      <div style={{ fontSize: 12, color: 'var(--text-4)', marginBottom: 10 }}>
+        Open this app <b>inside Claude.ai</b> (as an artifact) and analysis runs on your Claude account -- no extra cost.
+        Or click below: the analysis prompt gets copied, then paste it directly into Claude.
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className="ci-copybtn" style={{ height: 34, fontSize: 12.5, padding: '0 14px' }} onClick={go}>
+          {copied ? 'Prompt copied -- paste in Claude.ai' : 'Copy prompt + Open Claude.ai'}
+        </button>
+        <span style={{ fontSize: 11, color: 'var(--text-5)' }}>or add your Anthropic key in Settings (top-right) for one-click analysis here</span>
+      </div>
+    </div>
+  );
+}
+
+// ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
 function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model }) {
   const inTok = estIn + 0;
   const total = inTok + CI_OUTPUT_GUESS;
@@ -2371,14 +2406,14 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
       </GlowButton>
       <span className="ci-est">
         est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}
-        {free && <span style={{ color: "var(--text-4)" }}> · free preview AI</span>}
-        {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only — add your key</span>}
+        {free && <span style={{ color: "var(--text-4)" }}> · free -- using Claude.ai</span>}
+        {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · demo mode -- add key or use Claude.ai</span>}
       </span>
     </div>
   );
 }
 
-// ── UsageBadge — actual tokens after a real run ──────────────────────────────
+// ── UsageBadge -- actual tokens after a real run ──────────────────────────────
 function UsageBadge({ usage, model }) {
   if (!usage) return null;
   const inT = usage.input_tokens || 0, outT = usage.output_tokens || 0;
@@ -2403,7 +2438,7 @@ function ErrorCard({ msg, onOpenKey }) {
   );
 }
 
-// Collapsible card — keeps long detail (regen prompts, checklists, tables)
+// Collapsible card -- keeps long detail (regen prompts, checklists, tables)
 // tucked away so the report stays scannable. Styled like a Block.
 function Collapsible({ title, desc, children }) {
   return (
@@ -2420,7 +2455,7 @@ function Collapsible({ title, desc, children }) {
   );
 }
 
-// ── ReportView — dashboard-style report renderer ─────────────────────────────
+// ── ReportView -- dashboard-style report renderer ─────────────────────────────
 function ReportView({ report, mood }) {
   const m = EM[mood] || EM.navy;
   if (!report || typeof report !== "object") return null;
@@ -2434,7 +2469,7 @@ function ReportView({ report, mood }) {
 
   return (
     <div className="ci-results" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Header — verdict + overall score */}
+      {/* Header -- verdict + overall score */}
       {(v.level || hasOverall) && (
         <Block mood={mood}>
           <div style={{ display: "flex", alignItems: "center", gap: 20, justifyContent: "space-between", flexWrap: "wrap" }}>
@@ -2466,7 +2501,7 @@ function ReportView({ report, mood }) {
 
       {/* Script quality / attention curve */}
       {graphs.map((s, i) => (
-        <Block key={"g" + i} title={s.title || "Quality across the video"} desc={s.desc || "Predicted attention & retention — dips mark the weak spots"} mood={mood}>
+        <Block key={"g" + i} title={s.title || "Quality across the video"} desc={s.desc || "Predicted attention & retention -- dips mark the weak spots"} mood={mood}>
           <QualityGraph points={s.points} mood={mood} />
         </Block>
       ))}
@@ -2478,7 +2513,7 @@ function ReportView({ report, mood }) {
         </Block>
       )}
 
-      {/* Beat sheet — the script broken down */}
+      {/* Beat sheet -- the script broken down */}
       {beats.map((s, i) => (
         <Block key={"b" + i} title={s.title || "Script breakdown"} desc={s.desc} mood={mood}>
           <BeatSheet items={s.items} />
@@ -2490,7 +2525,7 @@ function ReportView({ report, mood }) {
         <Block key={"i" + i} title={s.title || "Fix these"} mood={mood}>{(s.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>
       ))}
 
-      {/* Biggest fix — the one action */}
+      {/* Biggest fix -- the one action */}
       {report.bottomLine && (
         <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
           <Eyebrow mood={mood} glow>Biggest fix</Eyebrow>
@@ -2498,7 +2533,7 @@ function ReportView({ report, mood }) {
         </Block>
       )}
 
-      {/* Everything else — collapsible to keep it scannable */}
+      {/* Everything else -- collapsible to keep it scannable */}
       {rest.map((sec, i) => {
         if (sec.type === "copy")
           return <Collapsible key={"r" + i} title={sec.title || "Copy & rewrites"} desc={sec.desc}>
@@ -2526,7 +2561,7 @@ function ReportView({ report, mood }) {
   );
 }
 
-// ── KeyModal — settings: paste key + pick model ──────────────────────────────
+// ── KeyModal -- settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey] = React.useState(getKey());
   const [gkey, setGkey] = React.useState(getGoogleKey());
@@ -2547,7 +2582,7 @@ function KeyModal({ open, onClose }) {
           <button className="ci-iconbtn" style={{ width: 30, height: 30 }} onClick={() => onClose(false)}>✕</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "4px 0 18px" }}>
-          ContentIntel runs on <b>your own</b> Anthropic API key. It's stored only in this browser (localStorage) and sent directly to Anthropic — never to us.
+          ContentIntel runs on <b>your own</b> Anthropic API key. It's stored only in this browser (localStorage) and sent directly to Anthropic -- never to us.
         </p>
 
         <label className="ci-label">Anthropic API key</label>
@@ -2556,11 +2591,20 @@ function KeyModal({ open, onClose }) {
           <button className="ci-copybtn" style={{ height: 44 }} onClick={() => setShow(s => !s)}>{show ? "Hide" : "Show"}</button>
         </div>
         <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-          No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll still see sample reports.
+          No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you can still use the free mode below.
         </div>
 
-        <div style={{ marginTop: 18, padding: "12px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--stroke-1)", fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>
-          🎨 <b>Thumbnail images</b> are generated in <b>ChatGPT</b> now — the Thumbnail tab gives you a ready prompt and a “Generate in ChatGPT” button (no extra keys needed here).
+        <div style={{ marginTop: 14, padding: "13px 14px", borderRadius: 10, background: "rgba(120,200,255,0.06)", border: "1px solid rgba(120,200,255,0.2)", fontSize: 12.5, color: "var(--text-2)", lineHeight: 1.6 }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Want free analysis -- no API key?</div>
+          <div style={{ fontSize: 12, color: "var(--text-3)" }}>
+            <b>Option 1:</b> Ask Claude to open this app -- it runs free inside Claude.ai artifacts automatically.<br />
+            <b>Option 2:</b> Click <b>"Copy prompt + Open Claude.ai"</b> under any Check button -- paste in Claude.ai and get the result back.<br />
+            <b>Option 3:</b> Add your own Anthropic key above -- pay-as-you-go, a typical check costs &lt;$0.01.
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--stroke-1)", fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>
+          🎨 <b>Thumbnail images</b> -- generated free via FLUX in the Studio tab, or via ChatGPT/Gemini/Ideogram with a prompt. No key needed for image generation.
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -2590,6 +2634,7 @@ Object.assign(window, {
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
+  FreeModeHint, hasSandbox, canRun, openInClaudeAi,
 });
 
 </script>
@@ -2608,6 +2653,7 @@ const TABS = [
   { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb' },
   { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title' },
   { id: 'ads',       label: 'Ads',       mood: 'violet',   icon: 'ads' },
+  { id: 'builder',   label: 'Studio',    mood: 'lime',     icon: 'studio'   },
   { id: 'playbook',  label: 'Playbook',  mood: 'ember',    icon: 'playbook' },
   { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
@@ -2620,6 +2666,7 @@ function CITabIcon({ name }) {
     case 'title':   return <svg {...s} viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h7M3 11.5h9"/></svg>;
     case 'ads':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 6.5v3l8 3.5v-10l-8 3.5z"/><path d="M2.5 6.5H5v3H2.5zM12 5.5a3 3 0 010 5"/></svg>;
     case 'history': return <svg {...s} viewBox="0 0 16 16"><path d="M8 4.5V8l2.5 1.5"/><circle cx="8" cy="8" r="5.5"/></svg>;
+    case 'studio':   return <svg {...s} viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="9" rx="1.5"/><path d="M5 14h6M8 11v3M5 5.5h6M5 7.5h4"/></svg>;
     case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':    return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     default: return null;
@@ -3379,6 +3426,7 @@ function ScriptTab({ onOpenKey }) {
 
         <div style={{ marginTop: 16 }}>
           <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script" />
+          <window.FreeModeHint system={window.buildSystem('script')} userText={userText} />
         </div>
       </SB>
 
@@ -3849,6 +3897,7 @@ function ThumbnailTab({ onOpenKey }) {
         </details>
 
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
+        <window.FreeModeHint system={system} userText={userText} />
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -4265,6 +4314,527 @@ function HistoryTab() {
   );
 }
 window.HistoryTab = HistoryTab;
+
+</script>
+<script type="text/babel" data-presets="react">
+/* ===== ci-builder.jsx ===== */
+// ContentIntel — Thumbnail Prompt Studio
+
+const { MOODS: BM, Block: BB, Toggle: BTg, WorkHead: BWH } = window;
+
+const BUILDER_EXPRESSIONS = [
+  { id: 'excited',  label: 'Excited',     emoji: '😄' },
+  { id: 'shocked',  label: 'Shocked',     emoji: '😮' },
+  { id: 'serious',  label: 'Serious',     emoji: '😐' },
+  { id: 'pointing', label: 'Pointing',    emoji: '👉' },
+  { id: 'laughing', label: 'Laughing',    emoji: '😂' },
+  { id: 'love',     label: 'Love / Warm', emoji: '❤️' },
+  { id: 'none',     label: 'Do nothing',  emoji: '—'  },
+];
+
+const BUILDER_ELEMENTS = [
+  'Arrow pointing to subject',
+  'Yellow highlight box behind text',
+  'Split screen / divider',
+  'Glow / neon effect',
+  'Brand logo badge',
+  'Graph / chart',
+  'Before/After',
+  'Dark cinematic bars',
+  'Circular portrait frame',
+  'Emoji overlay',
+  'Number / stat callout',
+  'Floating text bubble',
+];
+
+const BUILDER_RATIOS = [
+  { id: 'wide',     label: '16:9', w: 1280, h: 720  },
+  { id: 'square',   label: '1:1',  w: 1000, h: 1000 },
+  { id: 'vertical', label: '9:16', w: 720,  h: 1280 },
+  { id: 'portrait', label: '4:5',  w: 1000, h: 1250 },
+];
+
+const OUTPUT_TOOLS = [
+  { id: 'chatgpt', label: 'ChatGPT',       icon: '💬', url: 'https://chatgpt.com/',          useQ: true,  note: 'Prompt pre-filled · paste photos with Ctrl+V / Cmd+V after opening' },
+  { id: 'gemini',  label: 'Google Gemini', icon: '✨', url: 'https://gemini.google.com/app', useQ: false, note: 'Free · great for creative concepts · prompt copied, paste it in' },
+  { id: 'ideogram',label: 'Ideogram',      icon: '✏️', url: 'https://ideogram.ai/t/explore', useQ: false, note: 'Free · excellent for text inside images · paste into prompt box' },
+];
+
+function bReadImage(file, cb) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const url = reader.result;
+    cb({ mime: file.type || 'image/png', data: String(url).split(',')[1] || '', preview: url, name: file.name });
+  };
+  reader.readAsDataURL(file);
+}
+
+function bLoadBrand() {
+  try { return JSON.parse(localStorage.getItem('ci_brandkit')) || { colors: [], note: '' }; }
+  catch (e) { return { colors: [], note: '' }; }
+}
+
+async function bCopyImageToClipboard(dataUrl, mime) {
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  if (!navigator.clipboard || !window.ClipboardItem) throw new Error('not supported');
+  await navigator.clipboard.write([new ClipboardItem({ [blob.type || mime || 'image/png']: blob })]);
+}
+
+function BuilderTab() {
+  const mood = 'lime';
+  const m = BM[mood];
+
+  const [ratio, setRatio] = React.useState('wide');
+  const currentRatio = BUILDER_RATIOS.find(r => r.id === ratio) || BUILDER_RATIOS[0];
+
+  const [people, setPeople] = React.useState([]);
+  function addPerson() { if (people.length < 10) setPeople(ps => [...ps, { photo: null, expression: 'excited', desc: '' }]); }
+  function setPersonPhoto(i, file) { bReadImage(file, img => setPeople(ps => ps.map((p, j) => j === i ? { ...p, photo: img } : p))); }
+  function clearPersonPhoto(i) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, photo: null } : p)); }
+  function setPersonExpr(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, expression: v } : p)); }
+  function setPersonDesc(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, desc: v } : p)); }
+  function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
+
+  const [headline, setHeadline] = React.useState('');
+  const [subline, setSubline] = React.useState('');
+  const [elements, setElements] = React.useState([]);
+  const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
+
+  const [refImg, setRefImg] = React.useState(null);
+  const [refOverride, setRefOverride] = React.useState(false);
+  const [refState, setRefState] = React.useState('idle');
+  const [refAnalysis, setRefAnalysis] = React.useState('');
+
+  const [analyseImg, setAnalyseImg] = React.useState(null);
+  const [analyseState, setAnalyseState] = React.useState('idle');
+  const [analyseSummary, setAnalyseSummary] = React.useState('');
+
+  const [extraNote, setExtraNote] = React.useState('');
+  const [brand] = React.useState(bLoadBrand);
+  const brandColors = (brand.colors || []).filter(Boolean);
+  const hasBrand = brandColors.length > 0 || !!brand.note;
+
+  const [prompt, setPrompt] = React.useState('');
+  const [built, setBuilt] = React.useState(false);
+  const [copyFeedback, setCopyFeedback] = React.useState('');
+  const [genState, setGenState] = React.useState('idle');
+  const [genUrl, setGenUrl] = React.useState('');
+  const [genErr, setGenErr] = React.useState('');
+
+  async function analyseExisting() {
+    const key = window.getKey ? window.getKey() : null;
+    if (!key || !analyseImg) return;
+    setAnalyseState('loading');
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: window.getModel ? window.getModel() : 'claude-opus-4-8',
+          max_tokens: 700,
+          system: 'You are a thumbnail analyst. Return ONLY a valid JSON object, no other text.',
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: analyseImg.mime, data: analyseImg.data } },
+            { type: 'text', text: 'Analyse this thumbnail. Return ONLY JSON: { "headline": "exact main text or empty string", "subline": "secondary text or empty string", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only items from: Arrow pointing to subject, Yellow highlight box behind text, Split screen / divider, Glow / neon effect, Brand logo badge, Graph / chart, Before/After, Dark cinematic bars, Circular portrait frame, Emoji overlay, Number / stat callout, Floating text bubble"], "styleNotes": "one sentence on mood and colour" }' },
+          ]}],
+        }),
+      });
+      const data = await resp.json();
+      const raw = (data.content?.[0]?.text || '').trim();
+      const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || 'null');
+      if (!parsed) { setAnalyseState('error'); return; }
+      setHeadline(parsed.headline || '');
+      setSubline(parsed.subline || '');
+      if (Array.isArray(parsed.people) && parsed.people.length > 0) {
+        setPeople(parsed.people.slice(0, 10).map(p => ({
+          photo: null,
+          expression: BUILDER_EXPRESSIONS.find(e => e.id === p.expression) ? p.expression : 'none',
+          desc: p.desc || '',
+        })));
+      }
+      if (Array.isArray(parsed.elements)) setElements(parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)));
+      if (parsed.styleNotes) setExtraNote(parsed.styleNotes);
+      const parts = [
+        parsed.headline && `headline "${parsed.headline}"`,
+        parsed.subline && `sub-text "${parsed.subline}"`,
+        parsed.people?.length && `${parsed.people.length} person${parsed.people.length > 1 ? 's' : ''}`,
+        parsed.elements?.length && `${parsed.elements.length} element${parsed.elements.length > 1 ? 's' : ''}`,
+      ].filter(Boolean);
+      setAnalyseSummary(parts.length ? `Detected: ${parts.join(', ')}. Form pre-filled — review and edit below.` : 'Analysed — form updated.');
+      setAnalyseState('done');
+    } catch (e) { setAnalyseState('error'); }
+  }
+
+  async function analyzeRef() {
+    const key = window.getKey ? window.getKey() : null;
+    if (!key || !refImg) return;
+    setRefState('loading');
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({
+          model: window.getModel ? window.getModel() : 'claude-opus-4-8',
+          max_tokens: 350,
+          system: 'Extract visual design properties. Return ONLY JSON.',
+          messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: refImg.mime, data: refImg.data } },
+            { type: 'text', text: 'Analyse this thumbnail. Return JSON: { "layout": "...", "colors": "...", "textStyle": "...", "mood": "...", "keyElements": "..." }' },
+          ]}],
+        }),
+      });
+      const data = await resp.json();
+      const raw = (data.content?.[0]?.text || '').trim();
+      const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || 'null');
+      if (parsed) setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
+      setRefState('done');
+    } catch (e) { setRefState('error'); }
+  }
+
+  function buildPrompt() {
+    const lines = [];
+    lines.push(`Create a thumbnail image (${currentRatio.label} aspect ratio, ${currentRatio.w}x${currentRatio.h}px).`);
+    lines.push('');
+    if (people.length > 0) {
+      lines.push(`PEOPLE: ${people.length} person${people.length > 1 ? 's' : ''}.`);
+      people.forEach((p, i) => {
+        const ex = BUILDER_EXPRESSIONS.find(e => e.id === p.expression);
+        const exText = ex && ex.id !== 'none' ? `expression: ${ex.label}` : 'natural expression';
+        lines.push(`- Person ${i + 1}${p.photo ? ` (see photo ${i + 1})` : ''} — ${exText}${p.desc.trim() ? `, looks like: ${p.desc.trim()}` : ''}.`);
+      });
+      lines.push('');
+    }
+    if (headline.trim() || subline.trim()) {
+      lines.push('TEXT ON THUMBNAIL:');
+      if (headline.trim()) lines.push(`- Main headline: "${headline.trim()}" — large, bold, dominant.`);
+      if (subline.trim()) lines.push(`- Sub-text: "${subline.trim()}" — smaller, secondary.`);
+      lines.push('');
+    }
+    if (elements.length > 0) { lines.push(`VISUAL ELEMENTS: ${elements.join('. ')}.`); lines.push(''); }
+    if (hasBrand && (refOverride || !refImg)) {
+      const colorRoles = brandColors.map((c, i) => {
+        const role = i === 0 ? 'Primary/background' : i === 1 ? 'Accent/text' : i === 2 ? 'Secondary accent' : 'Highlight';
+        return `${role}: ${c}`;
+      });
+      const cp = [colorRoles.length ? `MANDATORY palette — ${colorRoles.join('; ')}.` : '', brand.note ? `Brand notes: ${brand.note}.` : ''].filter(Boolean).join(' ');
+      lines.push(`COLOUR (use these exact colours): ${cp} Do not substitute or ignore these.`); lines.push('');
+    } else if (!refImg) {
+      const SCHEMES = [
+        'Bold crimson red and deep black with clean white text',
+        'Rich navy blue and electric yellow — maximum contrast',
+        'Warm burnt orange and dark charcoal with ivory text',
+        'Vivid cyan and dark indigo with white highlights',
+        'Deep forest green and off-white cream',
+        'Hot magenta and jet black, editorial high-fashion feel',
+        'Royal cobalt blue and bright gold accent',
+        'Deep burgundy and slate grey with pale text',
+        'Electric lime green and dark navy',
+        'Rich violet and vibrant magenta accent on near-black',
+      ];
+      const scheme = SCHEMES[Math.floor(Math.random() * SCHEMES.length)];
+      lines.push(`COLOUR: ${scheme}. Palette should be bold and high-contrast, not muted.`); lines.push('');
+    }
+    if (refImg) {
+      if (refAnalysis) {
+        const al = refOverride && hasBrand ? refAnalysis.split('\n').filter(l => !l.startsWith('colors')).join('\n') : refAnalysis;
+        lines.push('STYLE REFERENCE (match this image visual DNA):'); lines.push(al);
+        if (refOverride && hasBrand) lines.push('Apply brand colours above instead of reference colours.');
+      } else {
+        lines.push(`STYLE: Match layout and energy of the attached reference image.${refOverride && hasBrand ? ' Use brand colours above instead.' : ''}`);
+      }
+      lines.push('');
+    }
+    if (extraNote.trim()) { lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`); lines.push(''); }
+    lines.push('Make it bold, high-contrast, impossible to ignore at small thumbnail size. Professional photography and design quality.');
+    const p = lines.join('\n');
+    setPrompt(p); setBuilt(true); setGenState('idle'); setGenUrl(''); setGenErr('');
+    setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  }
+
+  function runGenerate() {
+    setGenState('loading'); setGenErr('');
+    const seed = Math.floor(Math.random() * 1e6);
+    setGenUrl(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${currentRatio.w}&height=${currentRatio.h}&model=flux&nologo=true&seed=${seed}`);
+  }
+
+  function openIn(tool) {
+    try { window.copyText && window.copyText(prompt); } catch (e) {}
+    if (tool.useQ) window.open(tool.url + '?q=' + encodeURIComponent(prompt.slice(0, 6000)), '_blank', 'noopener,noreferrer');
+    else window.open(tool.url, '_blank', 'noopener,noreferrer');
+  }
+
+  async function copyPhoto(person, idx) {
+    if (!person.photo) return;
+    try { await bCopyImageToClipboard(person.photo.preview, person.photo.mime); setCopyFeedback('ok-' + idx); }
+    catch (e) { setCopyFeedback('fail-' + idx); }
+    setTimeout(() => setCopyFeedback(''), 2200);
+  }
+
+  async function copyRefImgFn() {
+    try { await bCopyImageToClipboard(refImg.preview, refImg.mime); setCopyFeedback('ref-ok'); }
+    catch (e) { setCopyFeedback('ref-fail'); }
+    setTimeout(() => setCopyFeedback(''), 2200);
+  }
+
+  const photoPeople = people.filter(p => p.photo);
+
+  return (
+    <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
+      <BWH mood={mood} eyebrow="Prompt Studio" title="Build your thumbnail prompt"
+        sub="Fill in the form — we write a professional brief you can send to ChatGPT, Gemini or Ideogram." />
+
+      {/* ── ANALYSE EXISTING ── */}
+      <BB mood={mood} title="Analyse existing thumbnail" desc="Upload your current thumbnail — Claude reads the text, people and elements and pre-fills the form. Requires a Claude API key.">
+        {!analyseImg ? (
+          <label className="ci-drop" style={{ minHeight: 96, flexDirection: 'column', gap: 7, cursor: 'pointer', padding: 16 }}>
+            <input type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { setAnalyseImg(img); setAnalyseState('idle'); setAnalyseSummary(''); })} />
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
+            <span style={{ fontSize: 13 }}>Upload your existing thumbnail to analyse</span>
+          </label>
+        ) : (
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <img src={analyseImg.preview} alt="" style={{ width: 160, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+                <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
+                  onClick={() => { setAnalyseImg(null); setAnalyseState('idle'); setAnalyseSummary(''); }}>Remove</button>
+                {window.getKey?.() ? (
+                  <button className="ci-copybtn"
+                    style={{ height: 30, fontSize: 12, fontWeight: 700, background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, opacity: analyseState === 'loading' ? 0.6 : 1 }}
+                    onClick={analyseExisting} disabled={analyseState === 'loading'}>
+                    {analyseState === 'loading' ? 'Analysing…' : analyseState === 'done' ? 'Re-analyse' : '🔍 Analyse with Claude'}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--text-5)' }}>Add a Claude API key in Settings to analyse</span>
+                )}
+                {analyseState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>Form pre-filled</span>}
+                {analyseState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Failed — try again</span>}
+              </div>
+              {analyseSummary && (
+                <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6, padding: '9px 12px', background: 'rgba(0,0,0,0.22)', borderRadius: 9 }}>{analyseSummary}</div>
+              )}
+            </div>
+          </div>
+        )}
+      </BB>
+
+      {/* ── ASPECT RATIO ── */}
+      <BB mood={mood}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Aspect ratio</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {BUILDER_RATIOS.map(r => (
+            <button key={r.id} className="pill" onClick={() => setRatio(r.id)}
+              style={{ height: 36, padding: '0 18px', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 700,
+                background: ratio === r.id ? `${m.accentFrom}1a` : 'transparent',
+                borderColor: ratio === r.id ? m.accentGlow : 'var(--stroke-1)',
+                color: ratio === r.id ? m.accentFrom : 'var(--text-3)' }}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ marginTop: 7, fontSize: 11.5, color: 'var(--text-5)' }}>{currentRatio.w} x {currentRatio.h} px</div>
+      </BB>
+
+      {/* ── PEOPLE ── */}
+      <BB mood={mood} title="People" desc="Add up to 10 subjects. Describe appearance — it goes into the prompt. Upload a photo only to paste manually into ChatGPT.">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {people.map((p, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--stroke-1)' }}>
+              <div style={{ flexShrink: 0 }}>
+                {p.photo ? (
+                  <div style={{ position: 'relative', width: 58 }}>
+                    <img src={p.photo.preview} alt="" style={{ width: 58, height: 58, objectFit: 'cover', borderRadius: 8, display: 'block', border: '1px solid var(--stroke-1)' }} />
+                    <button onClick={() => clearPersonPhoto(i)}
+                      style={{ position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: 8, cursor: 'pointer', lineHeight: '16px', textAlign: 'center', padding: 0 }}>x</button>
+                  </div>
+                ) : (
+                  <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 58, height: 58, borderRadius: 8, border: '1.5px dashed var(--stroke-2)', cursor: 'pointer', color: 'var(--text-5)', gap: 2, background: 'rgba(255,255,255,0.02)' }}>
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files[0] && setPersonPhoto(i, e.target.files[0])} />
+                    <span style={{ fontSize: 20, lineHeight: 1 }}>+</span>
+                    <span style={{ fontSize: 9 }}>photo</span>
+                  </label>
+                )}
+              </div>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Person {i + 1}</div>
+                <input className="ci-input" style={{ fontSize: 12 }} value={p.desc} onChange={e => setPersonDesc(i, e.target.value)}
+                  placeholder="Describe appearance — e.g. man in 30s, brown hair, glasses" />
+                <select className="ci-input" style={{ fontSize: 12, height: 30, padding: '0 6px', appearance: 'auto' }}
+                  value={p.expression} onChange={e => setPersonExpr(i, e.target.value)}>
+                  {BUILDER_EXPRESSIONS.map(ex => <option key={ex.id} value={ex.id}>{ex.emoji} {ex.label}</option>)}
+                </select>
+              </div>
+              <button onClick={() => removePerson(i)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-5)', cursor: 'pointer', fontSize: 14, padding: '2px 4px', lineHeight: 1, flexShrink: 0, marginTop: 2 }}>x</button>
+            </div>
+          ))}
+        </div>
+        {people.length < 10 && (
+          <button className="ci-copybtn" style={{ marginTop: people.length > 0 ? 8 : 0, fontSize: 12.5 }} onClick={addPerson}>+ Add person</button>
+        )}
+        {people.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 6 }}>No people added — leave empty to generate without subjects.</div>}
+      </BB>
+
+      {/* ── TEXT ── */}
+      <BB mood={mood} title="Text on thumbnail" desc="Optional — leave blank to skip">
+        <input className="ci-input" value={headline} onChange={e => setHeadline(e.target.value)} placeholder='Main headline — e.g. "I QUIT MY JOB"' />
+        <input className="ci-input" style={{ marginTop: 8 }} value={subline} onChange={e => setSubline(e.target.value)} placeholder="Sub-text — e.g. what happened next" />
+      </BB>
+
+      {/* ── VISUAL ELEMENTS ── */}
+      <BB mood={mood} title="Visual elements" desc="Pick what you want in the thumbnail">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {BUILDER_ELEMENTS.map(el => {
+            const on = elements.includes(el);
+            return (
+              <button key={el} className="pill" onClick={() => toggleEl(el)}
+                style={{ height: 32, borderColor: on ? m.accentGlow : 'var(--stroke-1)', color: on ? m.accentFrom : 'var(--text-3)', background: on ? `${m.accentFrom}1a` : 'transparent' }}>
+                {on ? '✓ ' : '+ '}{el}
+              </button>
+            );
+          })}
+        </div>
+      </BB>
+
+      {/* ── REFERENCE IMAGE ── */}
+      <BB mood={mood} title="Reference image" desc="Optional — upload a thumbnail whose style you want to match">
+        {!refImg ? (
+          <label className="ci-drop" style={{ minHeight: 90, flexDirection: 'column', gap: 6, cursor: 'pointer', padding: 14 }}>
+            <input type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { setRefImg(img); setRefAnalysis(''); setRefState('idle'); })} />
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
+            <span style={{ fontSize: 13 }}>Drop a reference thumbnail</span>
+          </label>
+        ) : (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <img src={refImg.preview} alt="" style={{ width: 140, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+                <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }}
+                  onClick={() => { setRefImg(null); setRefAnalysis(''); setRefState('idle'); }}>Remove</button>
+                {window.getKey?.() && refState === 'idle' && (
+                  <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }} onClick={analyzeRef}>Detect style</button>
+                )}
+                {refState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Detecting…</span>}
+                {refState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>Style detected</span>}
+                {refState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Detection failed</span>}
+              </div>
+              {refAnalysis && <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: 8, marginBottom: 10 }}>{refAnalysis}</div>}
+              {hasBrand && <BTg on={refOverride} onChange={setRefOverride} mood={mood}>Override reference colours with my brand colours</BTg>}
+              {!window.getKey?.() && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6 }}>Add a Claude API key in Settings to auto-detect style.</div>}
+            </div>
+          </div>
+        )}
+      </BB>
+
+      {/* ── EXTRA DIRECTION ── */}
+      <BB mood={mood} title="Extra direction" desc="Optional — any vibe, constraint or detail you want included">
+        <textarea className="ci-textarea" style={{ minHeight: 72 }} value={extraNote} onChange={e => setExtraNote(e.target.value)}
+          placeholder='e.g. "Dark dramatic lighting. Minimal background." or "Two hosts facing each other."' />
+      </BB>
+
+      <div style={{ marginTop: 6 }}>
+        <window.GlowButton mood={mood} size="lg" onClick={buildPrompt} style={{ width: '100%' }}>
+          Build my prompt
+        </window.GlowButton>
+      </div>
+
+      {built && prompt && (
+        <div id="builder-output" style={{ marginTop: 20 }}>
+
+          {/* Free generation */}
+          <div style={{ padding: '20px 18px', borderRadius: 16, background: `linear-gradient(135deg, ${m.orbB}30, var(--surface-1))`, border: `1.5px solid ${m.accentGlow}`, marginBottom: 14 }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)', marginBottom: 4 }}>Generate now — free, no key needed</div>
+            <div style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.5 }}>
+              Uses FLUX AI directly in the app. No account, no cost. Download or regenerate until right.
+              {people.some(p => p.photo) && <span style={{ color: 'var(--text-4)' }}> Note: uploaded photos not sent — use ChatGPT below for photo-accurate results.</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <window.GlowButton mood={mood} size="lg" onClick={runGenerate} style={{ opacity: genState === 'loading' ? 0.65 : 1 }}>
+                {genState === 'loading' ? 'Generating…' : genState === 'done' ? 'Regenerate' : 'Generate now'}
+              </window.GlowButton>
+              {genState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Takes 15–40 seconds…</span>}
+            </div>
+            {genState === 'error' && <div style={{ marginTop: 10, fontSize: 13, color: '#f5788c' }}>{genErr}</div>}
+            {genUrl && (
+              <div style={{ marginTop: 14 }}>
+                {genState === 'loading' && <div style={{ fontSize: 12, color: 'var(--text-5)', marginBottom: 8 }}>Waiting for image…</div>}
+                <img key={genUrl} src={genUrl} alt="Generated thumbnail"
+                  style={{ width: '100%', maxWidth: 560, borderRadius: 12, display: genState === 'done' ? 'block' : 'none', border: '1px solid var(--stroke-1)' }}
+                  onLoad={() => setGenState('done')}
+                  onError={() => { setGenState('error'); setGenErr('Generation failed — try again or use a tool below.'); setGenUrl(''); }} />
+                {genState === 'done' && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <a className="ci-copybtn" href={genUrl} download="thumbnail.png" target="_blank" rel="noopener noreferrer"
+                      style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none', fontSize: 12.5 }}>Download</a>
+                    <button className="ci-copybtn" style={{ height: 34, fontSize: 12.5 }} onClick={runGenerate}>Try again</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* External tools */}
+          <div style={{ padding: '18px 18px', borderRadius: 14, background: 'var(--surface-1)', border: '1px solid var(--stroke-1)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-1)', marginBottom: 4 }}>Use your own AI tools</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.55 }}>
+              For photo-based results — editing your real face — use ChatGPT. Copy photos one at a time, open ChatGPT, paste them, then paste the prompt.
+            </div>
+            {(photoPeople.length > 0 || refImg) && (
+              <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.22)', border: '1px solid var(--stroke-1)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>Copy images to clipboard — one at a time:</div>
+                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                  {people.map((person, i) => {
+                    if (!person.photo) return null;
+                    const isFail = copyFeedback === 'fail-' + i;
+                    return (
+                      <button key={i} className="ci-copybtn"
+                        style={{ height: 34, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: isFail ? '#f5788c88' : undefined, color: isFail ? '#f5788c' : undefined }}
+                        onClick={() => copyPhoto(person, i)}>
+                        <img src={person.photo.preview} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
+                        {copyFeedback === 'ok-' + i ? 'Copied!' : isFail ? 'Failed' : `Copy person ${i + 1}`}
+                      </button>
+                    );
+                  })}
+                  {refImg && (
+                    <button className="ci-copybtn"
+                      style={{ height: 34, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                      onClick={copyRefImgFn}>
+                      <img src={refImg.preview} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
+                      {copyFeedback === 'ref-ok' ? 'Copied!' : copyFeedback === 'ref-fail' ? 'Failed' : 'Copy reference'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 4 }}>Your prompt (edit if needed):</div>
+            <textarea className="ci-textarea" style={{ minHeight: 130, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}
+              value={prompt} onChange={e => setPrompt(e.target.value)} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {OUTPUT_TOOLS.map(tool => (
+                <div key={tool.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--stroke-1)' }}>
+                  <span style={{ fontSize: 18 }}>{tool.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-1)' }}>{tool.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>{tool.note}</div>
+                  </div>
+                  <button className="ci-copybtn" style={{ height: 34, padding: '0 13px', background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 600, fontSize: 12.5 }}
+                    onClick={() => openIn(tool)}>Open</button>
+                  <button className="ci-copybtn" style={{ height: 34, padding: '0 10px', fontSize: 12 }}
+                    onClick={() => { window.copyText && window.copyText(prompt); }}>Copy</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </div>
+      )}
+    </div>
+  );
+}
+window.BuilderTab = BuilderTab;
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -5101,6 +5671,7 @@ function CIApp() {
   else if (tab === 'thumbnail') View = <ThumbnailTab onOpenKey={openKey} />;
   else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
+  else if (tab === 'builder') View = <BuilderTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
