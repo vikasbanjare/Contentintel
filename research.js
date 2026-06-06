@@ -29,7 +29,7 @@
    ============================================================================ */
 
 window.CI_RESEARCH = {
-  meta: { version: 4, updated: "2026-06-03", owner: "you" },
+  meta: { version: 5, updated: "2026-06-06", owner: "you" },
 
   // ── SHARED CORE — applied to every check ───────────────────────────────────
   core:
@@ -62,7 +62,29 @@ GLOBAL RULES FOR EVERY ANSWER:
 5) Quote the user's actual words; pair every criticism with a copy-ready fix.
 5b) GROUND EVERY OUTPUT IN THE ACTUAL SUBMITTED CONTENT. Describe and react to what is REALLY there — never invent details, examples, numbers or visual elements that the user did not provide. Any rewrite, alternative or generated prompt must be a transformation of THE USER'S OWN content (same subject, topic and intent), not a generic new one. If the needed input is missing (e.g. an image you cannot see and no description), say so plainly and ask for it — do NOT fabricate.
 6) COMPLIANCE IS CONDITIONAL: raise regulatory / disclaimer issues ONLY when the topic genuinely requires it — e.g. financial advice (SEBI/RBI in India, SEC/FINRA/FTC in the US, FCA in the UK, etc.), health / medical claims, legal, gambling, or paid-promotion disclosure. For ordinary, non-regulated content, do NOT add any compliance note.
-7) For A/B comparisons, always name a clear winner and explain why in one specific sentence.`,
+7) For A/B comparisons, always name a clear winner and explain why in one specific sentence.
+
+YOUTUBE-SPECIFIC PERFORMANCE BENCHMARKS — apply whenever the content is a YouTube video, script, title or thumbnail (sourced from vidIQ, TubeBuddy, Morning Fame, Tubics, Social Blade, Retention Rabbit 10K-video study, 2025–2026):
+
+CTR BY TRAFFIC SOURCE: Search 8–15% (highest intent); Suggested/Browse 5–8%; Homepage 1–3% (lowest). Platform median: 2–10%; good = 4–6%; excellent = 6%+. Niche channels can hit 8–12%; broad channels run 3–5% at scale. YouTube Shorts: 3–7% normal; viral peaks 15–20%.
+
+AUDIENCE RETENTION: Platform average 23.7% (full video, 2025 data). Target 50%+ to outperform the majority — only 1 in 6 videos surpasses this mark. By video length: under 5 min → target 60–70%; 5–10 min → 50–60% (optimal length, avg 31.5%); 15–30 min → 30–45%; over 30 min → 25–35%; Shorts → 70–85% (loop advantage). By content type: educational/how-to 42.1% (highest); vlogs 21.5% (lowest). Improving channel-wide average retention by 10 percentage points correlates with 25%+ increase in algorithm impressions.
+
+FIRST 30 SECONDS (hook window): steepest viewer drop between seconds 10–15 — this is the decision point where viewers judge whether the video delivers on its title/thumbnail promise. Retain 70%+ at 30s = solid algorithm signal; 80%+ = exceptional; below 50% at 15s = hook not working. 55% of viewers leave within the first 60 seconds regardless of total video length. Warning: 35%+ drop by 30s = title/thumbnail promise mismatch with actual content.
+
+SIX PROVEN HOOK TYPES (vidIQ framework — each opens a distinct curiosity loop): Challenge (challenges a common belief), Claim (bold specific assertion), Fact (surprising data point), Problem (names a pain the viewer already feels), Promise (states the concrete outcome), Question (opens a loop the viewer must close). Use ONE type per hook; value must land within 10 seconds; the viewer's go/no-go decision is made by second 15.
+
+ALGORITHM SHIFT (confirmed 2024–2026): YouTube replaced raw watch time with viewer satisfaction as the primary ranking signal. Satisfaction is measured via post-watch surveys ("was this worth your time?"), replay behaviour, session continuation (did the viewer keep watching YouTube?), return viewers, and comment sentiment (NLP). A viewer who completes an 8-min video and likes it is a stronger signal than 40% of a 25-min video with immediate exit. Tags confirmed to have minimal ranking impact (Sept 2024).
+
+KEYWORD OPPORTUNITY (vidIQ, TubeBuddy, Morning Fame): Opportunity score 70+ = "gem"; 40–69 = viable; below 30 = avoid. Sweet spot: 1,000–5,000 monthly searches + competition score below 30 (0–100 scale). TubeBuddy target: weighted keyword score 40+ with "Good" or "Fair" competition. Morning Fame grades keywords A–F: target A or B for small/growing channels. YouTube and Google search volumes differ dramatically for the same keyword — optimise for YouTube-specific search intent (instructional, tutorial, entertainment). No tool has access to YouTube's actual search volume; all estimates are panel-data approximations.
+
+TITLE FLIP STRATEGY (vidIQ): launch with curiosity/emotion-first title optimised for browse and suggested feeds → swap to a search-keyword-optimised title 48–72 hours after publish once initial velocity levels off. This gives videos a "second wave" of search-driven views for months.
+
+VPH & OUTLIER SCORE (vidIQ): Views Per Hour = real-time velocity; high VPH triggers home-feed and suggested placement. Outlier Score = how much a video exceeds the channel's own baseline (relative, not absolute — a 10x outlier on a 1K-avg channel is the same signal strength as 10x on a 10M-avg channel).
+
+SOCIAL BLADE GRADING: letter grades A++ to F based on composite of subscriber growth velocity, view velocity, and upload consistency. Grade C = baseline average; below C signals stagnation even if raw counts are high.
+
+TUBICS / SEMRUSH 8 RANKING FACTORS (weight order): 1. Watch time (total minutes), 2. Channel authority (topical expertise from sustained watch time), 3. Audience retention (drop-off patterns), 4. Upload frequency, 5. Session duration (viewer stays on YouTube), 6. Session ends (negative signal — viewer leaves YouTube). Score above 70/100 = well-optimised.`,
 
   // ── SCRIPT ────────────────────────────────────────────────────────────────
   script: {
@@ -78,6 +100,10 @@ A. HOOK (first 1–3 seconds) — the single biggest lever. Identify the hook ty
 - Stakes / cost (high): what the viewer loses by scrolling away.
 - Mistake / "stop doing X" framing (high): negative framing that triggers self-check.
 Grade the hook on SPECIFICITY (vague vs concrete), SPEED (does value/tension land by ~second 2–3), TENSION (is a loop opened) and CLARITY (no confusion or jargon). A slow, generic or throat-clearing opener ("Hi guys, welcome back, in today's video…") is an automatic fail — rewrite it. Always provide 2–3 stronger hook rewrites.
+
+HOOK PERFORMANCE DATA (industry benchmarks — apply to YouTube long-form specifically):
+Three-phase hook structure: Phase 1 (0–5s) = pattern interrupt — a bold visual, single surprising claim, or jarring open that breaks the scroll; Phase 2 (5–15s) = payoff promise — the single concrete value or outcome the viewer gets by staying; Phase 3 (15–30s) = commitment hook — deepen the reason to stay via an info gap, proof of result, narrative tension, or demonstration start. Videos with on-screen text captions during the hook see ~18% more watch time (many viewers start muted). Pattern interrupt every 30–60 seconds throughout the body maintains retention after the hook. Intro must deliver value within 10 seconds — any throat-clearing or re-introduction after that window costs views. Warning: a 35%+ retention drop by 30 seconds almost always means the title/thumbnail promised something different from what the video immediately delivers.
+Six hook types (vidIQ framework): Challenge (confronts a belief), Claim (bold assertion), Fact (surprising data), Problem (names a felt pain), Promise (states the outcome), Question (opens a must-close loop). Identify which type is used and whether it is the strongest match for this specific topic and audience.
 
 B. RETENTION ARCHITECTURE — model the attention curve across the WHOLE script:
 - Open-loop stacking: strong scripts open a new loop before closing the previous one, so there is always a reason to keep watching. Map where each loop opens and pays off; flag any loop left UNPAID.
@@ -162,6 +188,13 @@ F. CURIOSITY & PROMISE — thumb + title as ONE unit:
 - Flag any mismatch between thumb and title (mismatch kills trust and retention).
 
 G. PATTERN INTERRUPT: would this look DIFFERENT from the other thumbnails around it in this niche? Sameness = invisible.
+
+H. PERFORMANCE DATA (apply as calibration, not as mechanical rules):
+FACES & EMOTION: expressive faces (shock, excitement, curiosity) lift CTR 20–30% over neutral faces. Direct eye contact with camera pulls harder than angled gaze. In a dataset of 300K viral videos, faces vs faceless performed similarly in aggregate — the differentiator is EMOTION, not mere presence of a face. Minimalist/faceless thumbnails outperform in tech and education niches (7–11% CTR vs 4–6% for cluttered).
+COLOUR & CONTRAST: high-contrast thumbnails increase CTR 20–30%. Channels with a consistent thumbnail colour identity see 15–20% higher CTR from existing subscribers. Warm colours (red/orange) signal urgency; cool (blue/green) signal trust. Yellow text on black = highest small-screen readability. Eye-tracking: viewers scan in an F-pattern with 40% of attention landing on the top-left area ("emotion zone"). Keep the dominant focal subject there or in the centre-top.
+TEXT RULES: 2–3 word blocks perform best at thumbnail scale; absolute maximum 3–5 words total on busy areas. Font equivalent of 30pt+ for mobile. Stroke or dark drop-shadow is mandatory on any text over a non-plain background. Text must ADD to the title — never repeat it verbatim.
+MOBILE TEST: test at 320px width before publishing. Any element requiring squinting is too small. One dominant subject with strong figure-ground separation survives thumbnail size; three competing subjects do not.
+CTR SPLIT: title and thumbnail each contribute approximately 50% of CTR — judge them as one unit, not independently. A strong thumbnail with a weak title leaks clicks; a strong title with a weak thumbnail loses the browse impression.
 
 REGENERATION PROMPT — STRICT GROUNDING CONTRACT (this OVERRIDES the design library and every niche playbook):
 The regeneration prompt is an EDIT of the user's ACTUAL thumbnail, never a new design. Write it as two explicit lists — "KEEP:" and "CHANGE ONLY:" — then one line "why this helps".
@@ -332,6 +365,15 @@ B. HIGH-ENGAGEMENT PATTERNS (apply where they fit the niche, never force):
 C. CLARITY & MATCH: a viewer must instantly know what they'll get, and it must match the actual content. Vague or abstract titles lose.
 
 D. MOBILE & SEARCH: keep it concise; phones often truncate around ~40 characters — report the exact mobile-truncated preview and where it cuts. Note the primary keyword and its position.
+
+E. TITLE PERFORMANCE DATA (TubeBuddy, vidIQ, industry benchmarks — apply to YouTube titles specifically):
+OPTIMAL LENGTH: 40–60 characters total. First 40 characters are critical — the hook word and primary keyword must survive mobile truncation (~45–50 chars on most devices). Always report the truncated preview.
+KEYWORD PLACEMENT: primary keyword within the first 5 words where natural. Exact keyword in the same word order as users search (e.g. "San Diego Zoo Bus Tour" outperforms rearranged variants). Keyword must appear within first 60 characters for search ranking.
+POWER WORDS: titles with power words ("complete", "proven", "ultimate", "essential", "secret", "exact") get ~34% more clicks than those without. One or two well-placed power words amplify; overloading reads as spam. "Ultimate" alone can add ~15% engagement.
+NUMBERS: specific numbers in titles boost CTR 20–30%. Odd/specific numbers outperform round ones ("Save $487/month" beats "Save $500/month"). Numbers set concrete expectations and signal structured content.
+BRACKETS: parenthetical or bracketed elements ([2026], [Full Guide], [Step-by-Step]) add specificity and slightly boost CTR when placed at the end.
+TITLE FLIP (vidIQ): for YouTube long-form, launch with a curiosity/emotion-first title for browse and suggested → swap to a keyword-focused title 48–72 hours after publish once initial velocity plateaus. This gives videos a second wave of search-driven discovery for months after publish.
+A/B TESTING IMPACT: properly A/B-tested titles improve CTR by 10–25% on underperforming videos. Test ONE variable at a time; minimum 14 days per test for statistical significance.
 
 OUTPUT: the title breakdown (character count, power words, numbers, brackets, keyword position, curiosity-gap strength, truncated preview) and then 10 ALTERNATIVE titles, each labelled by angle: curiosity, fear, specific-numbers, question, negative-framing, listicle, contrarian, social-proof, aspirational, plain-clear — in the content's own language. If two titles (A and B) are provided, compare them and fill the "winner" field with the stronger one and why.`,
     rubric: [

@@ -860,7 +860,7 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
    ============================================================================ */
 
 window.CI_RESEARCH = {
-  meta: { version: 4, updated: "2026-06-03", owner: "you" },
+  meta: { version: 5, updated: "2026-06-06", owner: "you" },
 
   // ── SHARED CORE — applied to every check ───────────────────────────────────
   core:
@@ -893,7 +893,29 @@ GLOBAL RULES FOR EVERY ANSWER:
 5) Quote the user's actual words; pair every criticism with a copy-ready fix.
 5b) GROUND EVERY OUTPUT IN THE ACTUAL SUBMITTED CONTENT. Describe and react to what is REALLY there — never invent details, examples, numbers or visual elements that the user did not provide. Any rewrite, alternative or generated prompt must be a transformation of THE USER'S OWN content (same subject, topic and intent), not a generic new one. If the needed input is missing (e.g. an image you cannot see and no description), say so plainly and ask for it — do NOT fabricate.
 6) COMPLIANCE IS CONDITIONAL: raise regulatory / disclaimer issues ONLY when the topic genuinely requires it — e.g. financial advice (SEBI/RBI in India, SEC/FINRA/FTC in the US, FCA in the UK, etc.), health / medical claims, legal, gambling, or paid-promotion disclosure. For ordinary, non-regulated content, do NOT add any compliance note.
-7) For A/B comparisons, always name a clear winner and explain why in one specific sentence.`,
+7) For A/B comparisons, always name a clear winner and explain why in one specific sentence.
+
+YOUTUBE-SPECIFIC PERFORMANCE BENCHMARKS — apply whenever the content is a YouTube video, script, title or thumbnail (sourced from vidIQ, TubeBuddy, Morning Fame, Tubics, Social Blade, Retention Rabbit 10K-video study, 2025–2026):
+
+CTR BY TRAFFIC SOURCE: Search 8–15% (highest intent); Suggested/Browse 5–8%; Homepage 1–3% (lowest). Platform median: 2–10%; good = 4–6%; excellent = 6%+. Niche channels can hit 8–12%; broad channels run 3–5% at scale. YouTube Shorts: 3–7% normal; viral peaks 15–20%.
+
+AUDIENCE RETENTION: Platform average 23.7% (full video, 2025 data). Target 50%+ to outperform the majority — only 1 in 6 videos surpasses this mark. By video length: under 5 min → target 60–70%; 5–10 min → 50–60% (optimal length, avg 31.5%); 15–30 min → 30–45%; over 30 min → 25–35%; Shorts → 70–85% (loop advantage). By content type: educational/how-to 42.1% (highest); vlogs 21.5% (lowest). Improving channel-wide average retention by 10 percentage points correlates with 25%+ increase in algorithm impressions.
+
+FIRST 30 SECONDS (hook window): steepest viewer drop between seconds 10–15 — this is the decision point where viewers judge whether the video delivers on its title/thumbnail promise. Retain 70%+ at 30s = solid algorithm signal; 80%+ = exceptional; below 50% at 15s = hook not working. 55% of viewers leave within the first 60 seconds regardless of total video length. Warning: 35%+ drop by 30s = title/thumbnail promise mismatch with actual content.
+
+SIX PROVEN HOOK TYPES (vidIQ framework — each opens a distinct curiosity loop): Challenge (challenges a common belief), Claim (bold specific assertion), Fact (surprising data point), Problem (names a pain the viewer already feels), Promise (states the concrete outcome), Question (opens a loop the viewer must close). Use ONE type per hook; value must land within 10 seconds; the viewer's go/no-go decision is made by second 15.
+
+ALGORITHM SHIFT (confirmed 2024–2026): YouTube replaced raw watch time with viewer satisfaction as the primary ranking signal. Satisfaction is measured via post-watch surveys ("was this worth your time?"), replay behaviour, session continuation (did the viewer keep watching YouTube?), return viewers, and comment sentiment (NLP). A viewer who completes an 8-min video and likes it is a stronger signal than 40% of a 25-min video with immediate exit. Tags confirmed to have minimal ranking impact (Sept 2024).
+
+KEYWORD OPPORTUNITY (vidIQ, TubeBuddy, Morning Fame): Opportunity score 70+ = "gem"; 40–69 = viable; below 30 = avoid. Sweet spot: 1,000–5,000 monthly searches + competition score below 30 (0–100 scale). TubeBuddy target: weighted keyword score 40+ with "Good" or "Fair" competition. Morning Fame grades keywords A–F: target A or B for small/growing channels. YouTube and Google search volumes differ dramatically for the same keyword — optimise for YouTube-specific search intent (instructional, tutorial, entertainment). No tool has access to YouTube's actual search volume; all estimates are panel-data approximations.
+
+TITLE FLIP STRATEGY (vidIQ): launch with curiosity/emotion-first title optimised for browse and suggested feeds → swap to a search-keyword-optimised title 48–72 hours after publish once initial velocity levels off. This gives videos a "second wave" of search-driven views for months.
+
+VPH & OUTLIER SCORE (vidIQ): Views Per Hour = real-time velocity; high VPH triggers home-feed and suggested placement. Outlier Score = how much a video exceeds the channel's own baseline (relative, not absolute — a 10x outlier on a 1K-avg channel is the same signal strength as 10x on a 10M-avg channel).
+
+SOCIAL BLADE GRADING: letter grades A++ to F based on composite of subscriber growth velocity, view velocity, and upload consistency. Grade C = baseline average; below C signals stagnation even if raw counts are high.
+
+TUBICS / SEMRUSH 8 RANKING FACTORS (weight order): 1. Watch time (total minutes), 2. Channel authority (topical expertise from sustained watch time), 3. Audience retention (drop-off patterns), 4. Upload frequency, 5. Session duration (viewer stays on YouTube), 6. Session ends (negative signal — viewer leaves YouTube). Score above 70/100 = well-optimised.`,
 
   // ── SCRIPT ────────────────────────────────────────────────────────────────
   script: {
@@ -909,6 +931,10 @@ A. HOOK (first 1–3 seconds) — the single biggest lever. Identify the hook ty
 - Stakes / cost (high): what the viewer loses by scrolling away.
 - Mistake / "stop doing X" framing (high): negative framing that triggers self-check.
 Grade the hook on SPECIFICITY (vague vs concrete), SPEED (does value/tension land by ~second 2–3), TENSION (is a loop opened) and CLARITY (no confusion or jargon). A slow, generic or throat-clearing opener ("Hi guys, welcome back, in today's video…") is an automatic fail — rewrite it. Always provide 2–3 stronger hook rewrites.
+
+HOOK PERFORMANCE DATA (industry benchmarks — apply to YouTube long-form specifically):
+Three-phase hook structure: Phase 1 (0–5s) = pattern interrupt — a bold visual, single surprising claim, or jarring open that breaks the scroll; Phase 2 (5–15s) = payoff promise — the single concrete value or outcome the viewer gets by staying; Phase 3 (15–30s) = commitment hook — deepen the reason to stay via an info gap, proof of result, narrative tension, or demonstration start. Videos with on-screen text captions during the hook see ~18% more watch time (many viewers start muted). Pattern interrupt every 30–60 seconds throughout the body maintains retention after the hook. Intro must deliver value within 10 seconds — any throat-clearing or re-introduction after that window costs views. Warning: a 35%+ retention drop by 30 seconds almost always means the title/thumbnail promised something different from what the video immediately delivers.
+Six hook types (vidIQ framework): Challenge (confronts a belief), Claim (bold assertion), Fact (surprising data), Problem (names a felt pain), Promise (states the outcome), Question (opens a must-close loop). Identify which type is used and whether it is the strongest match for this specific topic and audience.
 
 B. RETENTION ARCHITECTURE — model the attention curve across the WHOLE script:
 - Open-loop stacking: strong scripts open a new loop before closing the previous one, so there is always a reason to keep watching. Map where each loop opens and pays off; flag any loop left UNPAID.
@@ -993,6 +1019,13 @@ F. CURIOSITY & PROMISE — thumb + title as ONE unit:
 - Flag any mismatch between thumb and title (mismatch kills trust and retention).
 
 G. PATTERN INTERRUPT: would this look DIFFERENT from the other thumbnails around it in this niche? Sameness = invisible.
+
+H. PERFORMANCE DATA (apply as calibration, not as mechanical rules):
+FACES & EMOTION: expressive faces (shock, excitement, curiosity) lift CTR 20–30% over neutral faces. Direct eye contact with camera pulls harder than angled gaze. In a dataset of 300K viral videos, faces vs faceless performed similarly in aggregate — the differentiator is EMOTION, not mere presence of a face. Minimalist/faceless thumbnails outperform in tech and education niches (7–11% CTR vs 4–6% for cluttered).
+COLOUR & CONTRAST: high-contrast thumbnails increase CTR 20–30%. Channels with a consistent thumbnail colour identity see 15–20% higher CTR from existing subscribers. Warm colours (red/orange) signal urgency; cool (blue/green) signal trust. Yellow text on black = highest small-screen readability. Eye-tracking: viewers scan in an F-pattern with 40% of attention landing on the top-left area ("emotion zone"). Keep the dominant focal subject there or in the centre-top.
+TEXT RULES: 2–3 word blocks perform best at thumbnail scale; absolute maximum 3–5 words total on busy areas. Font equivalent of 30pt+ for mobile. Stroke or dark drop-shadow is mandatory on any text over a non-plain background. Text must ADD to the title — never repeat it verbatim.
+MOBILE TEST: test at 320px width before publishing. Any element requiring squinting is too small. One dominant subject with strong figure-ground separation survives thumbnail size; three competing subjects do not.
+CTR SPLIT: title and thumbnail each contribute approximately 50% of CTR — judge them as one unit, not independently. A strong thumbnail with a weak title leaks clicks; a strong title with a weak thumbnail loses the browse impression.
 
 REGENERATION PROMPT — STRICT GROUNDING CONTRACT (this OVERRIDES the design library and every niche playbook):
 The regeneration prompt is an EDIT of the user's ACTUAL thumbnail, never a new design. Write it as two explicit lists — "KEEP:" and "CHANGE ONLY:" — then one line "why this helps".
@@ -1163,6 +1196,15 @@ B. HIGH-ENGAGEMENT PATTERNS (apply where they fit the niche, never force):
 C. CLARITY & MATCH: a viewer must instantly know what they'll get, and it must match the actual content. Vague or abstract titles lose.
 
 D. MOBILE & SEARCH: keep it concise; phones often truncate around ~40 characters — report the exact mobile-truncated preview and where it cuts. Note the primary keyword and its position.
+
+E. TITLE PERFORMANCE DATA (TubeBuddy, vidIQ, industry benchmarks — apply to YouTube titles specifically):
+OPTIMAL LENGTH: 40–60 characters total. First 40 characters are critical — the hook word and primary keyword must survive mobile truncation (~45–50 chars on most devices). Always report the truncated preview.
+KEYWORD PLACEMENT: primary keyword within the first 5 words where natural. Exact keyword in the same word order as users search (e.g. "San Diego Zoo Bus Tour" outperforms rearranged variants). Keyword must appear within first 60 characters for search ranking.
+POWER WORDS: titles with power words ("complete", "proven", "ultimate", "essential", "secret", "exact") get ~34% more clicks than those without. One or two well-placed power words amplify; overloading reads as spam. "Ultimate" alone can add ~15% engagement.
+NUMBERS: specific numbers in titles boost CTR 20–30%. Odd/specific numbers outperform round ones ("Save $487/month" beats "Save $500/month"). Numbers set concrete expectations and signal structured content.
+BRACKETS: parenthetical or bracketed elements ([2026], [Full Guide], [Step-by-Step]) add specificity and slightly boost CTR when placed at the end.
+TITLE FLIP (vidIQ): for YouTube long-form, launch with a curiosity/emotion-first title for browse and suggested → swap to a keyword-focused title 48–72 hours after publish once initial velocity plateaus. This gives videos a second wave of search-driven discovery for months after publish.
+A/B TESTING IMPACT: properly A/B-tested titles improve CTR by 10–25% on underperforming videos. Test ONE variable at a time; minimum 14 days per test for statistical significance.
 
 OUTPUT: the title breakdown (character count, power words, numbers, brackets, keyword position, curiosity-gap strength, truncated preview) and then 10 ALTERNATIVE titles, each labelled by angle: curiosity, fear, specific-numbers, question, negative-framing, listicle, contrarian, social-proof, aspirational, plain-clear — in the content's own language. If two titles (A and B) are provided, compare them and fill the "winner" field with the stronger one and why.`,
     rubric: [
@@ -2985,7 +3027,6 @@ const TABS = [
   { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb' },
   { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title' },
   { id: 'ads',       label: 'Ads',       mood: 'violet',   icon: 'ads' },
-  { id: 'builder',   label: 'Studio',    mood: 'lime',     icon: 'studio'   },
   { id: 'playbook',  label: 'Playbook',  mood: 'ember',    icon: 'playbook' },
   { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
@@ -2998,7 +3039,6 @@ function CITabIcon({ name }) {
     case 'title':   return <svg {...s} viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h7M3 11.5h9"/></svg>;
     case 'ads':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 6.5v3l8 3.5v-10l-8 3.5z"/><path d="M2.5 6.5H5v3H2.5zM12 5.5a3 3 0 010 5"/></svg>;
     case 'history': return <svg {...s} viewBox="0 0 16 16"><path d="M8 4.5V8l2.5 1.5"/><circle cx="8" cy="8" r="5.5"/></svg>;
-    case 'studio':   return <svg {...s} viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="9" rx="1.5"/><path d="M5 14h6M8 11v3"/><path d="M5 5.5h6M5 7.5h4"/></svg>;
     case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':    return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     default: return null;
@@ -4647,606 +4687,6 @@ window.HistoryTab = HistoryTab;
 
 </script>
 <script type="text/babel" data-presets="react">
-/* ===== ci-builder.jsx ===== */
-// ContentIntel — Thumbnail Prompt Studio
-
-const {
-  MOODS: BM, Block: BB, Toggle: BTg,
-  WorkHead: BWH,
-} = window;
-
-const BUILDER_EXPRESSIONS = [
-  { id: 'excited',  label: 'Excited',     emoji: '😄' },
-  { id: 'shocked',  label: 'Shocked',     emoji: '😮' },
-  { id: 'serious',  label: 'Serious',     emoji: '😐' },
-  { id: 'pointing', label: 'Pointing',    emoji: '👉' },
-  { id: 'laughing', label: 'Laughing',    emoji: '😂' },
-  { id: 'love',     label: 'Love / Warm', emoji: '❤️' },
-  { id: 'none',     label: 'Do nothing',  emoji: '—'  },
-];
-
-const BUILDER_ELEMENTS = [
-  'Arrow pointing to subject',
-  'Yellow highlight box behind text',
-  'Split screen / divider',
-  'Glow / neon effect',
-  'Brand logo badge',
-  'Graph / chart',
-  'Before/After',
-  'Dark cinematic bars',
-  'Circular portrait frame',
-  'Emoji overlay',
-  'Number / stat callout',
-  'Floating text bubble',
-];
-
-const BUILDER_RATIOS = [
-  { id: 'wide',     label: '16:9', w: 1280, h: 720  },
-  { id: 'square',   label: '1:1',  w: 1000, h: 1000 },
-  { id: 'vertical', label: '9:16', w: 720,  h: 1280 },
-  { id: 'portrait', label: '4:5',  w: 1000, h: 1250 },
-];
-
-const OUTPUT_TOOLS = [
-  { id: 'chatgpt', label: 'ChatGPT',       icon: '💬', url: 'https://chatgpt.com/',          useQ: true,  note: 'Prompt pre-filled · paste photos with Ctrl+V / Cmd+V after opening' },
-  { id: 'gemini',  label: 'Google Gemini', icon: '✨', url: 'https://gemini.google.com/app', useQ: false, note: 'Free · great for creative concepts · prompt copied — paste it in' },
-  { id: 'ideogram',label: 'Ideogram',      icon: '✏️', url: 'https://ideogram.ai/t/explore', useQ: false, note: 'Free · excellent for text inside images · paste into prompt box' },
-];
-
-function bReadImage(file, cb) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const url = reader.result;
-    cb({ mime: file.type || 'image/png', data: String(url).split(',')[1] || '', preview: url, name: file.name });
-  };
-  reader.readAsDataURL(file);
-}
-
-function bLoadBrand() {
-  try { return JSON.parse(localStorage.getItem('ci_brandkit')) || { colors: [], note: '' }; }
-  catch (e) { return { colors: [], note: '' }; }
-}
-
-async function bCopyImageToClipboard(dataUrl, mime) {
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Clipboard API not supported');
-  await navigator.clipboard.write([new ClipboardItem({ [blob.type || mime || 'image/png']: blob })]);
-}
-
-// ── BuilderTab ────────────────────────────────────────────────────────────────
-function BuilderTab() {
-  const mood = 'lime';
-  const m = BM[mood];
-
-  // Aspect ratio
-  const [ratio, setRatio] = React.useState('wide');
-  const currentRatio = BUILDER_RATIOS.find(r => r.id === ratio) || BUILDER_RATIOS[0];
-
-  // People — up to 10, each with optional photo, text description, expression
-  const [people, setPeople] = React.useState([]);
-  function addPerson() { if (people.length < 10) setPeople(ps => [...ps, { photo: null, expression: 'excited', desc: '' }]); }
-  function setPersonPhoto(i, file) { bReadImage(file, img => setPeople(ps => ps.map((p, j) => j === i ? { ...p, photo: img } : p))); }
-  function clearPersonPhoto(i) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, photo: null } : p)); }
-  function setPersonExpr(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, expression: v } : p)); }
-  function setPersonDesc(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, desc: v } : p)); }
-  function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
-
-  // Text
-  const [headline, setHeadline] = React.useState('');
-  const [subline, setSubline] = React.useState('');
-
-  // Elements
-  const [elements, setElements] = React.useState([]);
-  const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
-
-  // Reference image
-  const [refImg, setRefImg] = React.useState(null);
-  const [refOverride, setRefOverride] = React.useState(false);
-  const [refState, setRefState] = React.useState('idle');
-  const [refAnalysis, setRefAnalysis] = React.useState('');
-
-  // Extra note
-  const [extraNote, setExtraNote] = React.useState('');
-
-  // Analyse existing thumbnail
-  const [analyseImg, setAnalyseImg] = React.useState(null);
-  const [analyseState, setAnalyseState] = React.useState('idle'); // idle | loading | done | error
-  const [analyseSummary, setAnalyseSummary] = React.useState('');
-
-  // Brand
-  const [brand] = React.useState(bLoadBrand);
-  const brandColors = (brand.colors || []).filter(Boolean);
-  const hasBrand = brandColors.length > 0 || !!brand.note;
-
-  // Output
-  const [prompt, setPrompt] = React.useState('');
-  const [built, setBuilt] = React.useState(false);
-  const [copyFeedback, setCopyFeedback] = React.useState('');
-  const [genState, setGenState] = React.useState('idle'); // idle | loading | done | error
-  const [genUrl, setGenUrl] = React.useState('');
-  const [genErr, setGenErr] = React.useState('');
-
-  // ── Analyse existing thumbnail with Claude vision ─────────────────────────
-  async function analyseExisting() {
-    const key = window.getKey ? window.getKey() : null;
-    if (!key || !analyseImg) return;
-    setAnalyseState('loading');
-    try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: window.getModel ? window.getModel() : 'claude-opus-4-8',
-          max_tokens: 700,
-          system: 'You are a thumbnail analyst. Return ONLY a valid JSON object, no other text.',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: analyseImg.mime, data: analyseImg.data } },
-              { type: 'text', text: 'Analyse this thumbnail image. Return ONLY JSON: { "headline": "exact main text visible, or empty string", "subline": "secondary/smaller text visible, or empty string", "people": [{ "desc": "brief appearance description", "expression": "one of: excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only items visibly present, chosen from: Arrow pointing to subject, Yellow highlight box behind text, Split screen / divider, Glow / neon effect, Brand logo badge, Graph / chart, Before/After, Dark cinematic bars, Circular portrait frame, Emoji overlay, Number / stat callout, Floating text bubble"], "styleNotes": "one sentence on mood, lighting, colour treatment" }' },
-            ],
-          }],
-        }),
-      });
-      const data = await resp.json();
-      const raw = (data.content?.[0]?.text || '').trim();
-      const jsonStr = raw.match(/\{[\s\S]*\}/)?.[0];
-      const parsed = jsonStr ? JSON.parse(jsonStr) : null;
-      if (!parsed) { setAnalyseState('error'); return; }
-      setHeadline(parsed.headline || '');
-      setSubline(parsed.subline || '');
-      if (Array.isArray(parsed.people) && parsed.people.length > 0) {
-        setPeople(parsed.people.slice(0, 10).map(p => ({
-          photo: null,
-          expression: BUILDER_EXPRESSIONS.find(e => e.id === (p.expression || '')) ? p.expression : 'none',
-          desc: p.desc || '',
-        })));
-      }
-      if (Array.isArray(parsed.elements)) {
-        setElements(parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)));
-      }
-      if (parsed.styleNotes) setExtraNote(parsed.styleNotes);
-      const parts = [
-        parsed.headline && `headline "${parsed.headline}"`,
-        parsed.subline && `sub-text "${parsed.subline}"`,
-        parsed.people?.length && `${parsed.people.length} person${parsed.people.length > 1 ? 's' : ''}`,
-        parsed.elements?.length && `${parsed.elements.length} element${parsed.elements.length > 1 ? 's' : ''}`,
-      ].filter(Boolean);
-      setAnalyseSummary(parts.length ? `Detected: ${parts.join(', ')}. Form pre-filled — review and edit below, then build your prompt.` : 'Thumbnail analysed — form updated below.');
-      setAnalyseState('done');
-    } catch (e) { setAnalyseState('error'); }
-  }
-
-  // ── Analyse reference style with Claude vision ────────────────────────────
-  async function analyzeRef() {
-    const key = window.getKey ? window.getKey() : null;
-    if (!key || !refImg) return;
-    setRefState('loading');
-    try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: window.getModel ? window.getModel() : 'claude-opus-4-8',
-          max_tokens: 350,
-          system: 'Extract visual design properties from thumbnail images. Return ONLY a JSON object.',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: refImg.mime, data: refImg.data } },
-              { type: 'text', text: 'Analyse this thumbnail. Return JSON: { "layout": "composition description", "colors": "dominant colors & treatment", "textStyle": "how text is styled", "mood": "energy and mood", "keyElements": "notable design details" }' },
-            ],
-          }],
-        }),
-      });
-      const data = await resp.json();
-      const raw = (data.content?.[0]?.text || '').trim();
-      const jsonStr = raw.match(/\{[\s\S]*\}/)?.[0];
-      const parsed = jsonStr ? JSON.parse(jsonStr) : null;
-      if (parsed) setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
-      setRefState('done');
-    } catch (e) { setRefState('error'); }
-  }
-
-  // ── Build the prompt ──────────────────────────────────────────────────────
-  function buildPrompt() {
-    const lines = [];
-    lines.push(`Create a thumbnail image (${currentRatio.label} aspect ratio, ${currentRatio.w}x${currentRatio.h}px).`);
-    lines.push('');
-
-    if (people.length > 0) {
-      lines.push(`PEOPLE: ${people.length} person${people.length > 1 ? 's' : ''}.`);
-      people.forEach((p, i) => {
-        const ex = BUILDER_EXPRESSIONS.find(e => e.id === p.expression);
-        const exText = ex && ex.id !== 'none' ? `expression: ${ex.label}` : 'natural expression';
-        const descText = p.desc.trim() ? `, looks like: ${p.desc.trim()}` : '';
-        const photoRef = p.photo ? ` (see attached photo ${i + 1})` : '';
-        lines.push(`- Person ${i + 1}${photoRef} — ${exText}${descText}.`);
-      });
-      lines.push('');
-    }
-
-    if (headline.trim() || subline.trim()) {
-      lines.push('TEXT ON THUMBNAIL:');
-      if (headline.trim()) lines.push(`- Main headline: "${headline.trim()}" — large, bold, dominant.`);
-      if (subline.trim()) lines.push(`- Sub-text: "${subline.trim()}" — smaller, secondary.`);
-      lines.push('');
-    }
-
-    if (elements.length > 0) {
-      lines.push(`VISUAL ELEMENTS: ${elements.join('. ')}.`);
-      lines.push('');
-    }
-
-    if (hasBrand && (refOverride || !refImg)) {
-      const cp = [
-        brandColors.length ? `Palette: ${brandColors.join(', ')}.` : '',
-        brand.note ? `Brand note: ${brand.note}.` : '',
-      ].filter(Boolean).join(' ');
-      lines.push(`COLOUR: ${cp} Use these as the dominant colour treatment — background, accents, text highlights.`);
-      lines.push('');
-    }
-
-    if (refImg) {
-      if (refAnalysis) {
-        const analysisLines = refOverride && hasBrand
-          ? refAnalysis.split('\n').filter(l => !l.startsWith('colors')).join('\n')
-          : refAnalysis;
-        lines.push('STYLE REFERENCE (see attached reference image — match its visual DNA):');
-        lines.push(analysisLines);
-        if (refOverride && hasBrand) lines.push('Apply the brand colours above instead of the reference colours.');
-      } else {
-        lines.push(`STYLE: Match the layout, composition and energy of the attached reference image.${refOverride && hasBrand ? ' Use brand colours above instead.' : ''}`);
-      }
-      lines.push('');
-    }
-
-    if (extraNote.trim()) {
-      lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`);
-      lines.push('');
-    }
-
-    lines.push('Make it bold, high-contrast, and impossible to ignore at small thumbnail size. Professional photography and design quality.');
-
-    const p = lines.join('\n');
-    setPrompt(p);
-    setBuilt(true);
-    setGenState('idle'); setGenUrl(''); setGenErr('');
-    setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-  }
-
-  // ── Free generation via Pollinations ─────────────────────────────────────
-  function runGenerate() {
-    setGenState('loading'); setGenErr('');
-    const seed = Math.floor(Math.random() * 1e6);
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${currentRatio.w}&height=${currentRatio.h}&model=flux&nologo=true&seed=${seed}`;
-    setGenUrl(url);
-  }
-
-  // ── Open in external tool ─────────────────────────────────────────────────
-  function openIn(tool) {
-    try { window.copyText && window.copyText(prompt); } catch (e) {}
-    if (tool.useQ) {
-      window.open(tool.url + '?q=' + encodeURIComponent(prompt.slice(0, 6000)), '_blank', 'noopener,noreferrer');
-    } else {
-      window.open(tool.url, '_blank', 'noopener,noreferrer');
-    }
-  }
-
-  async function copyPhoto(person, idx) {
-    if (!person.photo) return;
-    try {
-      await bCopyImageToClipboard(person.photo.preview, person.photo.mime);
-      setCopyFeedback('ok-' + idx);
-    } catch (e) { setCopyFeedback('fail-' + idx); }
-    setTimeout(() => setCopyFeedback(''), 2200);
-  }
-
-  async function copyRefImg() {
-    try {
-      await bCopyImageToClipboard(refImg.preview, refImg.mime);
-      setCopyFeedback('ref-ok');
-    } catch (e) { setCopyFeedback('ref-fail'); }
-    setTimeout(() => setCopyFeedback(''), 2200);
-  }
-
-  const photoPeople = people.filter(p => p.photo);
-
-  return (
-    <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
-      <BWH mood={mood} eyebrow="Prompt Studio" title="Build your thumbnail prompt"
-        sub="Fill in the form — we'll write a professional image brief you can send to ChatGPT, Gemini or Ideogram. No prompt-writing skills needed." />
-
-      {/* ── ANALYSE EXISTING THUMBNAIL ── */}
-      <BB mood={mood} title="Analyse existing thumbnail" desc="Upload your current thumbnail — Claude reads the text, people and elements and pre-fills the form below. Requires a Claude API key.">
-        {!analyseImg ? (
-          <label className="ci-drop" style={{ minHeight: 96, flexDirection: 'column', gap: 7, cursor: 'pointer', padding: 16 }}>
-            <input type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { setAnalyseImg(img); setAnalyseState('idle'); setAnalyseSummary(''); })} />
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
-            <span style={{ fontSize: 13 }}>Upload your existing thumbnail to analyse</span>
-          </label>
-        ) : (
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <img src={analyseImg.preview} alt="" style={{ width: 160, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
-                <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
-                  onClick={() => { setAnalyseImg(null); setAnalyseState('idle'); setAnalyseSummary(''); }}>✕ Remove</button>
-                {window.getKey?.() ? (
-                  <button className="ci-copybtn"
-                    style={{ height: 30, fontSize: 12, fontWeight: 700, background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, opacity: analyseState === 'loading' ? 0.6 : 1 }}
-                    onClick={analyseExisting} disabled={analyseState === 'loading'}>
-                    {analyseState === 'loading' ? '⏳ Analysing…' : analyseState === 'done' ? '↺ Re-analyse' : '🔍 Analyse with Claude'}
-                  </button>
-                ) : (
-                  <span style={{ fontSize: 12, color: 'var(--text-5)' }}>Add a Claude API key in Settings to analyse</span>
-                )}
-                {analyseState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>✓ Form pre-filled</span>}
-                {analyseState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Analysis failed — try again</span>}
-              </div>
-              {analyseSummary && (
-                <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6, padding: '9px 12px', background: 'rgba(0,0,0,0.22)', borderRadius: 9 }}>
-                  {analyseSummary}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </BB>
-
-      {/* ── ASPECT RATIO ── */}
-      <BB mood={mood}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Aspect ratio</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {BUILDER_RATIOS.map(r => (
-            <button key={r.id} className="pill" onClick={() => setRatio(r.id)}
-              style={{ height: 36, padding: '0 18px', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 700,
-                background: ratio === r.id ? `${m.accentFrom}1a` : 'transparent',
-                borderColor: ratio === r.id ? m.accentGlow : 'var(--stroke-1)',
-                color: ratio === r.id ? m.accentFrom : 'var(--text-3)' }}>
-              {r.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ marginTop: 7, fontSize: 11.5, color: 'var(--text-5)' }}>{currentRatio.w} x {currentRatio.h} px</div>
-      </BB>
-
-      {/* ── PEOPLE ── */}
-      <BB mood={mood} title="People" desc="Add up to 10 subjects. Describe appearance — the description goes into the prompt. Upload a photo only to paste it into ChatGPT manually.">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {people.map((p, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--stroke-1)' }}>
-              <div style={{ flexShrink: 0 }}>
-                {p.photo ? (
-                  <div style={{ position: 'relative', width: 58 }}>
-                    <img src={p.photo.preview} alt="" style={{ width: 58, height: 58, objectFit: 'cover', borderRadius: 8, display: 'block', border: '1px solid var(--stroke-1)' }} />
-                    <button onClick={() => clearPersonPhoto(i)}
-                      style={{ position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: 8, cursor: 'pointer', lineHeight: '16px', textAlign: 'center', padding: 0 }}>x</button>
-                  </div>
-                ) : (
-                  <label title="Upload photo (optional — for pasting into ChatGPT)"
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 58, height: 58, borderRadius: 8, border: '1.5px dashed var(--stroke-2)', cursor: 'pointer', color: 'var(--text-5)', gap: 2, background: 'rgba(255,255,255,0.02)' }}>
-                    <input type="file" accept="image/*" style={{ display: 'none' }}
-                      onChange={e => e.target.files[0] && setPersonPhoto(i, e.target.files[0])} />
-                    <span style={{ fontSize: 20, lineHeight: 1 }}>+</span>
-                    <span style={{ fontSize: 9, textAlign: 'center', lineHeight: 1.2 }}>photo</span>
-                  </label>
-                )}
-              </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Person {i + 1}</div>
-                <input className="ci-input" style={{ fontSize: 12 }} value={p.desc}
-                  onChange={e => setPersonDesc(i, e.target.value)}
-                  placeholder="Describe appearance — e.g. man in 30s, brown hair, glasses" />
-                <select className="ci-input" style={{ fontSize: 12, height: 30, padding: '0 6px', appearance: 'auto' }}
-                  value={p.expression} onChange={e => setPersonExpr(i, e.target.value)}>
-                  {BUILDER_EXPRESSIONS.map(ex => <option key={ex.id} value={ex.id}>{ex.emoji} {ex.label}</option>)}
-                </select>
-              </div>
-              <button onClick={() => removePerson(i)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-5)', cursor: 'pointer', fontSize: 14, padding: '2px 4px', lineHeight: 1, flexShrink: 0, marginTop: 2 }}>x</button>
-            </div>
-          ))}
-        </div>
-        {people.length < 10 && (
-          <button className="ci-copybtn" style={{ marginTop: people.length > 0 ? 8 : 0, fontSize: 12.5 }} onClick={addPerson}>+ Add person</button>
-        )}
-        {people.length === 0 && (
-          <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 6 }}>No people added — leave empty to generate without subjects.</div>
-        )}
-      </BB>
-
-      {/* ── TEXT ── */}
-      <BB mood={mood} title="Text on thumbnail" desc="Optional — leave blank to skip">
-        <input className="ci-input" value={headline} onChange={e => setHeadline(e.target.value)}
-          placeholder='Main headline — e.g. "I QUIT MY JOB"' />
-        <input className="ci-input" style={{ marginTop: 8 }} value={subline} onChange={e => setSubline(e.target.value)}
-          placeholder="Sub-text — e.g. what happened next" />
-      </BB>
-
-      {/* ── VISUAL ELEMENTS ── */}
-      <BB mood={mood} title="Visual elements" desc="Pick what you want in the thumbnail">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {BUILDER_ELEMENTS.map(el => {
-            const on = elements.includes(el);
-            return (
-              <button key={el} className="pill" onClick={() => toggleEl(el)}
-                style={{ height: 32, borderColor: on ? m.accentGlow : 'var(--stroke-1)', color: on ? m.accentFrom : 'var(--text-3)', background: on ? `${m.accentFrom}1a` : 'transparent' }}>
-                {on ? '+ ' : '+ '}{el}
-              </button>
-            );
-          })}
-        </div>
-      </BB>
-
-      {/* ── REFERENCE IMAGE ── */}
-      <BB mood={mood} title="Reference image" desc="Optional — upload a thumbnail whose style you want to match">
-        {!refImg ? (
-          <label className="ci-drop" style={{ minHeight: 90, flexDirection: 'column', gap: 6, cursor: 'pointer', padding: 14 }}>
-            <input type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { setRefImg(img); setRefAnalysis(''); setRefState('idle'); })} />
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
-            <span style={{ fontSize: 13 }}>Drop a reference thumbnail</span>
-          </label>
-        ) : (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <img src={refImg.preview} alt="" style={{ width: 140, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }}
-                  onClick={() => { setRefImg(null); setRefAnalysis(''); setRefState('idle'); }}>x Remove</button>
-                {window.getKey && window.getKey() && refState === 'idle' && (
-                  <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }} onClick={analyzeRef}>Detect style</button>
-                )}
-                {refState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Detecting…</span>}
-                {refState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>Style detected</span>}
-                {refState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Detection failed</span>}
-              </div>
-              {refAnalysis && (
-                <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: 8, marginBottom: 10 }}>
-                  {refAnalysis}
-                </div>
-              )}
-              {hasBrand && (
-                <BTg on={refOverride} onChange={setRefOverride} mood={mood}>Override reference colours with my brand colours</BTg>
-              )}
-              {!window.getKey?.() && (
-                <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6 }}>Add a Claude API key in Settings to auto-detect the reference style.</div>
-              )}
-            </div>
-          </div>
-        )}
-      </BB>
-
-      {/* ── EXTRA DIRECTION ── */}
-      <BB mood={mood} title="Extra direction" desc="Optional — any vibe, constraint or detail you want included">
-        <textarea className="ci-textarea" style={{ minHeight: 72 }} value={extraNote} onChange={e => setExtraNote(e.target.value)}
-          placeholder='e.g. "Dark, dramatic lighting. Minimal background. Premium finance feel."' />
-      </BB>
-
-      {/* ── BUILD BUTTON ── */}
-      <div style={{ marginTop: 6 }}>
-        <window.GlowButton mood={mood} size="lg" onClick={buildPrompt} style={{ width: '100%' }}>
-          Build my prompt
-        </window.GlowButton>
-      </div>
-
-      {/* ══ OUTPUT ══ */}
-      {built && prompt && (
-        <div id="builder-output" style={{ marginTop: 20 }}>
-
-          {/* SECTION 1 — Free Pollinations generation */}
-          <div style={{ padding: '20px 18px', borderRadius: 16, background: `linear-gradient(135deg, ${m.orbB}30, var(--surface-1))`, border: `1.5px solid ${m.accentGlow}`, boxShadow: `0 0 32px ${m.accentGlow}22`, marginBottom: 14 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)', marginBottom: 4 }}>
-              Generate now — free, no key needed
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.5 }}>
-              Uses FLUX AI to generate right here. No account, no cost. Download or regenerate until it looks right.
-              {people.some(p => p.photo) && (
-                <span style={{ color: 'var(--text-4)' }}> Note: uploaded photos are not sent — use ChatGPT below for photo-accurate results.</span>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <window.GlowButton mood={mood} size="lg" onClick={runGenerate} style={{ opacity: genState === 'loading' ? 0.65 : 1 }}>
-                {genState === 'loading' ? 'Generating…' : genState === 'done' ? 'Regenerate' : 'Generate now'}
-              </window.GlowButton>
-              {genState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Takes 15–40 seconds…</span>}
-            </div>
-
-            {genState === 'error' && (
-              <div style={{ marginTop: 10, fontSize: 13, color: '#f5788c' }}>{genErr}</div>
-            )}
-
-            {genUrl && (
-              <div style={{ marginTop: 14 }}>
-                {genState === 'loading' && (
-                  <div style={{ fontSize: 12, color: 'var(--text-5)', marginBottom: 8 }}>Waiting for image…</div>
-                )}
-                <img key={genUrl} src={genUrl} alt="Generated thumbnail"
-                  style={{ width: '100%', maxWidth: 560, borderRadius: 12, display: genState === 'done' ? 'block' : 'none', border: '1px solid var(--stroke-1)' }}
-                  onLoad={() => setGenState('done')}
-                  onError={() => { setGenState('error'); setGenErr('Generation failed — try again or use a tool below.'); setGenUrl(''); }} />
-                {genState === 'done' && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                    <a className="ci-copybtn" href={genUrl} download="thumbnail.png" target="_blank" rel="noopener noreferrer"
-                      style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none', fontSize: 12.5 }}>Download</a>
-                    <button className="ci-copybtn" style={{ height: 34, fontSize: 12.5 }} onClick={runGenerate}>Try again</button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* SECTION 2 — External AI tools */}
-          <div style={{ padding: '18px 18px', borderRadius: 14, background: 'var(--surface-1)', border: '1px solid var(--stroke-1)' }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-1)', marginBottom: 4 }}>Use your own AI tools</div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.55 }}>
-              For photo-based results — editing your actual face or real photos — use ChatGPT. Copy photos one at a time below, open ChatGPT, paste them, paste the prompt, and press Enter.
-            </div>
-
-            {(photoPeople.length > 0 || refImg) && (
-              <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.22)', border: '1px solid var(--stroke-1)' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>Copy images to clipboard — one at a time, then paste into ChatGPT:</div>
-                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                  {people.map((person, i) => {
-                    if (!person.photo) return null;
-                    const isFail = copyFeedback === 'fail-' + i;
-                    return (
-                      <button key={i} className="ci-copybtn"
-                        style={{ height: 34, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: isFail ? '#f5788c88' : undefined, color: isFail ? '#f5788c' : undefined }}
-                        onClick={() => copyPhoto(person, i)}>
-                        <img src={person.photo.preview} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
-                        {copyFeedback === 'ok-' + i ? 'Copied!' : isFail ? 'Failed' : `Copy person ${i + 1}`}
-                      </button>
-                    );
-                  })}
-                  {refImg && (
-                    <button className="ci-copybtn"
-                      style={{ height: 34, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: copyFeedback === 'ref-fail' ? '#f5788c88' : undefined, color: copyFeedback === 'ref-fail' ? '#f5788c' : undefined }}
-                      onClick={copyRefImg}>
-                      <img src={refImg.preview} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
-                      {copyFeedback === 'ref-ok' ? 'Copied!' : copyFeedback === 'ref-fail' ? 'Failed — right-click the image to copy' : 'Copy reference'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 4 }}>Your prompt (edit if needed):</div>
-            <textarea className="ci-textarea"
-              style={{ minHeight: 130, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}
-              value={prompt} onChange={e => setPrompt(e.target.value)} />
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {OUTPUT_TOOLS.map(tool => (
-                <div key={tool.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--stroke-1)' }}>
-                  <span style={{ fontSize: 18 }}>{tool.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-1)' }}>{tool.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>{tool.note}</div>
-                  </div>
-                  <button className="ci-copybtn"
-                    style={{ height: 34, padding: '0 13px', background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 600, fontSize: 12.5 }}
-                    onClick={() => openIn(tool)}>Open</button>
-                  <button className="ci-copybtn" style={{ height: 34, padding: '0 10px', fontSize: 12 }}
-                    title="Copy prompt"
-                    onClick={() => { window.copyText && window.copyText(prompt); }}>Copy</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      )}
-    </div>
-  );
-}
-window.BuilderTab = BuilderTab;
-
-</script>
-<script type="text/babel" data-presets="react">
 /* ===== ci-playbook.jsx ===== */
 // ContentIntel — Thumbnail Playbook (public page).
 // Renders the thumbnail research library (design principles, layout archetypes,
@@ -6080,7 +5520,6 @@ function CIApp() {
   else if (tab === 'thumbnail') View = <ThumbnailTab onOpenKey={openKey} />;
   else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
-  else if (tab === 'builder') View = <BuilderTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
