@@ -2608,6 +2608,7 @@ const TABS = [
   { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb' },
   { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title' },
   { id: 'ads',       label: 'Ads',       mood: 'violet',   icon: 'ads' },
+  { id: 'builder',   label: 'Studio',    mood: 'lime',     icon: 'studio'   },
   { id: 'playbook',  label: 'Playbook',  mood: 'ember',    icon: 'playbook' },
   { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
@@ -2620,6 +2621,7 @@ function CITabIcon({ name }) {
     case 'title':   return <svg {...s} viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h7M3 11.5h9"/></svg>;
     case 'ads':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 6.5v3l8 3.5v-10l-8 3.5z"/><path d="M2.5 6.5H5v3H2.5zM12 5.5a3 3 0 010 5"/></svg>;
     case 'history': return <svg {...s} viewBox="0 0 16 16"><path d="M8 4.5V8l2.5 1.5"/><circle cx="8" cy="8" r="5.5"/></svg>;
+    case 'studio':   return <svg {...s} viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="9" rx="1.5"/><path d="M5 14h6M8 11v3"/><path d="M5 5.5h6M5 7.5h4"/></svg>;
     case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':    return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     default: return null;
@@ -4375,6 +4377,20 @@ function BuilderTab() {
   const [analyseState, setAnalyseState] = React.useState('idle'); // idle | loading | done | error
   const [analyseSummary, setAnalyseSummary] = React.useState('');
 
+  // Brand
+  const [brand] = React.useState(bLoadBrand);
+  const brandColors = (brand.colors || []).filter(Boolean);
+  const hasBrand = brandColors.length > 0 || !!brand.note;
+
+  // Output
+  const [prompt, setPrompt] = React.useState('');
+  const [built, setBuilt] = React.useState(false);
+  const [copyFeedback, setCopyFeedback] = React.useState('');
+  const [genState, setGenState] = React.useState('idle'); // idle | loading | done | error
+  const [genUrl, setGenUrl] = React.useState('');
+  const [genErr, setGenErr] = React.useState('');
+
+  // ── Analyse existing thumbnail with Claude vision ─────────────────────────
   async function analyseExisting() {
     const key = window.getKey ? window.getKey() : null;
     if (!key || !analyseImg) return;
@@ -4418,27 +4434,14 @@ function BuilderTab() {
         parsed.headline && `headline "${parsed.headline}"`,
         parsed.subline && `sub-text "${parsed.subline}"`,
         parsed.people?.length && `${parsed.people.length} person${parsed.people.length > 1 ? 's' : ''}`,
-        parsed.elements?.length && `${parsed.elements.length} visual element${parsed.elements.length > 1 ? 's' : ''}`,
+        parsed.elements?.length && `${parsed.elements.length} element${parsed.elements.length > 1 ? 's' : ''}`,
       ].filter(Boolean);
       setAnalyseSummary(parts.length ? `Detected: ${parts.join(', ')}. Form pre-filled — review and edit below, then build your prompt.` : 'Thumbnail analysed — form updated below.');
       setAnalyseState('done');
     } catch (e) { setAnalyseState('error'); }
   }
 
-  // Brand
-  const [brand] = React.useState(bLoadBrand);
-  const brandColors = (brand.colors || []).filter(Boolean);
-  const hasBrand = brandColors.length > 0 || !!brand.note;
-
-  // Output
-  const [prompt, setPrompt] = React.useState('');
-  const [built, setBuilt] = React.useState(false);
-  const [copyFeedback, setCopyFeedback] = React.useState('');
-  const [genState, setGenState] = React.useState('idle'); // idle | loading | done | error
-  const [genUrl, setGenUrl] = React.useState('');
-  const [genErr, setGenErr] = React.useState('');
-
-  // ── Analyse reference with Claude vision ─────────────────────────────────
+  // ── Analyse reference style with Claude vision ────────────────────────────
   async function analyzeRef() {
     const key = window.getKey ? window.getKey() : null;
     if (!key || !refImg) return;
@@ -4472,7 +4475,7 @@ function BuilderTab() {
   // ── Build the prompt ──────────────────────────────────────────────────────
   function buildPrompt() {
     const lines = [];
-    lines.push(`Create a thumbnail image (${currentRatio.label} aspect ratio, ${currentRatio.w}×${currentRatio.h}px).`);
+    lines.push(`Create a thumbnail image (${currentRatio.label} aspect ratio, ${currentRatio.w}x${currentRatio.h}px).`);
     lines.push('');
 
     if (people.length > 0) {
@@ -4536,7 +4539,7 @@ function BuilderTab() {
     setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   }
 
-  // ── Free in-app generation via Pollinations ───────────────────────────────
+  // ── Free generation via Pollinations ─────────────────────────────────────
   function runGenerate() {
     setGenState('loading'); setGenErr('');
     const seed = Math.floor(Math.random() * 1e6);
@@ -4545,7 +4548,7 @@ function BuilderTab() {
   }
 
   // ── Open in external tool ─────────────────────────────────────────────────
-  async function openIn(tool) {
+  function openIn(tool) {
     try { window.copyText && window.copyText(prompt); } catch (e) {}
     if (tool.useQ) {
       window.open(tool.url + '?q=' + encodeURIComponent(prompt.slice(0, 6000)), '_blank', 'noopener,noreferrer');
@@ -4559,9 +4562,7 @@ function BuilderTab() {
     try {
       await bCopyImageToClipboard(person.photo.preview, person.photo.mime);
       setCopyFeedback('ok-' + idx);
-    } catch (e) {
-      setCopyFeedback('fail-' + idx);
-    }
+    } catch (e) { setCopyFeedback('fail-' + idx); }
     setTimeout(() => setCopyFeedback(''), 2200);
   }
 
@@ -4569,9 +4570,7 @@ function BuilderTab() {
     try {
       await bCopyImageToClipboard(refImg.preview, refImg.mime);
       setCopyFeedback('ref-ok');
-    } catch (e) {
-      setCopyFeedback('ref-fail');
-    }
+    } catch (e) { setCopyFeedback('ref-fail'); }
     setTimeout(() => setCopyFeedback(''), 2200);
   }
 
@@ -4634,24 +4633,23 @@ function BuilderTab() {
             </button>
           ))}
         </div>
-        <div style={{ marginTop: 7, fontSize: 11.5, color: 'var(--text-5)' }}>{currentRatio.w} × {currentRatio.h} px</div>
+        <div style={{ marginTop: 7, fontSize: 11.5, color: 'var(--text-5)' }}>{currentRatio.w} x {currentRatio.h} px</div>
       </BB>
 
       {/* ── PEOPLE ── */}
-      <BB mood={mood} title="People" desc="Add up to 10 subjects. Describe their appearance — the description goes directly into the prompt. Upload a photo only if you want to paste it into ChatGPT manually.">
+      <BB mood={mood} title="People" desc="Add up to 10 subjects. Describe appearance — the description goes into the prompt. Upload a photo only to paste it into ChatGPT manually.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {people.map((p, i) => (
             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--stroke-1)' }}>
-              {/* Optional photo slot */}
               <div style={{ flexShrink: 0 }}>
                 {p.photo ? (
                   <div style={{ position: 'relative', width: 58 }}>
                     <img src={p.photo.preview} alt="" style={{ width: 58, height: 58, objectFit: 'cover', borderRadius: 8, display: 'block', border: '1px solid var(--stroke-1)' }} />
                     <button onClick={() => clearPersonPhoto(i)}
-                      style={{ position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: 8, cursor: 'pointer', lineHeight: '16px', textAlign: 'center', padding: 0 }}>✕</button>
+                      style={{ position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: 8, cursor: 'pointer', lineHeight: '16px', textAlign: 'center', padding: 0 }}>x</button>
                   </div>
                 ) : (
-                  <label title="Upload photo (optional — only needed for pasting into ChatGPT)"
+                  <label title="Upload photo (optional — for pasting into ChatGPT)"
                     style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 58, height: 58, borderRadius: 8, border: '1.5px dashed var(--stroke-2)', cursor: 'pointer', color: 'var(--text-5)', gap: 2, background: 'rgba(255,255,255,0.02)' }}>
                     <input type="file" accept="image/*" style={{ display: 'none' }}
                       onChange={e => e.target.files[0] && setPersonPhoto(i, e.target.files[0])} />
@@ -4660,7 +4658,6 @@ function BuilderTab() {
                   </label>
                 )}
               </div>
-              {/* Description + expression */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Person {i + 1}</div>
                 <input className="ci-input" style={{ fontSize: 12 }} value={p.desc}
@@ -4672,7 +4669,7 @@ function BuilderTab() {
                 </select>
               </div>
               <button onClick={() => removePerson(i)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-5)', cursor: 'pointer', fontSize: 14, padding: '2px 4px', lineHeight: 1, flexShrink: 0, marginTop: 2 }}>✕</button>
+                style={{ background: 'none', border: 'none', color: 'var(--text-5)', cursor: 'pointer', fontSize: 14, padding: '2px 4px', lineHeight: 1, flexShrink: 0, marginTop: 2 }}>x</button>
             </div>
           ))}
         </div>
@@ -4700,7 +4697,7 @@ function BuilderTab() {
             return (
               <button key={el} className="pill" onClick={() => toggleEl(el)}
                 style={{ height: 32, borderColor: on ? m.accentGlow : 'var(--stroke-1)', color: on ? m.accentFrom : 'var(--text-3)', background: on ? `${m.accentFrom}1a` : 'transparent' }}>
-                {on ? '✓ ' : '+ '}{el}
+                {on ? '+ ' : '+ '}{el}
               </button>
             );
           })}
@@ -4722,12 +4719,12 @@ function BuilderTab() {
             <div style={{ flex: 1, minWidth: 160 }}>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
                 <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }}
-                  onClick={() => { setRefImg(null); setRefAnalysis(''); setRefState('idle'); }}>✕ Remove</button>
+                  onClick={() => { setRefImg(null); setRefAnalysis(''); setRefState('idle'); }}>x Remove</button>
                 {window.getKey && window.getKey() && refState === 'idle' && (
-                  <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }} onClick={analyzeRef}>🔍 Detect style</button>
+                  <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }} onClick={analyzeRef}>Detect style</button>
                 )}
                 {refState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Detecting…</span>}
-                {refState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>✓ Style detected</span>}
+                {refState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>Style detected</span>}
                 {refState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Detection failed</span>}
               </div>
               {refAnalysis && (
@@ -4749,13 +4746,13 @@ function BuilderTab() {
       {/* ── EXTRA DIRECTION ── */}
       <BB mood={mood} title="Extra direction" desc="Optional — any vibe, constraint or detail you want included">
         <textarea className="ci-textarea" style={{ minHeight: 72 }} value={extraNote} onChange={e => setExtraNote(e.target.value)}
-          placeholder='e.g. "Dark, dramatic lighting. Minimal background. Premium finance feel." or "Two hosts facing each other, channel name top-left."' />
+          placeholder='e.g. "Dark, dramatic lighting. Minimal background. Premium finance feel."' />
       </BB>
 
       {/* ── BUILD BUTTON ── */}
       <div style={{ marginTop: 6 }}>
         <window.GlowButton mood={mood} size="lg" onClick={buildPrompt} style={{ width: '100%' }}>
-          ✨ Build my prompt
+          Build my prompt
         </window.GlowButton>
       </div>
 
@@ -4766,7 +4763,7 @@ function BuilderTab() {
           {/* SECTION 1 — Free Pollinations generation */}
           <div style={{ padding: '20px 18px', borderRadius: 16, background: `linear-gradient(135deg, ${m.orbB}30, var(--surface-1))`, border: `1.5px solid ${m.accentGlow}`, boxShadow: `0 0 32px ${m.accentGlow}22`, marginBottom: 14 }}>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)', marginBottom: 4 }}>
-              ⚡ Generate now — free, no key needed
+              Generate now — free, no key needed
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.5 }}>
               Uses FLUX AI to generate right here. No account, no cost. Download or regenerate until it looks right.
@@ -4776,7 +4773,7 @@ function BuilderTab() {
             </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <window.GlowButton mood={mood} size="lg" onClick={runGenerate} style={{ opacity: genState === 'loading' ? 0.65 : 1 }}>
-                {genState === 'loading' ? '⏳ Generating…' : genState === 'done' ? '↺ Regenerate' : '⚡ Generate now'}
+                {genState === 'loading' ? 'Generating…' : genState === 'done' ? 'Regenerate' : 'Generate now'}
               </window.GlowButton>
               {genState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Takes 15–40 seconds…</span>}
             </div>
@@ -4797,8 +4794,8 @@ function BuilderTab() {
                 {genState === 'done' && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                     <a className="ci-copybtn" href={genUrl} download="thumbnail.png" target="_blank" rel="noopener noreferrer"
-                      style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none', fontSize: 12.5 }}>↓ Download</a>
-                    <button className="ci-copybtn" style={{ height: 34, fontSize: 12.5 }} onClick={runGenerate}>↺ Try again</button>
+                      style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none', fontSize: 12.5 }}>Download</a>
+                    <button className="ci-copybtn" style={{ height: 34, fontSize: 12.5 }} onClick={runGenerate}>Try again</button>
                   </div>
                 )}
               </div>
@@ -4807,28 +4804,24 @@ function BuilderTab() {
 
           {/* SECTION 2 — External AI tools */}
           <div style={{ padding: '18px 18px', borderRadius: 14, background: 'var(--surface-1)', border: '1px solid var(--stroke-1)' }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-1)', marginBottom: 4 }}>💬 Use your own AI tools</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-1)', marginBottom: 4 }}>Use your own AI tools</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.55 }}>
-              For photo-based results — editing your actual face or real photos — use ChatGPT. It can see images you paste in.
-              Copy photos one at a time below, then open ChatGPT, paste them, paste the prompt, and press Enter.
+              For photo-based results — editing your actual face or real photos — use ChatGPT. Copy photos one at a time below, open ChatGPT, paste them, paste the prompt, and press Enter.
             </div>
 
-            {/* Copy images — only shown when there are photos */}
             {(photoPeople.length > 0 || refImg) && (
               <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.22)', border: '1px solid var(--stroke-1)' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>Copy images to clipboard — one at a time, then paste into ChatGPT:</div>
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                   {people.map((person, i) => {
                     if (!person.photo) return null;
-                    const okKey = 'ok-' + i;
-                    const failKey = 'fail-' + i;
-                    const isFail = copyFeedback === failKey;
+                    const isFail = copyFeedback === 'fail-' + i;
                     return (
                       <button key={i} className="ci-copybtn"
                         style={{ height: 34, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: isFail ? '#f5788c88' : undefined, color: isFail ? '#f5788c' : undefined }}
                         onClick={() => copyPhoto(person, i)}>
                         <img src={person.photo.preview} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
-                        {copyFeedback === okKey ? '✓ Copied!' : isFail ? '✗ Failed' : `Copy person ${i + 1}`}
+                        {copyFeedback === 'ok-' + i ? 'Copied!' : isFail ? 'Failed' : `Copy person ${i + 1}`}
                       </button>
                     );
                   })}
@@ -4837,14 +4830,13 @@ function BuilderTab() {
                       style={{ height: 34, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: copyFeedback === 'ref-fail' ? '#f5788c88' : undefined, color: copyFeedback === 'ref-fail' ? '#f5788c' : undefined }}
                       onClick={copyRefImg}>
                       <img src={refImg.preview} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
-                      {copyFeedback === 'ref-ok' ? '✓ Copied!' : copyFeedback === 'ref-fail' ? '✗ Failed — right-click → Copy image' : 'Copy reference'}
+                      {copyFeedback === 'ref-ok' ? 'Copied!' : copyFeedback === 'ref-fail' ? 'Failed — right-click the image to copy' : 'Copy reference'}
                     </button>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Editable prompt */}
             <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 4 }}>Your prompt (edit if needed):</div>
             <textarea className="ci-textarea"
               style={{ minHeight: 130, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}
@@ -4860,10 +4852,10 @@ function BuilderTab() {
                   </div>
                   <button className="ci-copybtn"
                     style={{ height: 34, padding: '0 13px', background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 600, fontSize: 12.5 }}
-                    onClick={() => openIn(tool)}>Open →</button>
+                    onClick={() => openIn(tool)}>Open</button>
                   <button className="ci-copybtn" style={{ height: 34, padding: '0 10px', fontSize: 12 }}
                     title="Copy prompt"
-                    onClick={() => { window.copyText && window.copyText(prompt); }}>⧉</button>
+                    onClick={() => { window.copyText && window.copyText(prompt); }}>Copy</button>
                 </div>
               ))}
             </div>
@@ -5711,6 +5703,7 @@ function CIApp() {
   else if (tab === 'thumbnail') View = <ThumbnailTab onOpenKey={openKey} />;
   else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
+  else if (tab === 'builder') View = <BuilderTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
