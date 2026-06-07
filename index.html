@@ -1363,6 +1363,7 @@ Object.assign(window, {
   TweakText, TweakNumber, TweakColor, TweakButton,
 });
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ui.jsx ===== */
@@ -1895,6 +1896,7 @@ Object.assign(window, {
   AmbientBloom, Sidebar, Topbar, Eyebrow, GlowButton, Chip, Card, ScoreRing, StepDots,
   NavIcon, NAV, PROJECTS,
 });
+
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -2635,6 +2637,7 @@ function KeyModal({ open, onClose }) {
 Object.assign(window, {
   CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, ADMIN_PASS,
   getKey, setKeyLS, getModel, setModelLS, modelInfo, getResearch, liveResearch,
+  canRun, hasSandbox,
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
@@ -2644,6 +2647,7 @@ Object.assign(window, {
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
 });
+
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -2898,6 +2902,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
 window.HomeView = HomeView;
 window.CI_TABS = TABS;
 window.CI_VIDEO = VIDEO_SRC;
+
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -3235,6 +3240,7 @@ Object.assign(window, {
   Toggle, RunButton, WorkHead, LoadingResults, QScore, Check, setAccentVars,
   ScoreDonut, ScoreBar, QualityGraph, BeatSheet, copyText, downloadText,
 });
+
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -3583,6 +3589,7 @@ function ScriptTab({ onOpenKey }) {
   );
 }
 window.ScriptTab = ScriptTab;
+
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -4269,6 +4276,7 @@ function HistoryTab() {
 }
 window.HistoryTab = HistoryTab;
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-builder.jsx ===== */
@@ -4360,8 +4368,10 @@ function BuilderTab() {
   const [refAnalysis, setRefAnalysis] = React.useState('');
 
   const [analyseImg, setAnalyseImg] = React.useState(null);
+  const [analyseDesc, setAnalyseDesc] = React.useState('');
   const [analyseState, setAnalyseState] = React.useState('idle');
   const [analyseSummary, setAnalyseSummary] = React.useState('');
+  const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
 
   const [extraNote, setExtraNote] = React.useState('');
   const [brand] = React.useState(bLoadBrand);
@@ -4372,30 +4382,43 @@ function BuilderTab() {
   const [built, setBuilt] = React.useState(false);
   const [copyFeedback, setCopyFeedback] = React.useState('');
 
-  async function analyseExisting() {
-    const key = window.getKey ? window.getKey() : null;
-    if (!key || !analyseImg) return;
-    setAnalyseState('loading');
+  const hasKey = !!(window.getKey && window.getKey());
+  const canCloud = !!(window.canRun && window.canRun()); // own key OR free Claude cloud
+
+  // Research-grounded system prompt for the cloud check (NOT the report shape).
+  function thumbSystem() {
+    const r = (window.getResearch && window.getResearch('thumbnail')) || {};
+    const core = (window.liveResearch && window.liveResearch().core) || '';
+    return [
+      'You are a world-class YouTube thumbnail strategist. You judge thumbnails purely by what earns the click, grounded in the research below. Be specific and blunt -- no generic advice.',
+      core ? 'RESEARCH PRINCIPLES:\n' + core : '',
+      r.systemGuidance ? 'THUMBNAIL METHODOLOGY:\n' + r.systemGuidance : '',
+      'You will get a thumbnail as an image if one is attached, otherwise as a text description. Analyse it and return ONLY a single valid JSON object (no markdown, no text around it) in EXACTLY this shape:',
+      '{ "whatsWrong": ["specific problem tied to a real click-through principle", "... up to 6"], "improvedPrompt": "one complete, ready-to-paste image-generation prompt for ChatGPT/Gemini that keeps the SAME person, topic and exact text but fixes every problem -- be concrete about composition, expression, colour, contrast and text size/placement", "headline": "exact main text or empty", "subline": "secondary text or empty", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only from: ' + BUILDER_ELEMENTS.join(', ') + '"] }',
+      'Never invent text, people or brands not present in the thumbnail. Write in the same language as the thumbnail content.',
+    ].filter(Boolean).join('\n\n');
+  }
+
+  // Cloud check: works free inside Claude (text description) OR with an API key
+  // (image vision). Finds what's wrong per the research and writes the fixed prompt.
+  async function cloudCheck() {
+    if (!canCloud) { setAnalyseState('nokey'); return; }
+    if (!analyseImg && !analyseDesc.trim()) { setAnalyseState('needinput'); return; }
+    setAnalyseState('loading'); setFeedback([]); setAnalyseSummary('');
     try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: window.getModel ? window.getModel() : 'claude-sonnet-4-6',
-          max_tokens: 700,
-          system: 'You are a thumbnail analyst. Return ONLY a valid JSON object, no other text.',
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: analyseImg.mime, data: analyseImg.data } },
-            { type: 'text', text: 'Analyse this thumbnail. Return ONLY JSON: { "headline": "exact main text or empty string", "subline": "secondary text or empty string", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only items from: Arrow pointing to subject, Yellow highlight box behind text, Split screen / divider, Glow / neon effect, Brand logo badge, Graph / chart, Before/After, Dark cinematic bars, Circular portrait frame, Emoji overlay, Number / stat callout, Floating text bubble"], "styleNotes": "one sentence on mood and colour" }' },
-          ]}],
-        }),
-      });
-      const data = await resp.json();
-      const raw = (data.content?.[0]?.text || '').trim();
-      const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || 'null');
+      const userText = (analyseDesc.trim()
+        ? 'Thumbnail description from the creator:\n' + analyseDesc.trim()
+        : 'Analyse the attached thumbnail image.')
+        + (headline.trim() ? '\nKnown headline text: "' + headline.trim() + '"' : '')
+        + '\n\nReturn the JSON now.';
+      // Only send the image to the vision model when the user has their own key;
+      // the free Claude cloud is text-only, so it reads the description instead.
+      const images = (hasKey && analyseImg) ? [analyseImg] : [];
+      const { text } = await window.callClaude({ system: thumbSystem(), userText, images, maxTokens: 1600 });
+      const parsed = JSON.parse((String(text).match(/\{[\s\S]*\}/) || ['null'])[0]);
       if (!parsed) { setAnalyseState('error'); return; }
-      setHeadline(parsed.headline || '');
-      setSubline(parsed.subline || '');
+      if (parsed.headline) setHeadline(parsed.headline);
+      if (parsed.subline) setSubline(parsed.subline);
       if (Array.isArray(parsed.people) && parsed.people.length > 0) {
         setPeople(parsed.people.slice(0, 10).map(p => ({
           photo: null,
@@ -4404,17 +4427,14 @@ function BuilderTab() {
         })));
       }
       if (Array.isArray(parsed.elements)) setElements(parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)));
-      // Note: we deliberately do NOT auto-fill "Extra direction" from styleNotes --
-      // that pre-filled suggestion led to repetitive, off-target generations.
-      const parts = [
-        parsed.headline && `headline "${parsed.headline}"`,
-        parsed.subline && `sub-text "${parsed.subline}"`,
-        parsed.people?.length && `${parsed.people.length} person${parsed.people.length > 1 ? 's' : ''}`,
-        parsed.elements?.length && `${parsed.elements.length} element${parsed.elements.length > 1 ? 's' : ''}`,
-      ].filter(Boolean);
-      setAnalyseSummary(parts.length ? `Detected: ${parts.join(', ')}. Form pre-filled -- review and edit below.` : 'Analysed -- form updated.');
+      setFeedback(Array.isArray(parsed.whatsWrong) ? parsed.whatsWrong.filter(Boolean).slice(0, 6) : []);
+      if (parsed.improvedPrompt) { setPrompt(String(parsed.improvedPrompt)); setBuilt(true); }
+      setAnalyseSummary(hasKey && analyseImg ? 'Checked your image with the research.' : 'Checked your description with the research (free cloud).');
       setAnalyseState('done');
-    } catch (e) { setAnalyseState('error'); }
+      setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 140);
+    } catch (e) {
+      setAnalyseState(String(e && e.message) === 'NO_KEY' ? 'nokey' : 'error');
+    }
   }
 
   async function analyzeRef() {
@@ -4514,40 +4534,54 @@ function BuilderTab() {
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
       <BWH mood={mood} eyebrow="Prompt Studio" title="Build your thumbnail prompt"
-        sub="Fill in the form -- we write a professional brief you can send to ChatGPT, Gemini or Ideogram." />
+        sub="Check your current thumbnail free (it tells you what's wrong and writes the fix), or build one from scratch -- then send it to ChatGPT or Gemini." />
 
-      {/* ANALYSE EXISTING */}
-      <BB mood={mood} title="Analyse existing thumbnail" desc="Upload your current thumbnail -- Claude reads the text, people and elements and pre-fills the form. Requires a Claude API key.">
-        {!analyseImg ? (
-          <label className="ci-drop" style={{ minHeight: 96, flexDirection: 'column', gap: 7, cursor: 'pointer', padding: 16 }}>
+      {/* CLOUD CHECK -- free, no API key */}
+      <BB mood={mood} title="Check & fix my thumbnail" desc="Runs free inside Claude -- no API key. Describe your current thumbnail (or upload it if you have an API key for image vision). It finds what's wrong using the research and writes the fixed prompt below.">
+        {analyseImg && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+            <img src={analyseImg.preview} alt="" style={{ width: 120, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
+            <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
+              onClick={() => { setAnalyseImg(null); }}>Remove image</button>
+          </div>
+        )}
+        {!analyseImg && (
+          <label className="ci-drop" style={{ minHeight: 72, flexDirection: 'row', gap: 8, cursor: 'pointer', padding: 12, marginBottom: 10 }}>
             <input type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { setAnalyseImg(img); setAnalyseState('idle'); setAnalyseSummary(''); })} />
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
-            <span style={{ fontSize: 13 }}>Upload your existing thumbnail to analyse</span>
+              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { setAnalyseImg(img); })} />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
+            <span style={{ fontSize: 12.5 }}>Upload your thumbnail <span style={{ color: 'var(--text-5)' }}>(optional -- only read with an API key)</span></span>
           </label>
-        ) : (
-          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <img src={analyseImg.preview} alt="" style={{ width: 160, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
-                <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
-                  onClick={() => { setAnalyseImg(null); setAnalyseState('idle'); setAnalyseSummary(''); }}>Remove</button>
-                {window.getKey?.() ? (
-                  <button className="ci-copybtn"
-                    style={{ height: 30, fontSize: 12, fontWeight: 700, background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, opacity: analyseState === 'loading' ? 0.6 : 1 }}
-                    onClick={analyseExisting} disabled={analyseState === 'loading'}>
-                    {analyseState === 'loading' ? 'Analysing...' : analyseState === 'done' ? 'Re-analyse' : 'Analyse with Claude'}
-                  </button>
-                ) : (
-                  <span style={{ fontSize: 12, color: 'var(--text-5)' }}>Add a Claude API key in Settings to analyse</span>
-                )}
-                {analyseState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>Form pre-filled</span>}
-                {analyseState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Failed -- try again</span>}
-              </div>
-              {analyseSummary && (
-                <div style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6, padding: '9px 12px', background: 'rgba(0,0,0,0.22)', borderRadius: 9 }}>{analyseSummary}</div>
-              )}
+        )}
+        <label className="ci-label">Describe your current thumbnail</label>
+        <textarea className="ci-textarea" style={{ minHeight: 80 }} value={analyseDesc} onChange={e => setAnalyseDesc(e.target.value)}
+          placeholder="e.g. My face on the right looking normal, big white text 'NEW PHONE' on a grey background, phone in my hand on the left." />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+          <window.GlowButton mood={mood} onClick={cloudCheck} style={{ opacity: analyseState === 'loading' ? 0.65 : 1 }}>
+            {analyseState === 'loading' ? 'Checking...' : analyseState === 'done' ? 'Check again' : (hasKey && analyseImg ? 'Check my image (free)' : 'Check & fix it (free)')}
+          </window.GlowButton>
+          {analyseState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Reading the research...</span>}
+          {analyseState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>{analyseSummary}</span>}
+          {analyseState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Couldn't read the result -- try again.</span>}
+          {analyseState === 'needinput' && <span style={{ fontSize: 12, color: '#F0C85A' }}>Describe or upload your thumbnail first.</span>}
+        </div>
+        {analyseState === 'nokey' && (
+          <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 10, padding: '10px 12px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)', lineHeight: 1.5 }}>
+            To check for free, open this app inside <b>Claude.ai</b> (it uses Claude's cloud, no key). Or add your own API key in Settings.
+          </div>
+        )}
+        {feedback.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>What's wrong (from the research):</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              {feedback.map((f, i) => (
+                <div key={i} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+                  <span style={{ color: m.accentFrom, fontWeight: 800, flexShrink: 0 }}>{i + 1}.</span>
+                  <span>{f}</span>
+                </div>
+              ))}
             </div>
+            <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10 }}>The fixed prompt is ready below -- send it to ChatGPT or Gemini.</div>
           </div>
         )}
       </BB>
@@ -4735,6 +4769,7 @@ function BuilderTab() {
   );
 }
 window.BuilderTab = BuilderTab;
+
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -5095,6 +5130,7 @@ function PlatformTab() {
 
 window.PlatformTab = PlatformTab;
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-playbook.jsx ===== */
@@ -5319,6 +5355,7 @@ function PlaybookTab() {
 
 Object.assign(window, { PlaybookTab });
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-research.jsx ===== */
@@ -5506,6 +5543,7 @@ function ResearchTab({ onClose, onNav }) {
 }
 
 Object.assign(window, { isAdmin, promptAdmin, exitAdmin, ResearchTab });
+
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -5864,6 +5902,7 @@ function StatList({ title, items, n }) {
 
 Object.assign(window, { TrainTab });
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-app.jsx ===== */
@@ -5984,6 +6023,7 @@ function CIApp() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<CIApp />);
+
 
 </script>
 </body>
