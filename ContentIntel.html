@@ -1363,7 +1363,6 @@ Object.assign(window, {
   TweakText, TweakNumber, TweakColor, TweakButton,
 });
 
-
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ui.jsx ===== */
@@ -1897,22 +1896,21 @@ Object.assign(window, {
   NavIcon, NAV, PROJECTS,
 });
 
-
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-engine.jsx ===== */
-// ContentIntel -- engine: BYO-key auth, real Claude calls, token estimate,
+// ContentIntel — engine: BYO-key auth, real Claude calls, token estimate,
 // generic report renderer, analysis hook. (Client-side, no backend.)
 
 const { MOODS: EM } = window;
 
 // ── Config (editable) ────────────────────────────────────────────────────────
-// Prices are per 1,000,000 tokens (USD) and are APPROXIMATE -- adjust to match
+// Prices are per 1,000,000 tokens (USD) and are APPROXIMATE — adjust to match
 // Anthropic's current pricing. They only drive the on-screen cost estimate.
 const CI_MODELS = [
-  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 -- fastest & cheapest", inP: 1.0,  outP: 5.0  },
-  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6 -- balanced (default)", inP: 3.0,  outP: 15.0 },
-  { id: "claude-opus-4-8",           label: "Opus 4.8 -- most thorough",        inP: 15.0, outP: 75.0 },
+  { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5 — fastest & cheapest", inP: 1.0,  outP: 5.0  },
+  { id: "claude-sonnet-4-6",         label: "Sonnet 4.6 — balanced (default)", inP: 3.0,  outP: 15.0 },
+  { id: "claude-opus-4-8",           label: "Opus 4.8 — most thorough",        inP: 15.0, outP: 75.0 },
 ];
 const CI_DEFAULT_MODEL = "claude-sonnet-4-6";
 const CI_OUTPUT_GUESS = 900; // tokens assumed for the report when estimating cost
@@ -1924,15 +1922,15 @@ const LS_KEY = "ci_anthropic_key";
 const LS_MODEL = "ci_model";
 const getKey   = () => { try { return localStorage.getItem(LS_KEY) || ""; } catch (e) { return ""; } };
 const setKeyLS = (k) => { try { k ? localStorage.setItem(LS_KEY, k) : localStorage.removeItem(LS_KEY); } catch (e) {} };
-// Optional Google AI Studio key -- used ONLY for image generation (Gemini image model).
+// Optional Google AI Studio key — used ONLY for image generation (Gemini image model).
 const LS_GKEY = "ci_google_key";
 const getGoogleKey   = () => { try { return localStorage.getItem(LS_GKEY) || ""; } catch (e) { return ""; } };
 const setGoogleKeyLS = (k) => { try { k ? localStorage.setItem(LS_GKEY, k) : localStorage.removeItem(LS_GKEY); } catch (e) {} };
-// Optional NVIDIA API key -- used for FLUX image generation (free tier).
+// Optional NVIDIA API key — used for FLUX image generation (free tier).
 const LS_NVKEY = "ci_nvidia_key";
 const getNvidiaKey   = () => { try { return localStorage.getItem(LS_NVKEY) || ""; } catch (e) { return ""; } };
 const setNvidiaKeyLS = (k) => { try { k ? localStorage.setItem(LS_NVKEY, k) : localStorage.removeItem(LS_NVKEY); } catch (e) {} };
-// Optional Reve key -- image generation (provider varies; default AI/ML API style).
+// Optional Reve key — image generation (provider varies; default AI/ML API style).
 const LS_REVE = "ci_reve_key";
 const getReveKey   = () => { try { return localStorage.getItem(LS_REVE) || ""; } catch (e) { return ""; } };
 const setReveKeyLS = (k) => { try { k ? localStorage.setItem(LS_REVE, k) : localStorage.removeItem(LS_REVE); } catch (e) {} };
@@ -2012,7 +2010,7 @@ function fmtCost(usd) {
   return "$" + usd.toFixed(2);
 }
 
-// ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
+// ── The real call — direct browser → Anthropic (BYO key) ─────────────────────
 async function callClaude({ system, userText, image, images, model, maxTokens = 1800 }) {
   const key = getKey();
   // Normalise to an array so single- and multi-image (compare) paths share code.
@@ -2022,7 +2020,7 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
     if (hasSandbox()) {
       const prompt = [
         system, "",
-        imgs.length ? "(IMPORTANT: " + imgs.length + " image(s) were attached but the free preview AI CANNOT see images. Do NOT guess what the image looks like or invent a thumbnail. Judge ONLY from any text description the user wrote; if there is none, say you cannot see the image and ask them to describe it or add an API key -- and give no scores or regen prompt for an image you cannot see.)" : "",
+        imgs.length ? "(IMPORTANT: " + imgs.length + " image(s) were attached but the free preview AI CANNOT see images. Do NOT guess what the image looks like or invent a thumbnail. Judge ONLY from any text description the user wrote; if there is none, say you cannot see the image and ask them to describe it or add an API key — and give no scores or regen prompt for an image you cannot see.)" : "",
         userText,
       ].filter(Boolean).join("\n");
       // Claude artifact API: takes a single STRING prompt, returns a STRING.
@@ -2062,7 +2060,7 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
   return { text, usage: data.usage || null };
 }
 
-// ── Image generation (Gemini) -- edits the user's thumbnail per the instruction ─
+// ── Image generation (Gemini) — edits the user's thumbnail per the instruction ─
 // BYO Google AI Studio key. Returns a data: URL (or throws a clear error).
 async function generateThumbnail({ instruction, image, model }) {
   const mdl = model || "gemini-2.5-flash-image";
@@ -2086,7 +2084,7 @@ async function generateThumbnail({ instruction, image, model }) {
   }
   if (!res.ok) {
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
-    if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid -- check it in Settings.");
+    if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid — check it in Settings.");
     throw new Error(detail || ("Image request failed (" + res.status + ")."));
   }
   const data = await res.json();
@@ -2108,7 +2106,7 @@ async function generateThumbnailFlux({ prompt, model, size }) {
   let res;
   if (proxy) {
     try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "flux", payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser -- it should say 'POST only'. Check it in Settings."); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser — it should say 'POST only'. Check it in Settings."); }
   } else {
     const key = getNvidiaKey();
     if (!key) throw new Error("NO_NV_KEY");
@@ -2122,7 +2120,7 @@ async function generateThumbnailFlux({ prompt, model, size }) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    if (res.status === 401 || res.status === 403) throw new Error("NVIDIA key was rejected -- check it in Settings.");
+    if (res.status === 401 || res.status === 403) throw new Error("NVIDIA key was rejected — check it in Settings.");
     throw new Error(err.detail || (err.error && err.error.message) || ("FLUX request failed (" + res.status + ")."));
   }
   const data = await res.json();
@@ -2143,7 +2141,7 @@ async function generateThumbnailReve({ prompt, model, size }) {
   let res;
   if (proxy) {
     try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "reve", payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser -- it should say 'POST only'. Check it in Settings."); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Open the URL in a browser — it should say 'POST only'. Check it in Settings."); }
   } else {
     const key = getReveKey();
     if (!key) throw new Error("NO_REVE_KEY");
@@ -2156,7 +2154,7 @@ async function generateThumbnailReve({ prompt, model, size }) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    if (res.status === 401 || res.status === 403) throw new Error("Reve key was rejected -- check it in Settings.");
+    if (res.status === 401 || res.status === 403) throw new Error("Reve key was rejected — check it in Settings.");
     throw new Error(err.detail || (err.error && err.error.message) || ("Reve request failed (" + res.status + ")."));
   }
   const data = await res.json();
@@ -2165,34 +2163,7 @@ async function generateThumbnailReve({ prompt, model, size }) {
   if (item.base64) return "data:image/png;base64," + item.base64;
   if (item.url) return item.url;
   if (data.url) return data.url;
-  throw new Error("Reve returned no image (the response format may differ -- share your provider's docs and I'll adjust).");
-}
-
-// Image-gen handoff: copy the prompt + open the tool in a new tab. The user
-// pastes their own photo(s) there and presses enter -- generation runs on their
-// own ChatGPT / Gemini plan (no key, no cost to us, no flaky free generator).
-function openInChatGPT(promptText) {
-  const p = String(promptText || "");
-  try { window.copyText && window.copyText(p); } catch (e) {}
-  window.open("https://chatgpt.com/?q=" + encodeURIComponent(p.slice(0, 6000)), "_blank", "noopener,noreferrer");
-}
-function openInGemini(promptText) {
-  const p = String(promptText || "");
-  // Gemini's web app can't be pre-filled via URL, so we copy the prompt for the
-  // user to paste. Copy SYNCHRONOUSLY (inside the click) so it lands on the
-  // clipboard before the new tab steals focus -- the async clipboard API often
-  // gets cancelled by window.open, which is why pasting was failing.
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = p; ta.setAttribute("readonly", "");
-    ta.style.position = "fixed"; ta.style.top = "-9999px"; ta.style.opacity = "0";
-    document.body.appendChild(ta); ta.focus(); ta.select();
-    try { ta.setSelectionRange(0, p.length); } catch (e) {}
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-  } catch (e) {}
-  try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(p); } catch (e) {}
-  window.open("https://gemini.google.com/app", "_blank", "noopener,noreferrer");
+  throw new Error("Reve returned no image (the response format may differ — share your provider's docs and I'll adjust).");
 }
 
 // Pull the grounded regen prompt out of a report (falls back to the biggest fix).
@@ -2209,7 +2180,7 @@ function regenPromptFromReport(report) {
 
 // ── Prompt builder + JSON report parsing ─────────────────────────────────────
 const REPORT_SHAPE =
-`Return ONLY a single valid JSON object -- no markdown fences, no text before or after it -- in exactly this shape:
+`Return ONLY a single valid JSON object — no markdown fences, no text before or after it — in exactly this shape:
 {
   "verdict": { "level": "green|yellow|red", "title": "short verdict", "text": "1-2 sentence summary" },
   "overall": 0-100,
@@ -2228,12 +2199,12 @@ const REPORT_SHAPE =
 }
 Rules:
 - ALWAYS include "overall" (0-100), a single headline score for the whole piece.
-- For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats -- HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. -- each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
+- For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats — HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. — each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
-- BE CONCISE AND SCANNABLE -- this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2-3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence -- only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
+- BE CONCISE AND SCANNABLE — this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2–3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence — only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
 - Quote the user's actual words; pair each criticism with a one-line, copy-ready fix.
-- The JSON must be COMPLETE and valid -- close every brace and bracket, escape quotes inside strings, and never stop mid-object.
+- The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
 - Write in the same language and script as the user's content.`;
 
 // Split provenPatterns (blocks separated by blank lines) and derive niche names.
@@ -2243,7 +2214,7 @@ function splitPlaybookBlocks(text) {
 function nicheName(block) {
   const nl = block.indexOf("\n");
   const head = (nl === -1 ? block : block.slice(0, nl)).trim();
-  return head.split(/\s+\(|\s+--|\s+-\s/)[0].trim();
+  return head.split(/\s+\(|\s+—|\s+-\s/)[0].trim();
 }
 function nicheNames(type = "thumbnail") {
   return splitPlaybookBlocks((getResearch(type) || {}).provenPatterns).map(nicheName);
@@ -2254,38 +2225,31 @@ function buildSystem(type, opts = {}) {
   const r = getResearch(type);
   const core = liveResearch().core || "";
   const rubric = (r.rubric || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
-  // Niche routing -- inject ONLY the relevant playbook to stop cross-niche bias.
+  // Niche routing — inject ONLY the relevant playbook to stop cross-niche bias.
   let provenText = r.provenPatterns || "";
   const niche = opts.niche;
   if (provenText && niche && niche !== "Auto-detect") {
     if (niche === "None (universal)") provenText = "";
     else provenText = splitPlaybookBlocks(provenText).filter(b => nicheName(b) === niche).join("\n\n");
-  } else if (provenText && opts.compactPlaybook && (!niche || niche === "Auto-detect")) {
-    // Token saver: when auto-detecting, don't dump EVERY niche playbook. Send
-    // just the niche names + a self-detect instruction (cuts input tokens a lot).
-    const names = splitPlaybookBlocks(provenText).map(nicheName).filter(Boolean);
-    provenText = names.length
-      ? `Detect which of these niches the content belongs to, then apply that niche's known conventions from your own knowledge: ${names.join(", ")}. If it matches none, use universal principles only.`
-      : "";
   }
   // Optional structured design library (currently used by the thumbnail check).
   const cat = (arr) => (arr || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
   const libParts = [];
   if (r.layouts && r.layouts.length)      libParts.push(`LAYOUT ARCHETYPES (classify this content as one, or "unclear"):\n${cat(r.layouts)}`);
   if (r.colorSchemes && r.colorSchemes.length) libParts.push(`COLOUR SCHEMES (classify, or "unclear"):\n${cat(r.colorSchemes)}`);
-  if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers -- apply where relevant):\n${r.designPrinciples}`);
-  if (provenText)                          libParts.push(`PROVEN PATTERNS -- niche-scoped playbook(s). Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${provenText}`);
+  if (r.designPrinciples)                  libParts.push(`DESIGN PRINCIPLES (from top performers — apply where relevant):\n${r.designPrinciples}`);
+  if (provenText)                          libParts.push(`PROVEN PATTERNS — niche-scoped playbook(s). Use a playbook ONLY when the content clearly belongs to that niche; if it matches none, IGNORE these entirely and rely on the universal principles + the actual content + the brand. Do NOT import a niche's devices (yellow highlight, ₹Crore number, founder cut-out, arrow) into content that isn't in that niche:\n${provenText}`);
   if (r.regenGuidance)                     libParts.push(`REGENERATION-PROMPT RULES:\n${r.regenGuidance}`);
   if (r.abTesting)                         libParts.push(`A/B TESTING:\n${r.abTesting}`);
-  const library = libParts.length ? `DESIGN LIBRARY -- reference for SCORING & classification ONLY. It is NOT a source of new elements, palette, people, brands or style for the regeneration, and it must NEVER override what is actually in the user's content. Apply a niche playbook only when the content clearly belongs to that niche; otherwise ignore it entirely:\n"""\n${libParts.join("\n\n")}\n"""` : "";
+  const library = libParts.length ? `DESIGN LIBRARY — reference for SCORING & classification ONLY. It is NOT a source of new elements, palette, people, brands or style for the regeneration, and it must NEVER override what is actually in the user's content. Apply a niche playbook only when the content clearly belongs to that niche; otherwise ignore it entirely:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
-    `You are ContentIntel -- a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
+    `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
     `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
-    core ? `RESEARCH CONTEXT (principles -- apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
-    `${r.label || type}-SPECIFIC METHODOLOGY -- use this as your evaluation framework:`,
+    core ? `RESEARCH CONTEXT (principles — apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
+    `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     library,
-    opts.relax ? `EDIT FREEDOM: the user enabled BOLD REDESIGN -- you MAY change layout, composition and colours more boldly for a stronger thumbnail. But STILL keep the same person(s) and their count, the same topic, and the EXACT text & typography, unless the user explicitly asked to change them.` : "",
+    opts.relax ? `EDIT FREEDOM: the user enabled BOLD REDESIGN — you MAY change layout, composition and colours more boldly for a stronger thumbnail. But STILL keep the same person(s) and their count, the same topic, and the EXACT text & typography, unless the user explicitly asked to change them.` : "",
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
     r.notes ? `Extra: ${r.notes}` : "",
     REPORT_SHAPE,
@@ -2325,7 +2289,7 @@ function parseReport(text) {
   if (fence) t = fence[1].trim();
   const s = t.indexOf("{");
   if (s === -1) return null;
-  t = t.slice(s); // from first "{" to the end -- don't trim the tail (handle cut-offs)
+  t = t.slice(s); // from first "{" to the end — don't trim the tail (handle cut-offs)
   const tryParse = (x) => { try { return JSON.parse(x); } catch (e) { return undefined; } };
   let r = tryParse(t);
   if (r !== undefined) return r;
@@ -2345,7 +2309,7 @@ function parseReport(text) {
   return null;
 }
 
-// ── useAnalysis -- shared runner for every checker tab ────────────────────────
+// ── useAnalysis — shared runner for every checker tab ────────────────────────
 // state: idle | loading | done | error
 // when done with report=null → the tab shows its built-in SAMPLE (no key path)
 function useAnalysis(type) {
@@ -2356,7 +2320,7 @@ function useAnalysis(type) {
 
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setState("loading");
-    if (!canRun()) { // sample mode -- no key and not in a Claude preview
+    if (!canRun()) { // sample mode — no key and not in a Claude preview
       setTimeout(() => setState("done"), 850);
       return;
     }
@@ -2364,7 +2328,7 @@ function useAnalysis(type) {
       const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
-        // Model didn't return clean JSON -- show its analysis as plain text rather than failing.
+        // Model didn't return clean JSON — show its analysis as plain text rather than failing.
         const body = (text || "").trim();
         if (!body) throw new Error("The AI returned an empty response. Try again.");
         json = { sections: [{ type: "text", title: "Analysis", body }] };
@@ -2384,7 +2348,7 @@ function useAnalysis(type) {
   return { state, report, usage, err, run, reset: () => setState("idle") };
 }
 
-// ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
+// ── AnalyzeButton — Run button that shows the token estimate ─────────────────
 function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model }) {
   const inTok = estIn + 0;
   const total = inTok + CI_OUTPUT_GUESS;
@@ -2397,7 +2361,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
         {loading ? (
           <>
             <span style={{ display: "inline-block", width: 13, height: 13, border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%" }} className="spin" />
-            Analyzing...
+            Analyzing…
           </>
         ) : (
           <>
@@ -2408,13 +2372,13 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
       <span className="ci-est">
         est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}
         {free && <span style={{ color: "var(--text-4)" }}> · free preview AI</span>}
-        {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only -- add your key</span>}
+        {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only — add your key</span>}
       </span>
     </div>
   );
 }
 
-// ── UsageBadge -- actual tokens after a real run ──────────────────────────────
+// ── UsageBadge — actual tokens after a real run ──────────────────────────────
 function UsageBadge({ usage, model }) {
   if (!usage) return null;
   const inT = usage.input_tokens || 0, outT = usage.output_tokens || 0;
@@ -2439,7 +2403,7 @@ function ErrorCard({ msg, onOpenKey }) {
   );
 }
 
-// Collapsible card -- keeps long detail (regen prompts, checklists, tables)
+// Collapsible card — keeps long detail (regen prompts, checklists, tables)
 // tucked away so the report stays scannable. Styled like a Block.
 function Collapsible({ title, desc, children }) {
   return (
@@ -2456,25 +2420,7 @@ function Collapsible({ title, desc, children }) {
   );
 }
 
-// One ranked upgrade prompt -- copy it, or send it straight to ChatGPT / Gemini.
-function GenPromptCard({ block, mood }) {
-  const m = EM[mood] || EM.navy;
-  const [done, setDone] = React.useState(false);
-  function copy() { try { window.copyText && window.copyText(block.text); } catch (e) {} setDone(true); setTimeout(() => setDone(false), 1500); }
-  return (
-    <div style={{ padding: "13px 14px", borderRadius: 12, background: "rgba(0,0,0,0.22)", border: "1px solid var(--stroke-1)" }}>
-      {block.label && <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6, letterSpacing: "0.01em" }}>{block.label}</div>}
-      <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{block.text}</div>
-      <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap" }}>
-        <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12, background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700 }} onClick={() => openInChatGPT(block.text)}>🎨 ChatGPT</button>
-        <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInGemini(block.text)}>✨ Gemini</button>
-        <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={copy}>{done ? "✓ Copied" : "⧉ Copy"}</button>
-      </div>
-    </div>
-  );
-}
-
-// ── ReportView -- dashboard-style report renderer ─────────────────────────────
+// ── ReportView — dashboard-style report renderer ─────────────────────────────
 function ReportView({ report, mood }) {
   const m = EM[mood] || EM.navy;
   if (!report || typeof report !== "object") return null;
@@ -2488,7 +2434,7 @@ function ReportView({ report, mood }) {
 
   return (
     <div className="ci-results" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Header -- verdict + overall score */}
+      {/* Header — verdict + overall score */}
       {(v.level || hasOverall) && (
         <Block mood={mood}>
           <div style={{ display: "flex", alignItems: "center", gap: 20, justifyContent: "space-between", flexWrap: "wrap" }}>
@@ -2520,7 +2466,7 @@ function ReportView({ report, mood }) {
 
       {/* Script quality / attention curve */}
       {graphs.map((s, i) => (
-        <Block key={"g" + i} title={s.title || "Quality across the video"} desc={s.desc || "Predicted attention & retention -- dips mark the weak spots"} mood={mood}>
+        <Block key={"g" + i} title={s.title || "Quality across the video"} desc={s.desc || "Predicted attention & retention — dips mark the weak spots"} mood={mood}>
           <QualityGraph points={s.points} mood={mood} />
         </Block>
       ))}
@@ -2532,7 +2478,7 @@ function ReportView({ report, mood }) {
         </Block>
       )}
 
-      {/* Beat sheet -- the script broken down */}
+      {/* Beat sheet — the script broken down */}
       {beats.map((s, i) => (
         <Block key={"b" + i} title={s.title || "Script breakdown"} desc={s.desc} mood={mood}>
           <BeatSheet items={s.items} />
@@ -2544,7 +2490,7 @@ function ReportView({ report, mood }) {
         <Block key={"i" + i} title={s.title || "Fix these"} mood={mood}>{(s.items || []).map((it, j) => <Issue key={j} level={it.level || "yellow"}>{it.text}</Issue>)}</Block>
       ))}
 
-      {/* Biggest fix -- the one action */}
+      {/* Biggest fix — the one action */}
       {report.bottomLine && (
         <Block mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
           <Eyebrow mood={mood} glow>Biggest fix</Eyebrow>
@@ -2552,26 +2498,14 @@ function ReportView({ report, mood }) {
         </Block>
       )}
 
-      {/* Everything else -- collapsible to keep it scannable */}
+      {/* Everything else — collapsible to keep it scannable */}
       {rest.map((sec, i) => {
-        if (sec.type === "copy") {
-          // Thumbnail upgrade prompts: show them OPEN and prominent, each with a
-          // one-click "send to ChatGPT / Gemini" so the user can generate it.
-          if (/upgrade|redesign|generate/i.test(sec.title || ""))
-            return (
-              <Block key={"r" + i} title={sec.title || "Ways to upgrade it"} mood={mood}>
-                {sec.desc && <div style={{ fontSize: 12.5, color: "var(--text-3)", margin: "0 0 12px", lineHeight: 1.5 }}>{sec.desc}</div>}
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {(sec.blocks || []).map((b, j) => <GenPromptCard key={j} block={b} mood={mood} />)}
-                </div>
-              </Block>
-            );
+        if (sec.type === "copy")
           return <Collapsible key={"r" + i} title={sec.title || "Copy & rewrites"} desc={sec.desc}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {(sec.blocks || []).map((b, j) => <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono} />)}
             </div>
           </Collapsible>;
-        }
         if (sec.type === "checklist")
           return <Collapsible key={"r" + i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
         if (sec.type === "kv")
@@ -2592,7 +2526,7 @@ function ReportView({ report, mood }) {
   );
 }
 
-// ── KeyModal -- settings: paste key + pick model ──────────────────────────────
+// ── KeyModal — settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey] = React.useState(getKey());
   const [gkey, setGkey] = React.useState(getGoogleKey());
@@ -2613,12 +2547,12 @@ function KeyModal({ open, onClose }) {
           <button className="ci-iconbtn" style={{ width: 30, height: 30 }} onClick={() => onClose(false)}>✕</button>
         </div>
         <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "4px 0 18px" }}>
-          ContentIntel runs on <b>your own</b> Anthropic API key. It's stored only in this browser (localStorage) and sent directly to Anthropic -- never to us.
+          ContentIntel runs on <b>your own</b> Anthropic API key. It's stored only in this browser (localStorage) and sent directly to Anthropic — never to us.
         </p>
 
         <label className="ci-label">Anthropic API key</label>
         <div style={{ display: "flex", gap: 8 }}>
-          <input className="ci-input" type={show ? "text" : "password"} value={key} onChange={e => setKey(e.target.value)} placeholder="sk-ant-..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <input className="ci-input" type={show ? "text" : "password"} value={key} onChange={e => setKey(e.target.value)} placeholder="sk-ant-…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
           <button className="ci-copybtn" style={{ height: 44 }} onClick={() => setShow(s => !s)}>{show ? "Hide" : "Show"}</button>
         </div>
         <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
@@ -2626,7 +2560,7 @@ function KeyModal({ open, onClose }) {
         </div>
 
         <div style={{ marginTop: 18, padding: "12px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--stroke-1)", fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>
-          🎨 <b>Thumbnail images</b> are made in <b>ChatGPT or Gemini</b> -- the Thumbnail and Studio tabs give you a ready prompt and one-click buttons to open either (no extra keys needed here).
+          🎨 <b>Thumbnail images</b> are generated in <b>ChatGPT</b> now — the Thumbnail tab gives you a ready prompt and a “Generate in ChatGPT” button (no extra keys needed here).
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -2649,38 +2583,34 @@ function KeyModal({ open, onClose }) {
 Object.assign(window, {
   CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, ADMIN_PASS,
   getKey, setKeyLS, getModel, setModelLS, modelInfo, getResearch, liveResearch,
-  canRun, hasSandbox,
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
-  openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
 });
 
-
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-shell.jsx ===== */
-// ContentIntel -- shell: TopNav, tab icons, Home (video hero + feature showcase)
+// ContentIntel — shell: TopNav, tab icons, Home (video hero + feature showcase)
 // NOTE: MOODS is the global `const MOODS` declared in ui.jsx (shared across the
 // classic text/babel scripts). We must NOT redeclare it here or it collides.
 
 const VIDEO_SRC = (typeof window !== 'undefined' && window.__resources && window.__resources.heroVideo)
   || "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260314_131748_f2ca2a28-fed7-44c8-b9a9-bd9acdd5ec31.mp4";
 
-// Tab definitions -- each has a mood chosen for its content
+// Tab definitions — each has a mood chosen for its content
 const TABS = [
-  { id: 'script',    label: 'Script',      mood: 'navy',     icon: 'script'    },
-  { id: 'thumbnail', label: 'Thumbnail',   mood: 'ember',    icon: 'thumb'     },
-  { id: 'title',     label: 'Title',       mood: 'cyan',     icon: 'title'     },
-  { id: 'ads',       label: 'Ads',         mood: 'violet',   icon: 'ads'       },
-  { id: 'builder',   label: 'Studio',      mood: 'lime',     icon: 'studio'    },
-  { id: 'platform',  label: 'Platform IQ', mood: 'violet',   icon: 'platform'  },
-  { id: 'playbook',  label: 'Playbook',    mood: 'ember',    icon: 'playbook'  },
-  { id: 'history',   label: 'History',     mood: 'burgundy', icon: 'history'   },
+  { id: 'script',    label: 'Script',    mood: 'navy',     icon: 'script' },
+  { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb' },
+  { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title' },
+  { id: 'ads',       label: 'Ads',       mood: 'violet',   icon: 'ads' },
+  { id: 'studio',    label: 'Studio',    mood: 'violet',   icon: 'studio' },
+  { id: 'playbook',  label: 'Playbook',  mood: 'ember',    icon: 'playbook' },
+  { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
 
 function CITabIcon({ name }) {
@@ -2690,11 +2620,10 @@ function CITabIcon({ name }) {
     case 'thumb':   return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1"/><path d="M2.5 11l3-3 2.5 2.5L11 7l2.5 2.5"/></svg>;
     case 'title':   return <svg {...s} viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h7M3 11.5h9"/></svg>;
     case 'ads':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 6.5v3l8 3.5v-10l-8 3.5z"/><path d="M2.5 6.5H5v3H2.5zM12 5.5a3 3 0 010 5"/></svg>;
-    case 'history':  return <svg {...s} viewBox="0 0 16 16"><path d="M8 4.5V8l2.5 1.5"/><circle cx="8" cy="8" r="5.5"/></svg>;
-    case 'studio':   return <svg {...s} viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="9" rx="1.5"/><path d="M5 14h6M8 11v3M5 5.5h6M5 7.5h4"/></svg>;
-    case 'platform': return <svg {...s} viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5C6 5 5 6.5 5 8s1 3 3 5.5M8 2.5C10 5 11 6.5 11 8s-1 3-3 5.5M2.5 8h11"/></svg>;
+    case 'history': return <svg {...s} viewBox="0 0 16 16"><path d="M8 4.5V8l2.5 1.5"/><circle cx="8" cy="8" r="5.5"/></svg>;
     case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
-    case 'home':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
+    case 'studio':  return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="5" height="5" rx="1"/><rect x="8.5" y="2.5" width="5" height="5" rx="1"/><rect x="2.5" y="8.5" width="5" height="5" rx="1"/><circle cx="11" cy="11" r="2.5"/></svg>;
+    case 'home':    return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     default: return null;
   }
 }
@@ -2762,14 +2691,14 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
   const m = MOODS[mood];
 
   const features = [
-    { id: 'script',    label: 'Script',    icon: 'script', mood: 'navy',     line: 'Hook strength, retention, drop-off risk and a stronger rewrite -- line by line.' },
-    { id: 'thumbnail', label: 'Thumbnail', icon: 'thumb',  mood: 'ember',    line: "Will it earn the click? We read your image like the feed does -- not how pretty it is." },
+    { id: 'script',    label: 'Script',    icon: 'script', mood: 'navy',     line: 'Hook strength, retention, drop-off risk and a stronger rewrite — line by line.' },
+    { id: 'thumbnail', label: 'Thumbnail', icon: 'thumb',  mood: 'ember',    line: "Will it earn the click? We read your image like the feed does — not how pretty it is." },
     { id: 'title',     label: 'Title',     icon: 'title',  mood: 'cyan',     line: 'Click chance, curiosity, mobile truncation, plus 10 alternative angles to steal.' },
     { id: 'ads',       label: 'Ads',       icon: 'ads',    mood: 'violet',   line: 'Meta & Google limits, scroll-stopping power, compliance flags and rewrites.' },
   ];
 
   const stats = [
-    { v: '0-100', l: 'Plain-language scores' },
+    { v: '0–100', l: 'Plain-language scores' },
     { v: '4', l: 'Formats checked' },
     { v: 'A/B', l: 'Compare two versions' },
     { v: '<10s', l: 'Per check' },
@@ -2796,7 +2725,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
               <span style={{ background: 'linear-gradient(135deg, #FF4D8D, #FF9CC2)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>hit publish.</span>
             </h1>
             <p style={{ margin: '22px 0 0', fontSize: 16, lineHeight: 1.55, color: 'var(--text-1)', maxWidth: 520, textShadow: '0 1px 12px rgba(0,0,0,0.5)' }}>
-              Paste a script, drop a thumbnail, test a title or an ad. ContentIntel tells you what's working, what's not, and exactly how to fix it -- in plain language, before it goes live.
+              Paste a script, drop a thumbnail, test a title or an ad. ContentIntel tells you what's working, what's not, and exactly how to fix it — in plain language, before it goes live.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 30 }}>
               <GlowButton mood={mood} size="lg" onClick={() => onNav('script')}>Check your content →</GlowButton>
@@ -2805,7 +2734,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
             <div onClick={onOpenKey} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, marginTop: 20, cursor: 'pointer', fontSize: 12.5, color: 'var(--text-2)' }}>
               <span className={'ci-keydot ' + (hasKey ? 'on' : 'off')} />
               {hasKey
-                ? <span>Running on your own Anthropic key -- analyses are live.</span>
+                ? <span>Running on your own Anthropic key — analyses are live.</span>
                 : <span>Runs on <b>your own</b> Anthropic API key (stored only in your browser). <span style={{ color: m.accentFrom, textDecoration: 'underline' }}>Connect key</span></span>}
             </div>
           </div>
@@ -2834,7 +2763,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
               <h2 className="display" style={{ fontSize: 40, margin: '10px 0 0' }}>Everything you ship, graded first.</h2>
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-3)', maxWidth: 280, textAlign: 'right' }}>
-              Pick a format to run a check. Each report is plain-English, scored 0-100, with copy-ready fixes.
+              Pick a format to run a check. Each report is plain-English, scored 0–100, with copy-ready fixes.
             </div>
           </div>
 
@@ -2861,7 +2790,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
         </div>
       </section>
 
-      {/* HOW IT READS -- sample teaser */}
+      {/* HOW IT READS — sample teaser */}
       <section style={{ maxWidth: 1140, margin: '0 auto', padding: '20px 26px 90px' }}>
         <div className="glass-strong" style={{ borderRadius: 22, padding: 32, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', left: -80, bottom: -80, width: 320, height: 320, background: `radial-gradient(circle, ${m.orbB}, transparent 70%)`, opacity: 0.25, filter: 'blur(50px)' }} />
@@ -2914,7 +2843,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
 window.HomeView = HomeView;
 window.CI_TABS = TABS;
 window.CI_VIDEO = VIDEO_SRC;
-
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -3252,7 +3180,6 @@ Object.assign(window, {
   Toggle, RunButton, WorkHead, LoadingResults, QScore, Check, setAccentVars,
   ScoreDonut, ScoreBar, QualityGraph, BeatSheet, copyText, downloadText,
 });
-
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -3602,11 +3529,10 @@ function ScriptTab({ onOpenKey }) {
 }
 window.ScriptTab = ScriptTab;
 
-
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-tabs.jsx ===== */
-// ContentIntel -- Thumbnail / Title / Ads / History tabs
+// ContentIntel — Thumbnail / Title / Ads / History tabs
 
 const {
   MOODS: TM, TrafficLight: TTL, Block: TB, ScoreItem: TSI, Issue: TIs,
@@ -3642,7 +3568,7 @@ function ImageDrop({ image, onPick, label }) {
   );
 }
 
-// Brand kit -- persisted in the visitor's browser so they set colours once.
+// Brand kit — persisted in the visitor's browser so they set colours once.
 const LS_BRAND = 'ci_brandkit';
 function loadBrandKit() {
   try { return JSON.parse(localStorage.getItem(LS_BRAND)) || { colors: [], note: '' }; }
@@ -3656,13 +3582,24 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 // sent the image via URL, so the user attaches their thumbnail there.)
 function chatgptPrompt(base, hasImage, strict, guidance) {
   const head = hasImage
-    ? `Edit the attached YouTube thumbnail into an improved 16:9 version. ${strict ? 'KEEP the same person(s), the exact text, fonts and overall palette -- change ONLY what I describe below.' : 'A bolder redesign is fine, but keep the same person(s), topic and exact text.'}`
+    ? `Edit the attached YouTube thumbnail into an improved 16:9 version. ${strict ? 'KEEP the same person(s), the exact text, fonts and overall palette — change ONLY what I describe below.' : 'A bolder redesign is fine, but keep the same person(s), topic and exact text.'}`
     : `Create a bold, high click-through 16:9 YouTube thumbnail.`;
   return `${head}\n\n${(base || '').trim()}${guidance ? '\n\n' + guidance : ''}`;
 }
-// Image generation is a handoff: copy the prompt + open ChatGPT or Gemini in a
-// new tab (window.openInChatGPT / window.openInGemini). The user pastes their
-// photo there. No in-app generator -- the free ones were unreliable.
+function openInChatGPT(promptText) {
+  try { window.copyText && window.copyText(promptText); } catch (e) {}
+  window.open('https://chatgpt.com/?q=' + encodeURIComponent(String(promptText).slice(0, 6000)), '_blank', 'noopener,noreferrer');
+}
+
+// Image-generation models the user can pick. Extend with Reve / more FLUX once
+// their endpoints are confirmed. provider routes to the right engine + key.
+const IMG_MODELS = [
+  { id: 'poll-flux', label: 'Free · FLUX — no key, no setup', provider: 'pollinations', pmodel: 'flux' },
+  { id: 'poll-turbo', label: 'Free · Turbo — faster, no key', provider: 'pollinations', pmodel: 'turbo' },
+  { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA (needs proxy)', provider: 'nvidia' },
+  { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key, paid)', provider: 'gemini' },
+  { id: 'reve/create-image', label: 'Reve — image (Reve key)', provider: 'reve' },
+];
 
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
 function ThumbnailTab({ onOpenKey }) {
@@ -3674,7 +3611,7 @@ function ThumbnailTab({ onOpenKey }) {
   const compare = count > 1;
   const [title, setTitle] = React.useState('');
   const [showTitle, setShowTitle] = React.useState(true);
-  const [kind, setKind] = React.useState('Auto-detect');
+  const [kind, setKind] = React.useState('Lifestyle');
   const [layout, setLayout] = React.useState('Auto-detect');
   const [scheme, setScheme] = React.useState('Auto-detect');
   const [nicheSel, setNicheSel] = React.useState('Auto-detect');
@@ -3712,13 +3649,13 @@ function ThumbnailTab({ onOpenKey }) {
     ((layout === 'Auto-detect' && scheme === 'Auto-detect') ? 'Auto-detect the layout archetype and colour scheme and judge their fit.\n' : '');
   const brandColors = (brand.colors || []).filter(Boolean);
   const guidance = [
-    brandColors.length ? `Brand colours: ${brandColors.join(', ')} -- build the regenerated thumbnail's palette around these (background / highlight box / number / accents) so it is on-brand, keeping strong contrast.` : '',
+    brandColors.length ? `Brand colours: ${brandColors.join(', ')} — build the regenerated thumbnail's palette around these (background / highlight box / number / accents) so it is on-brand, keeping strong contrast.` : '',
     brand.note ? `Brand notes: ${brand.note}` : '',
     emphasis.length ? `What to add / emphasise in the regeneration: ${emphasis.join('; ')}.` : '',
     addNote.trim() ? `Also for the regeneration: ${addNote.trim()}` : '',
   ].filter(Boolean).join('\n');
   const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
-  const head = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none given)'}\nContent type: ${kind === 'Auto-detect' ? '(detect it from the thumbnail/title)' : kind}\n${targetLine}\n`;
+  const head = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none given)'}\nContent type: ${kind}\n${targetLine}\n`;
   const userText = (compare
     ? head +
       Array.from({ length: count }, (_, i) => `THUMBNAIL ${LBL[i]} (= Image ${i + 1}): ${descsAll[i].trim() || `(see attached Image ${i + 1})`}`).join('\n') + '\n\n' +
@@ -3728,25 +3665,70 @@ function ThumbnailTab({ onOpenKey }) {
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
   // Vision works for single AND multi-image (A/B/C) when a key is present.
   const imgs = hasVision ? (compare ? imgsAll.slice(0, count).filter(Boolean) : (imgA ? [imgA] : [])) : [];
-  // Ask for 3 ranked, ready-to-generate upgrade prompts (basic -> mild -> bold).
-  const upgradeAsk = compare ? '' :
-    '\n\nALSO: end the report with a "copy" section titled "3 ways to upgrade this thumbnail" containing EXACTLY 3 blocks, each a complete, ready-to-paste image prompt for ChatGPT/Gemini that keeps the same person, topic and exact text:\n' +
-    '- block 1 label "1 - Basic fix (quickest)": the smallest change with the biggest payoff.\n' +
-    '- block 2 label "2 - Mild redesign (medium effort)": a moderate reworking of layout/contrast/elements.\n' +
-    '- block 3 label "3 - Full redesign (boldest)": a bold, scroll-stopping reimagining.';
   // Niche routing + edit mode are baked into the system prompt (one source of truth).
-  // compactPlaybook trims the playbook when auto-detecting -> fewer input tokens.
-  const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict, compactPlaybook: true });
-  const fullUserText = userText + upgradeAsk;
-  const estIn = window.estTokens(system, fullUserText) + imgs.length * 1400;
-  // Generate mode: describe-from-scratch prompt (no analysis, no tokens).
+  const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict });
+  const estIn = window.estTokens(system, userText) + imgs.length * 1400;
+  function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
+
+  // ── Image generation (shared) ───────────────────────────────────────────────
+  const [genModelId, setGenModelId] = React.useState(IMG_MODELS[0].id);
   const [genPrompt, setGenPrompt] = React.useState('');
-  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5200 : count === 2 ? 4200 : 3200, system }); }
+  const [gen, setGen] = React.useState({ loading: false, out: null, err: '', via: '', surface: '' });
+  React.useEffect(() => { setGen({ loading: false, out: null, err: '', via: '', surface: '' }); }, [report]);
+  const genModel = IMG_MODELS.find(x => x.id === genModelId) || IMG_MODELS[0];
+  async function runGenerate(basePrompt, surface) {
+    if (genModel.provider === 'gemini' && !imgA) { setGen({ loading: false, out: null, err: 'Upload an image first (Gemini edits your image).', via: '', surface }); return; }
+    setGen({ loading: true, out: null, err: '', via: '', surface });
+    try {
+      let out, via;
+      if (genModel.provider === 'pollinations') {
+        const p = `Professional YouTube thumbnail, 16:9, bold, high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
+        const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(p) + '?width=1280&height=720&nologo=true&model=' + (genModel.pmodel || 'flux') + '&seed=' + Math.floor(Math.random() * 1e6);
+        await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(); im.onerror = () => reject(new Error('Free generator did not respond — try again, or pick another free model.')); im.src = url; });
+        out = url; via = 'Free · ' + (genModel.pmodel || 'flux');
+      } else if (genModel.provider === 'nvidia') {
+        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
+        out = await window.generateThumbnailFlux({ prompt, model: genModel.id }); via = 'NVIDIA FLUX (klein-4B)';
+      } else if (genModel.provider === 'reve') {
+        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
+        out = await window.generateThumbnailReve({ prompt, model: genModel.id }); via = 'Reve';
+      } else {
+        const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and palette — change only what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${basePrompt}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail.`;
+        out = await window.generateThumbnail({ instruction, image: imgA }); via = 'Google Gemini';
+      }
+      setGen({ loading: false, out, err: '', via, surface });
+    } catch (e) {
+      const em = String(e.message);
+      const msg = (em === 'NO_GOOGLE_KEY' || em === 'NO_NV_KEY')
+        ? 'Add an NVIDIA (FLUX) or Google AI key in Settings (top-right) for this model.'
+        : (e.message || 'Could not generate — try again.');
+      setGen({ loading: false, out: null, err: msg, via: '', surface });
+    }
+  }
+  const ModelPicker = () => (
+    <select className="ci-input" value={genModelId} onChange={e => setGenModelId(e.target.value)} style={{ appearance: 'auto', maxWidth: 380 }}>
+      {IMG_MODELS.map(mm => <option key={mm.id} value={mm.id}>{mm.label}</option>)}
+    </select>
+  );
+  const GenResult = ({ surface }) => (gen.surface === surface ? (
+    <div>
+      {gen.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12, lineHeight: 1.5 }}>{gen.err}</div>}
+      {gen.out && (
+        <div style={{ marginTop: 14 }}>
+          {gen.via && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 6 }}>Generated with {gen.via}</div>}
+          <img src={gen.out} alt="generated thumbnail" style={{ width: '100%', maxWidth: 640, borderRadius: 12, display: 'block', border: '1px solid var(--stroke-2)' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <a className="ci-copybtn" href={gen.out} download="thumbnail.png" style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none' }}>↓ Download</a>
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null);
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
       <TWH mood={mood} eyebrow="Thumbnail studio" title={mode === 'Generate' ? 'Generate a thumbnail' : 'Check your thumbnail'}
-        sub={mode === 'Generate' ? 'Describe what you want (and optionally upload one to remix) -- generate straight away, no analysis.' : "Upload your thumbnail. We'll check if it'll get clicks -- based on what actually works, not how pretty it looks."} />
+        sub={mode === 'Generate' ? 'Describe what you want (and optionally upload one to remix) — generate straight away, no analysis.' : "Upload your thumbnail. We'll check if it'll get clicks — based on what actually works, not how pretty it looks."} />
 
       <div style={{ marginBottom: 16 }}>
         <TCG label="Mode" options={['Check', 'Generate']} value={mode} onChange={setMode} />
@@ -3754,18 +3736,17 @@ function ThumbnailTab({ onOpenKey }) {
 
       {mode === 'Generate' && (
         <TB mood={mood}>
-          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- optional; attach it in ChatGPT to edit it</span></label>
-          <ImageDrop image={imgA} onPick={setImgA} label="Drop an image -- JPG or PNG (optional)" />
+          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— optional; attach it in ChatGPT to edit it</span></label>
+          <ImageDrop image={imgA} onPick={setImgA} label="Drop an image — JPG or PNG (optional)" />
           <label className="ci-label" style={{ marginTop: 16 }}>Describe the thumbnail you want</label>
           <textarea className="ci-textarea" style={{ minHeight: 90 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
             placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-            <window.GlowButton mood={mood} size="lg" onClick={() => window.openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
-            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.openInGemini(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>✨ Open in Gemini</button>
+            <window.GlowButton mood={mood} size="lg" onClick={() => openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
             <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>
-            Opens ChatGPT or Gemini with your prompt (also copied). There: <b>attach your thumbnail</b> (drag it in), then press enter -- image generation runs on your own plan.
+            Opens ChatGPT with your prompt (also copied). In ChatGPT: <b>attach your thumbnail</b> (drag it in), then press enter — image generation runs there, on your ChatGPT plan.
           </div>
         </TB>
       )}
@@ -3779,14 +3760,14 @@ function ThumbnailTab({ onOpenKey }) {
           {Array.from({ length: count }).map((_, i) => (
             <div key={i}>
               {compare && <div style={{ fontSize: 12, fontWeight: 700, color: m.accentFrom, marginBottom: 6, letterSpacing: '.04em' }}>{LBL[i]}</div>}
-              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image -- JPG or PNG' : `Drop image ${LBL[i]}`} />
+              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image — JPG or PNG' : `Drop image ${LBL[i]}`} />
             </div>
           ))}
         </div>
 
         {!hasVision && (
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 10, padding: '8px 11px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)', lineHeight: 1.5 }}>
-            The free AI inside Claude can't see images -- so <b>describe each thumbnail below</b> and that's what gets reviewed. (Add an API key in Settings for real image vision.)
+            The free AI inside Claude can't see images — so <b>describe each thumbnail below</b> and that's what gets reviewed. (Add an API key in Settings for real image vision.)
           </div>
         )}
 
@@ -3795,7 +3776,7 @@ function ThumbnailTab({ onOpenKey }) {
             <div key={i}>
               <label className="ci-label">{compare ? `Describe thumbnail ${LBL[i]}` : 'Describe your thumbnail (text, faces, colors, layout)'}</label>
               <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descsAll[i]} onChange={e => setDescs[i](e.target.value)}
-                placeholder={i === 0 ? "e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background..." : `Describe thumbnail ${LBL[i]} the same way...`} />
+                placeholder={i === 0 ? "e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background…" : `Describe thumbnail ${LBL[i]} the same way…`} />
             </div>
           ))}
         </div>
@@ -3803,15 +3784,15 @@ function ThumbnailTab({ onOpenKey }) {
         <div style={{ marginTop: 16 }}>
           <TTg on={showTitle} onChange={setShowTitle} mood={mood}>Pair with a title (checks if thumb + title work together)</TTg>
           {showTitle && (
-            <input className="ci-input" style={{ marginTop: 10 }} value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your video title here..." />
+            <input className="ci-input" style={{ marginTop: 10 }} value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your video title here…" />
           )}
         </div>
         <div style={{ marginTop: 14 }}>
-          <TCG label="Content" options={['Auto-detect', 'Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
+          <TCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
         </div>
         <details className="ci-collapse" style={{ marginTop: 16, border: '1px solid var(--stroke-1)', borderRadius: 12, background: 'var(--surface-1)' }}>
           <summary style={{ cursor: 'pointer', padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 600, fontSize: 13.5, color: 'var(--text-2)' }}>
-            <span>⚙ Advanced -- layout, niche & on-brand regeneration</span>
+            <span>⚙ Advanced — layout, niche & on-brand regeneration</span>
             <span className="ci-collapse-caret" style={{ opacity: 0.45, fontSize: 11.5 }}>optional ▾</span>
           </summary>
           <div style={{ padding: '0 16px 16px' }}>
@@ -3822,7 +3803,7 @@ function ThumbnailTab({ onOpenKey }) {
               <TCG label="Colour scheme" options={schemeOpts} value={scheme} onChange={setScheme} />
             </div>
             <div style={{ marginTop: 16 }}>
-              <label className="ci-label">Niche playbook <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- pick yours, or "None" for a clean, unbiased review</span></label>
+              <label className="ci-label">Niche playbook <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— pick yours, or “None” for a clean, unbiased review</span></label>
               <select className="ci-input" value={nicheSel} onChange={e => setNicheSel(e.target.value)} style={{ appearance: 'auto' }}>
                 {nicheOpts.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -3830,7 +3811,7 @@ function ThumbnailTab({ onOpenKey }) {
 
             <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--stroke-1)' }}>
               <label className="ci-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                🎨 Brand colours <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- keeps the regen on-brand (saved here)</span>
+                🎨 Brand colours <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— keeps the regen on-brand (saved here)</span>
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                 {(brand.colors || []).map((c, i) => (
@@ -3846,9 +3827,9 @@ function ThumbnailTab({ onOpenKey }) {
                 )}
               </div>
               <input className="ci-input" style={{ marginTop: 10 }} value={brand.note || ''} onChange={e => setBrand(b => ({ ...b, note: e.target.value }))}
-                placeholder="Optional brand note -- e.g. 'logo bottom-right, bold Montserrat-style font'" />
+                placeholder="Optional brand note — e.g. 'logo bottom-right, bold Montserrat-style font'" />
 
-              <label className="ci-label" style={{ marginTop: 16 }}>✨ Regeneration -- what should we add or emphasise?</label>
+              <label className="ci-label" style={{ marginTop: 16 }}>✨ Regeneration — what should we add or emphasise?</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
                 {EMPHASIS_CHIPS.map(c => {
                   const on = emphasis.includes(c);
@@ -3861,9 +3842,9 @@ function ThumbnailTab({ onOpenKey }) {
                 })}
               </div>
               <input className="ci-input" style={{ marginTop: 10 }} value={addNote} onChange={e => setAddNote(e.target.value)}
-                placeholder="Anything else for the new version..." />
+                placeholder="Anything else for the new version…" />
               <div style={{ marginTop: 14 }}>
-                <TTg on={strict} onChange={setStrict} mood={mood}>Strict edit -- keep my image, change only what I ask</TTg>
+                <TTg on={strict} onChange={setStrict} mood={mood}>Strict edit — keep my image, change only what I ask</TTg>
               </div>
             </div>
           </div>
@@ -3882,13 +3863,12 @@ function ThumbnailTab({ onOpenKey }) {
           {!compare && imgA && (
             <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>🎨 Generate the improved thumbnail</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Takes the grounded fix above into ChatGPT or Gemini -- attach your thumbnail there and it edits it.</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Takes the grounded fix above into ChatGPT — attach your thumbnail there and it edits it.</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <window.GlowButton mood={mood} onClick={() => window.openInChatGPT(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
-                <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.openInGemini(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>✨ Open in Gemini</button>
+                <window.GlowButton mood={mood} onClick={() => openInChatGPT(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
                 <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.copyText(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>⧉ Copy prompt</button>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>Prompt is copied + prefilled. Attach your thumbnail there, then press enter.</div>
+              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>Prompt is copied + prefilled in ChatGPT. Attach your thumbnail there, then press enter.</div>
             </div>
           )}
         </div>
@@ -3900,7 +3880,7 @@ function ThumbnailTab({ onOpenKey }) {
             <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key and upload an image to analyze your real thumbnail → <span style={{ textDecoration: 'underline' }}>Connect key</span>
           </div>
           <TTL level="yellow" title="Decent, but missing key elements"
-            text="Good structure and colors -- but no human face is hurting your click-through rate." />
+            text="Good structure and colors — but no human face is hurting your click-through rate." />
 
           <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 14 }}>
             {/* what we see */}
@@ -3918,7 +3898,7 @@ function ThumbnailTab({ onOpenKey }) {
             </TB>
 
             {/* quick scores */}
-            <TB title="Quick scores" desc="Overall: 72 -- good structure, but no face" mood={mood}>
+            <TB title="Quick scores" desc="Overall: 72 — good structure, but no face" mood={mood}>
               <TQS name="Main subject clarity" score={8} why="Easy to understand what this is about." />
               <TQS name="Readable on phone" score={7} why="Title is fine, but model names underneath are hard to read." />
               <TQS name="Color contrast" score={8} why="Bright logos on dark background works well." />
@@ -3937,22 +3917,22 @@ function ThumbnailTab({ onOpenKey }) {
           </TB>
 
           <TB title="What to fix" mood={mood}>
-            <TIs level="red">Add your face (or any face showing surprise) -- this alone can boost clicks 20-30%.</TIs>
-            <TIs level="yellow">Put a crown or trophy on the winning model -- teases the answer without revealing it.</TIs>
-            <TIs level="yellow">Make the model names bigger -- they disappear on phone screens.</TIs>
+            <TIs level="red">Add your face (or any face showing surprise) — this alone can boost clicks 20–30%.</TIs>
+            <TIs level="yellow">Put a crown or trophy on the winning model — teases the answer without revealing it.</TIs>
+            <TIs level="yellow">Make the model names bigger — they disappear on phone screens.</TIs>
           </TB>
 
           <TB title="AI prompts for a better thumbnail" mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <TCB text="Young Indian man, shocked expression, holding phone, 5 glowing AI logos floating behind him, dark tech background, neon lighting, 16:9" label="Copy prompt" />
-              <TCB text="Split-screen battle -- 3 AI logos with red X vs 2 with gold crown, dark background, VS text in center, dramatic lighting" label="Copy prompt" />
+              <TCB text="Split-screen battle — 3 AI logos with red X vs 2 with gold crown, dark background, VS text in center, dramatic lighting" label="Copy prompt" />
             </div>
           </TB>
 
           <TB mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
             <Eyebrow mood={mood} glow>Bottom line</Eyebrow>
             <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10 }}>
-              Good thumbnail for tech -- clear topic, strong contrast, real curiosity. The biggest weakness is no human face. Add a reaction face and a "winner" hint like a crown -- <span style={{ color: m.accentFrom, fontWeight: 600 }}>that'll make a big difference without cluttering the design.</span>
+              Good thumbnail for tech — clear topic, strong contrast, real curiosity. The biggest weakness is no human face. Add a reaction face and a "winner" hint like a crown — <span style={{ color: m.accentFrom, fontWeight: 600 }}>that'll make a big difference without cluttering the design.</span>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button className="ci-copybtn" style={{ height: 34 }}>📋 Copy report</button>
@@ -3999,7 +3979,7 @@ function TitleTab({ onOpenKey }) {
     ['Negative framing', 'Never Make These 5 SIP Mistakes in 2026'],
     ['Question', 'Kya Aap Bhi Yeh 5 SIP Galtiyan Kar Rahe Ho?'],
     ['Listicle', '5 SIP Mistakes [With Real Examples]'],
-    ['Controversial', 'Your SIP Is Losing Money -- Here Is Why'],
+    ['Controversial', 'Your SIP Is Losing Money — Here Is Why'],
     ['Social proof', '5 SIP Mistakes 90% Beginners Make'],
     ['Aspirational', 'Avoid These 5 Mistakes, Build ₹1 Crore With SIP'],
   ];
@@ -4011,11 +3991,11 @@ function TitleTab({ onOpenKey }) {
 
       <TB mood={mood}>
         <div style={{ marginBottom: 14 }}><TTg on={compare} onChange={setCompare} mood={mood}>Compare two titles</TTg></div>
-        <input className="ci-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your title here..." style={{ fontSize: 16 }} />
-        {compare && <input className="ci-input" value={titleB} onChange={e => setTitleB(e.target.value)} placeholder="Second title..." style={{ marginTop: 10, fontSize: 16 }} />}
+        <input className="ci-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your title here…" style={{ fontSize: 16 }} />
+        {compare && <input className="ci-input" value={titleB} onChange={e => setTitleB(e.target.value)} placeholder="Second title…" style={{ marginTop: 10, fontSize: 16 }} />}
         <div style={{ marginTop: 14 }}>
-          <label className="ci-label">What's the video about? (optional -- helps us judge if title matches content)</label>
-          <input className="ci-input" value={about} onChange={e => setAbout(e.target.value)} placeholder="One line about the video..." />
+          <label className="ci-label">What's the video about? (optional — helps us judge if title matches content)</label>
+          <input className="ci-input" value={about} onChange={e => setAbout(e.target.value)} placeholder="One line about the video…" />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
           <TCG label="Language" options={['Auto-detect', 'English', 'Hindi', 'Hinglish', 'Spanish', 'Other']} value={lang} onChange={setLang} />
@@ -4026,7 +4006,7 @@ function TitleTab({ onOpenKey }) {
           <span>Characters: <b>{chars}</b></span>
           <span style={{ color: 'var(--text-5)' }}>·</span>
           <span style={{ color: chars <= 60 ? '#8FD86A' : '#F0C85A', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good -- under 60' : 'Long -- may truncate'}
+            <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good — under 60' : 'Long — may truncate'}
           </span>
         </div>
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title" /></div>
@@ -4044,7 +4024,7 @@ function TitleTab({ onOpenKey }) {
           <div className="ci-sample-note" onClick={onOpenKey}>
             <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key to analyze your real title → <span style={{ textDecoration: 'underline' }}>Connect key</span>
           </div>
-          <TTL level="yellow" title="Close -- a few tweaks will lift it" text="Clear and readable, but the hook word and keyword position need work." />
+          <TTL level="yellow" title="Close — a few tweaks will lift it" text="Clear and readable, but the hook word and keyword position need work." />
 
           <TB title="Scores" mood={mood}>
             <TSI mood={mood} name="Click chance" score={58} why="Doesn't create enough urgency to click. Needs a stronger hook word up front." />
@@ -4054,11 +4034,11 @@ function TitleTab({ onOpenKey }) {
 
           <TB title="Title breakdown" mood={mood}>
             {[
-              ['Characters', `${chars} -- good, under 60`, 'green'],
-              ['Power words', '2 found -- decent, 3+ is ideal', 'yellow'],
-              ['Numbers', 'Yes -- numbers boost clicks 15-25%', 'green'],
-              ['Brackets', 'None -- adding [2026] or [Step-by-Step] can help', 'yellow'],
-              ['Keyword position', '"SIP" appears at word 2 -- good, keep it in the first 3 words', 'green'],
+              ['Characters', `${chars} — good, under 60`, 'green'],
+              ['Power words', '2 found — decent, 3+ is ideal', 'yellow'],
+              ['Numbers', 'Yes — numbers boost clicks 15–25%', 'green'],
+              ['Brackets', 'None — adding [2026] or [Step-by-Step] can help', 'yellow'],
+              ['Keyword position', '"SIP" appears at word 2 — good, keep it in the first 3 words', 'green'],
             ].map(([k, v, lvl]) => (
               <div key={k} style={{ display: 'grid', gridTemplateColumns: '20px 130px 1fr', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--stroke-1)', fontSize: 13 }}>
                 <span className={'ci-dot ' + lvl} />
@@ -4067,11 +4047,11 @@ function TitleTab({ onOpenKey }) {
               </div>
             ))}
             <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid var(--stroke-1)', fontSize: 12.5, color: 'var(--text-2)' }}>
-              On mobile, viewers see: <span style={{ color: 'var(--text-1)', fontWeight: 500 }}>"{title.slice(0, 40)}{title.length > 40 ? '...' : ''}"</span>
+              On mobile, viewers see: <span style={{ color: 'var(--text-1)', fontWeight: 500 }}>"{title.slice(0, 40)}{title.length > 40 ? '…' : ''}"</span>
             </div>
           </TB>
 
-          <TB title="10 alternative titles" desc="Different angles -- copy whichever fits" mood={mood}>
+          <TB title="10 alternative titles" desc="Different angles — copy whichever fits" mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {alts.map(([angle, t]) => (
                 <div key={angle} className="ci-copyblock">
@@ -4106,7 +4086,7 @@ function AdsTab({ onOpenKey }) {
   const mood = 'violet';
   const m = TM[mood];
   const [platform, setPlatform] = React.useState('Meta');
-  const [primary, setPrimary] = React.useState('Tired of trainers that fall apart in 3 months? The Atlas Mach lasts 800km -- guaranteed, or your money back.');
+  const [primary, setPrimary] = React.useState('Tired of trainers that fall apart in 3 months? The Atlas Mach lasts 800km — guaranteed, or your money back.');
   const [headline, setHeadline] = React.useState('Built to Outlast Your PR');
   const [cta, setCta] = React.useState('Shop Now');
   const [goal, setGoal] = React.useState('Conversions');
@@ -4147,15 +4127,15 @@ function AdsTab({ onOpenKey }) {
             </div>
             <div>
               <label className="ci-label">Description (most people never see this)</label>
-              <input className="ci-input" placeholder="Optional supporting line..." />
+              <input className="ci-input" placeholder="Optional supporting line…" />
             </div>
             <TCG label="CTA button" options={['Learn More', 'Sign Up', 'Shop Now', 'Download', 'Apply Now']} value={cta} onChange={setCta} />
             <TCG label="Goal" options={['Traffic', 'Leads', 'Conversions', 'Awareness']} value={goal} onChange={setGoal} />
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><label className="ci-label">Headlines (one per line -- max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} defaultValue={'Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days'} /></div>
-            <div><label className="ci-label">Descriptions (one per line -- max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} defaultValue={'The $90 trainer that beat the $200 ones in a real half-marathon. Try risk-free.'} /></div>
+            <div><label className="ci-label">Headlines (one per line — max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} defaultValue={'Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days'} /></div>
+            <div><label className="ci-label">Descriptions (one per line — max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} defaultValue={'The $90 trainer that beat the $200 ones in a real half-marathon. Try risk-free.'} /></div>
             <div><label className="ci-label">Keywords you're targeting</label><input className="ci-input" defaultValue="running shoes, marathon trainer, cushioned running shoe" /></div>
           </div>
         )}
@@ -4175,10 +4155,10 @@ function AdsTab({ onOpenKey }) {
           <div className="ci-sample-note" onClick={onOpenKey}>
             <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key to analyze your real ad → <span style={{ textDecoration: 'underline' }}>Connect key</span>
           </div>
-          <TTL level="red" title="Not ready -- your hook is hidden" text="Your strongest line falls after the 'See More' cutoff. Most people won't read it." />
+          <TTL level="red" title="Not ready — your hook is hidden" text="Your strongest line falls after the 'See More' cutoff. Most people won't read it." />
 
           <TB title="Scores" mood={mood}>
-            <TSI mood={mood} name="Scroll-stopping power" score={45} why="Your opening line blends into the feed. The benefit is buried -- lead with it." />
+            <TSI mood={mood} name="Scroll-stopping power" score={45} why="Your opening line blends into the feed. The benefit is buried — lead with it." />
             <TSI mood={mood} name="Copy quality" score={62} why="Message is clear but doesn't create urgency." />
             <TSI mood={mood} name="CTA fit" score={78} why={`"${cta}" matches your ${goal.toLowerCase()} objective well.`} />
           </TB>
@@ -4187,11 +4167,11 @@ function AdsTab({ onOpenKey }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid var(--stroke-1)' }}>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-4)', marginBottom: 5 }}>ON FEED · BEFORE "SEE MORE"</div>
-                <div style={{ fontSize: 13.5, color: 'var(--text-1)' }}>"{primary.slice(0, META_PRIMARY)}{primary.length > META_PRIMARY ? '... See More' : ''}"</div>
+                <div style={{ fontSize: 13.5, color: 'var(--text-1)' }}>"{primary.slice(0, META_PRIMARY)}{primary.length > META_PRIMARY ? '… See More' : ''}"</div>
               </div>
               <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid var(--stroke-1)' }}>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-4)', marginBottom: 5 }}>HEADLINE ON MOBILE</div>
-                <div style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: 600 }}>"{headline.slice(0, META_HEAD)}{headline.length > META_HEAD ? '...' : ''}"</div>
+                <div style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: 600 }}>"{headline.slice(0, META_HEAD)}{headline.length > META_HEAD ? '…' : ''}"</div>
               </div>
             </div>
           </TB>
@@ -4204,14 +4184,14 @@ function AdsTab({ onOpenKey }) {
 
           <TB title="Stronger versions" mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div><div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>Stronger main text</div><TCB text="Your trainers shouldn't die at 3 months. The Atlas Mach lasts 800km -- guaranteed, or your money back. Runners are switching for a reason." label="Copy" /></div>
+              <div><div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>Stronger main text</div><TCB text="Your trainers shouldn't die at 3 months. The Atlas Mach lasts 800km — guaranteed, or your money back. Runners are switching for a reason." label="Copy" /></div>
               <div><div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>Stronger headline</div><TCB text="800km or Money Back" label="Copy" /></div>
             </div>
           </TB>
 
           <TB mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
             <Eyebrow mood={mood} glow>Bottom line</Eyebrow>
-            <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10 }}>Your offer is strong but it's hidden. Move the guarantee to your first line and harden the headline -- <span style={{ color: m.accentFrom, fontWeight: 600 }}>that's the difference between a scroll and a click.</span></div>
+            <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10 }}>Your offer is strong but it's hidden. Move the guarantee to your first line and harden the headline — <span style={{ color: m.accentFrom, fontWeight: 600 }}>that's the difference between a scroll and a click.</span></div>
           </TB>
         </div>
       )}
@@ -4275,7 +4255,7 @@ function HistoryTab() {
                   <div style={{ fontSize: 12, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>{timeAgo(it.t)}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span className={'ci-dot ' + lvl} />
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: lvl === 'green' ? '#8FD86A' : lvl === 'yellow' ? '#F0C85A' : '#F06A7E' }}>{it.score != null ? it.score : '--'}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: lvl === 'green' ? '#8FD86A' : lvl === 'yellow' ? '#F0C85A' : '#F06A7E' }}>{it.score != null ? it.score : '—'}</span>
                   </div>
                 </div>
               );
@@ -4288,871 +4268,531 @@ function HistoryTab() {
 }
 window.HistoryTab = HistoryTab;
 
-
 </script>
 <script type="text/babel" data-presets="react">
-/* ===== ci-builder.jsx ===== */
-// ContentIntel -- Thumbnail Prompt Studio
+/* ===== ci-studio.jsx ===== */
+// ContentIntel — Design Studio: generate professional social media designs.
+// Claude acts as art director → crafts a precise prompt → sends to image generator.
+// 10 style categories, 16 platform presets, reference image support.
 
-const { MOODS: BM, Block: BB, Toggle: BTg, WorkHead: BWH } = window;
+const { MOODS: StM, Block: StB, WorkHead: StWH } = window;
 
-const BUILDER_EXPRESSIONS = [
-  { id: 'excited',  label: 'Excited',     emoji: '😄' },
-  { id: 'shocked',  label: 'Shocked',     emoji: '😮' },
-  { id: 'serious',  label: 'Serious',     emoji: '😐' },
-  { id: 'pointing', label: 'Pointing',    emoji: '👉' },
-  { id: 'laughing', label: 'Laughing',    emoji: '😂' },
-  { id: 'love',     label: 'Love / Warm', emoji: '❤️' },
-  { id: 'none',     label: 'Do nothing',  emoji: '--'  },
+// ── Platform presets (2025 standard dimensions) ───────────────────────────────
+const STUDIO_PLATFORMS = [
+  // Instagram — portrait 4:5 gets highest feed engagement
+  { id: 'ig-post',     label: 'Instagram Post (square)',    w: 1080, h: 1080, cat: 'Instagram' },
+  { id: 'ig-port',     label: 'Instagram Post (portrait)',  w: 1080, h: 1350, cat: 'Instagram' },
+  { id: 'ig-story',    label: 'Instagram Story / Reel',     w: 1080, h: 1920, cat: 'Instagram' },
+  { id: 'ig-carousel', label: 'Instagram Carousel Slide',   w: 1080, h: 1080, cat: 'Instagram' },
+  { id: 'ig-land',     label: 'Instagram Landscape',        w: 1080, h: 566,  cat: 'Instagram' },
+  // Facebook
+  { id: 'fb-post',     label: 'Facebook Post',              w: 1200, h: 630,  cat: 'Facebook'  },
+  { id: 'fb-cover',    label: 'Facebook Cover Photo',       w: 820,  h: 360,  cat: 'Facebook'  },
+  // LinkedIn
+  { id: 'li-post',     label: 'LinkedIn Post (landscape)',  w: 1200, h: 627,  cat: 'LinkedIn'  },
+  { id: 'li-post-sq',  label: 'LinkedIn Post (square)',     w: 1200, h: 1200, cat: 'LinkedIn'  },
+  { id: 'li-banner',   label: 'LinkedIn Profile Banner',    w: 1584, h: 396,  cat: 'LinkedIn'  },
+  { id: 'li-ad',       label: 'LinkedIn Carousel Ad',       w: 1080, h: 1080, cat: 'LinkedIn'  },
+  // Twitter / X
+  { id: 'tw-post',     label: 'Twitter / X Post',          w: 1200, h: 675,  cat: 'Twitter/X' },
+  { id: 'tw-header',   label: 'Twitter / X Header',        w: 1500, h: 500,  cat: 'Twitter/X' },
+  // TikTok
+  { id: 'tiktok',      label: 'TikTok Photo / Video',      w: 1080, h: 1920, cat: 'TikTok'    },
+  // Pinterest
+  { id: 'pin',         label: 'Pinterest Standard Pin',    w: 1000, h: 1500, cat: 'Pinterest' },
+  // YouTube
+  { id: 'yt-thumb',    label: 'YouTube Thumbnail',         w: 1280, h: 720,  cat: 'YouTube'   },
+  { id: 'yt-banner',   label: 'YouTube Channel Banner',    w: 2560, h: 1440, cat: 'YouTube'   },
+  // Email
+  { id: 'email',       label: 'Email Header',              w: 1200, h: 400,  cat: 'Email'     },
+  { id: 'newsletter',  label: 'Newsletter Hero',           w: 1200, h: 800,  cat: 'Email'     },
+  // WhatsApp
+  { id: 'wa-status',   label: 'WhatsApp Status',           w: 1080, h: 1920, cat: 'WhatsApp'  },
+  // Custom
+  { id: 'custom',      label: 'Custom size…',              w: null, h: null, cat: 'Custom'    },
 ];
 
-const BUILDER_ELEMENTS = [
-  'Arrow pointing to subject',
-  'Yellow highlight box behind text',
-  'Split screen / divider',
-  'Glow / neon effect',
-  'Brand logo badge',
-  'Graph / chart',
-  'Before/After',
-  'Dark cinematic bars',
-  'Circular portrait frame',
-  'Emoji overlay',
-  'Number / stat callout',
-  'Floating text bubble',
+// ── 10 design style categories ────────────────────────────────────────────────
+const DESIGN_STYLES = [
+  {
+    id: 'editorial',
+    label: 'Editorial Illustration',
+    icon: '✏',
+    desc: 'Magazine-quality ink art — New Yorker, Monocle, Bloomberg Businessweek',
+  },
+  {
+    id: 'flat',
+    label: 'Flat / Geometric',
+    icon: '◼',
+    desc: 'Bold 2D vector, limited palette, purposeful whitespace, no shadows',
+  },
+  {
+    id: 'isometric',
+    label: 'Isometric',
+    icon: '⬡',
+    desc: '3D axonometric grid — SaaS, tech, productivity aesthetic',
+  },
+  {
+    id: '3d-render',
+    label: '3D Render / CGI',
+    icon: '◎',
+    desc: 'Photorealistic studio render — glass, metal, clay, product viz',
+  },
+  {
+    id: 'cartoon',
+    label: 'Cartoonist / Character',
+    icon: '☺',
+    desc: 'Expressive characters, comic warmth, bold outlines, cel shading',
+  },
+  {
+    id: 'brutalism',
+    label: 'Brutalism',
+    icon: '▬',
+    desc: 'Raw type-first, thick borders, deconstructed grid, zine energy',
+  },
+  {
+    id: 'swiss',
+    label: 'Swiss / Grid Style',
+    icon: '▦',
+    desc: 'International Typographic Style — Helvetica, strict grid, modernist poster',
+  },
+  {
+    id: 'glass',
+    label: 'Glass / Bento UI',
+    icon: '⬜',
+    desc: 'Frosted glass panels, bento cards, dark-mode ambient glow',
+  },
+  {
+    id: 'handdrawn',
+    label: 'Hand-drawn / Organic',
+    icon: '〰',
+    desc: 'Sketch texture, watercolour wash, imperfect ink strokes, human warmth',
+  },
+  {
+    id: 'luxury',
+    label: 'Dark Luxury',
+    icon: '◆',
+    desc: 'Premium brand — near-black, gold type, editorial serif, moody light',
+  },
 ];
 
-const BUILDER_RATIOS = [
-  { id: 'wide',     label: '16:9', w: 1280, h: 720  },
-  { id: 'square',   label: '1:1',  w: 1000, h: 1000 },
-  { id: 'vertical', label: '9:16', w: 720,  h: 1280 },
-  { id: 'portrait', label: '4:5',  w: 1000, h: 1250 },
+// Image models shared with thumbnail tab (defined in ci-tabs.jsx, already in window scope)
+const ST_IMG_MODELS = [
+  { id: 'poll-flux',  label: 'Free · FLUX — no key needed',                  provider: 'pollinations', pmodel: 'flux'  },
+  { id: 'poll-turbo', label: 'Free · Turbo — faster, no key',                provider: 'pollinations', pmodel: 'turbo' },
+  { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA (needs proxy)', provider: 'nvidia'       },
+  { id: 'gemini-2.5-flash-image',            label: 'Gemini — edits YOUR image (Google key)', provider: 'gemini'     },
+  { id: 'reve/create-image',                 label: 'Reve — image (Reve key)',                provider: 'reve'       },
 ];
 
-const OUTPUT_TOOLS = [
-  { id: 'chatgpt', label: 'ChatGPT',       icon: '💬', url: 'https://chatgpt.com/',          useQ: true,  note: 'Prompt pre-filled -- paste your photo(s) with Ctrl+V, then press enter' },
-  { id: 'gemini',  label: 'Google Gemini', icon: '✨', url: 'https://gemini.google.com/app', useQ: false, note: 'Free -- prompt copied, paste it in and attach your photo(s)' },
-];
-
-function bReadImage(file, cb) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const url = reader.result;
-    cb({ mime: file.type || 'image/png', data: String(url).split(',')[1] || '', preview: url, name: file.name });
-  };
-  reader.readAsDataURL(file);
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function stGcd(a, b) { return b === 0 ? a : stGcd(b, a % b); }
+function stRatio(w, h) {
+  if (!w || !h) return '';
+  const g = stGcd(w, h);
+  const rw = w / g, rh = h / g;
+  // Simplify very large ratios to decimals
+  if (rw > 20 || rh > 20) return (w / h).toFixed(2) + ':1';
+  return rw + ':' + rh;
 }
 
-function bLoadBrand() {
-  try { return JSON.parse(localStorage.getItem('ci_brandkit')) || { colors: [], note: '' }; }
-  catch (e) { return { colors: [], note: '' }; }
+// Snap to nearest multiple of 64 for FLUX compatibility, min 256
+function stFluxSize(w, h) {
+  const snap = (n) => Math.max(256, Math.round(n / 64) * 64);
+  return snap(w) + 'x' + snap(h);
 }
 
-async function bCopyImageToClipboard(dataUrl, mime) {
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  if (!navigator.clipboard || !window.ClipboardItem) throw new Error('not supported');
-  await navigator.clipboard.write([new ClipboardItem({ [blob.type || mime || 'image/png']: blob })]);
+function stFallbackPrompt(style, desc, w, h) {
+  const kw = {
+    editorial:  'editorial illustration, ink linework, Pantone spot colors, magazine print quality, New Yorker style, limited color palette',
+    flat:       'flat vector design, geometric shapes, bold 2-color palette, negative space, Dribbble-quality, no gradients no shadows',
+    isometric:  'isometric vector illustration, 30-degree axonometric projection, clean technical linework, muted palette with accent color',
+    '3d-render':'3D render, studio HDRI lighting, physically-based materials, product visualization, Keyshot quality, crisp shadows',
+    cartoon:    'character illustration, bold outlines, cel shading, flat color, expressive pose, warm palette, vector art, Procreate feel',
+    brutalism:  'brutalist design, raw bold typography, thick black border, high contrast, deconstructed grid, zine aesthetic',
+    swiss:      'Swiss International Style, Helvetica, strict column grid, modernist poster, generous whitespace, 2-color Pantone',
+    glass:      'glassmorphism UI, frosted glass cards, dark navy background, bento grid, ambient gradient glow, Apple design system',
+    handdrawn:  'hand-drawn ink illustration, watercolour wash, sketch texture, organic imperfect linework, warm cream paper background',
+    luxury:     'dark luxury brand design, near-black background, gold foil typography, elegant Didot serif, editorial fashion aesthetic',
+  }[style] || 'professional graphic design, clean layout, strong visual hierarchy';
+  const orient = (w && h) ? (w > h ? 'horizontal landscape composition' : w < h ? 'vertical portrait composition' : 'square composition') : '';
+  return [desc, kw, orient, 'no watermark, professional quality'].filter(Boolean).join(', ');
 }
 
-function BuilderTab() {
-  const mood = 'lime';
-  const m = BM[mood];
+function buildStudioSystem(r, styleObj, styleGuide, w, h, platformLabel) {
+  const orientation = !w || !h ? 'square' : w > h ? 'landscape / horizontal' : w < h ? 'portrait / vertical' : 'square';
+  return [
+    'You are a world-class art director and image-prompt engineer with 20 years at top design agencies (Pentagram, Collins, Wolff Olins). Your one job: transform a design brief into a single, precise image generation prompt that produces professional, non-AI-looking graphic design.',
+    '',
+    r.systemGuidance ? 'ART DIRECTION PRINCIPLES — UNIVERSAL:\n' + r.systemGuidance : '',
+    '',
+    styleGuide ? 'STYLE — ' + (styleObj ? styleObj.label.toUpperCase() : '') + ':\n' + styleGuide : '',
+    '',
+    'PLATFORM: ' + platformLabel + (w && h ? ' (' + w + '×' + h + 'px, ' + orientation + ')' : ''),
+    '',
+    'OUTPUT RULES (non-negotiable):',
+    '1. Return ONLY the image generation prompt — no preamble, no explanation, no markdown, no quotes.',
+    '2. Length: 200–500 characters. Specific > long.',
+    '3. Structure: subject + composition → style vocabulary → color palette → quality/craft terms.',
+    '4. NEVER use: stunning, beautiful, amazing, masterpiece, epic, cinematic (unless 3D film), aesthetic vibe, hyperrealistic.',
+    '5. DO use: specific color references (Pantone 485C, #1A1A2E, warm ivory), named typefaces where relevant, professional craft terms (grid system, leading, Bézier, print-ready, CMYK).',
+    '6. End with 2–3 quality anchors fitting the style (e.g. "vector Bézier precision, offset print quality" or "Keyshot studio render, product photography lighting").',
+  ].filter(Boolean).join('\n');
+}
 
-  const [ratio, setRatio] = React.useState('wide');
-  const currentRatio = BUILDER_RATIOS.find(r => r.id === ratio) || BUILDER_RATIOS[0];
-
-  const [people, setPeople] = React.useState([]);
-  function addPerson() { if (people.length < 10) setPeople(ps => [...ps, { photo: null, expression: 'excited', desc: '' }]); }
-  function setPersonPhoto(i, file) { bReadImage(file, img => setPeople(ps => ps.map((p, j) => j === i ? { ...p, photo: img } : p))); }
-  function clearPersonPhoto(i) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, photo: null } : p)); }
-  function setPersonExpr(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, expression: v } : p)); }
-  function setPersonDesc(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, desc: v } : p)); }
-  function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
-
-  const [headline, setHeadline] = React.useState('');
-  const [subline, setSubline] = React.useState('');
-  const [elements, setElements] = React.useState([]);
-  const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
-
-  const [refImg, setRefImg] = React.useState(null);
-  const [refOverride, setRefOverride] = React.useState(false);
-  const [refState, setRefState] = React.useState('idle');
-  const [refAnalysis, setRefAnalysis] = React.useState('');
-
-  const [analyseImg, setAnalyseImg] = React.useState(null);
-  const [analyseDesc, setAnalyseDesc] = React.useState('');
-  const [analyseState, setAnalyseState] = React.useState('idle');
-  const [analyseSummary, setAnalyseSummary] = React.useState('');
-  const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
-
-  const [extraNote, setExtraNote] = React.useState('');
-  const [brand] = React.useState(bLoadBrand);
-  const brandColors = (brand.colors || []).filter(Boolean);
-  const hasBrand = brandColors.length > 0 || !!brand.note;
-
-  const [prompt, setPrompt] = React.useState('');
-  const [built, setBuilt] = React.useState(false);
-  const [copyFeedback, setCopyFeedback] = React.useState('');
-
-  const hasKey = !!(window.getKey && window.getKey());
-  const canCloud = !!(window.canRun && window.canRun()); // own key OR free Claude cloud
-
-  // Research-grounded system prompt for the cloud check (NOT the report shape).
-  function thumbSystem() {
-    const r = (window.getResearch && window.getResearch('thumbnail')) || {};
-    const core = (window.liveResearch && window.liveResearch().core) || '';
-    return [
-      'You are a world-class YouTube thumbnail strategist. You judge thumbnails purely by what earns the click, grounded in the research below. Be specific and blunt -- no generic advice.',
-      core ? 'RESEARCH PRINCIPLES:\n' + core : '',
-      r.systemGuidance ? 'THUMBNAIL METHODOLOGY:\n' + r.systemGuidance : '',
-      'You will get a thumbnail as an image if one is attached, otherwise as a text description. Analyse it and return ONLY a single valid JSON object (no markdown, no text around it) in EXACTLY this shape:',
-      '{ "whatsWrong": ["specific problem tied to a real click-through principle", "... up to 6"], "improvedPrompt": "one complete, ready-to-paste image-generation prompt for ChatGPT/Gemini that keeps the SAME person, topic and exact text but fixes every problem -- be concrete about composition, expression, colour, contrast and text size/placement", "headline": "exact main text or empty", "subline": "secondary text or empty", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only from: ' + BUILDER_ELEMENTS.join(', ') + '"] }',
-      'Never invent text, people or brands not present in the thumbnail. Write in the same language as the thumbnail content.',
-    ].filter(Boolean).join('\n\n');
+// ── Image drop for reference upload ──────────────────────────────────────────
+function StudioImageDrop({ image, onPick, onClear }) {
+  const id = React.useRef('st-drop-' + Math.random().toString(36).slice(2, 7)).current;
+  function readFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = reader.result;
+      const data = String(url).split(',')[1] || '';
+      onPick({ mime: file.type || 'image/png', data, preview: url, name: file.name });
+    };
+    reader.readAsDataURL(file);
   }
-
-  // Wipe everything from a previous analysis so a new upload starts clean.
-  function clearForm() {
-    setHeadline(''); setSubline(''); setPeople([]); setElements([]);
-    setFeedback([]); setPrompt(''); setBuilt(false);
-    setAnalyseSummary(''); setAnalyseDesc('');
-  }
-
-  // Cloud check: works free inside Claude (text description) OR with an API key
-  // (image vision). Finds what's wrong per the research and writes the fixed prompt.
-  async function cloudCheck() {
-    if (!canCloud) { setAnalyseState('nokey'); return; }
-    if (!analyseImg && !analyseDesc.trim()) { setAnalyseState('needinput'); return; }
-    setAnalyseState('loading'); setFeedback([]); setAnalyseSummary('');
-    try {
-      const userText = (analyseDesc.trim()
-        ? 'Thumbnail description from the creator:\n' + analyseDesc.trim()
-        : 'Analyse the attached thumbnail image.')
-        + (headline.trim() ? '\nKnown headline text: "' + headline.trim() + '"' : '')
-        + '\n\nReturn the JSON now.';
-      // Only send the image to the vision model when the user has their own key;
-      // the free Claude cloud is text-only, so it reads the description instead.
-      const images = (hasKey && analyseImg) ? [analyseImg] : [];
-      const { text } = await window.callClaude({ system: thumbSystem(), userText, images, maxTokens: 1600 });
-      const parsed = JSON.parse((String(text).match(/\{[\s\S]*\}/) || ['null'])[0]);
-      if (!parsed) { setAnalyseState('error'); return; }
-      // Replace fields unconditionally so a new thumbnail fully overwrites the
-      // last one (empty values clear the old text instead of leaving it behind).
-      setHeadline(parsed.headline || '');
-      setSubline(parsed.subline || '');
-      setPeople(Array.isArray(parsed.people) ? parsed.people.slice(0, 10).map(p => ({
-        photo: null,
-        expression: BUILDER_EXPRESSIONS.find(e => e.id === p.expression) ? p.expression : 'none',
-        desc: p.desc || '',
-      })) : []);
-      setElements(Array.isArray(parsed.elements) ? parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)) : []);
-      setFeedback(Array.isArray(parsed.whatsWrong) ? parsed.whatsWrong.filter(Boolean).slice(0, 6) : []);
-      if (parsed.improvedPrompt) { setPrompt(String(parsed.improvedPrompt)); setBuilt(true); }
-      setAnalyseSummary(hasKey && analyseImg ? 'Checked your image with the research.' : 'Checked your description with the research (free cloud).');
-      setAnalyseState('done');
-      setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 140);
-    } catch (e) {
-      setAnalyseState(String(e && e.message) === 'NO_KEY' ? 'nokey' : 'error');
-    }
-  }
-
-  async function analyzeRef() {
-    const key = window.getKey ? window.getKey() : null;
-    if (!key || !refImg) return;
-    setRefState('loading');
-    try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: window.getModel ? window.getModel() : 'claude-sonnet-4-6',
-          max_tokens: 350,
-          system: 'Extract visual design properties. Return ONLY JSON.',
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: refImg.mime, data: refImg.data } },
-            { type: 'text', text: 'Analyse this thumbnail. Return JSON: { "layout": "...", "colors": "...", "textStyle": "...", "mood": "...", "keyElements": "..." }' },
-          ]}],
-        }),
-      });
-      const data = await resp.json();
-      const raw = (data.content?.[0]?.text || '').trim();
-      const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || 'null');
-      if (parsed) setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
-      setRefState('done');
-    } catch (e) { setRefState('error'); }
-  }
-
-  function buildPrompt() {
-    const lines = [];
-    lines.push(`Create a thumbnail image (${currentRatio.label} aspect ratio, ${currentRatio.w}x${currentRatio.h}px).`);
-    lines.push('');
-    if (people.length > 0) {
-      lines.push(`PEOPLE: ${people.length} person${people.length > 1 ? 's' : ''}.`);
-      people.forEach((p, i) => {
-        const ex = BUILDER_EXPRESSIONS.find(e => e.id === p.expression);
-        const exText = ex && ex.id !== 'none' ? `expression: ${ex.label}` : 'natural expression';
-        lines.push(`- Person ${i + 1}${p.photo ? ` (see photo ${i + 1})` : ''} -- ${exText}${p.desc.trim() ? `, looks like: ${p.desc.trim()}` : ''}.`);
-      });
-      lines.push('');
-    }
-    if (headline.trim() || subline.trim()) {
-      lines.push('TEXT ON THUMBNAIL:');
-      if (headline.trim()) lines.push(`- Main headline: "${headline.trim()}" -- large, bold, dominant.`);
-      if (subline.trim()) lines.push(`- Sub-text: "${subline.trim()}" -- smaller, secondary.`);
-      lines.push('');
-    }
-    if (elements.length > 0) { lines.push(`VISUAL ELEMENTS: ${elements.join('. ')}.`); lines.push(''); }
-    // Colour is only added when the user actually set brand colours (or notes).
-    // No auto-filled/random palette -- that caused unwanted, off-brand colours.
-    if (hasBrand && (refOverride || !refImg)) {
-      const colorRoles = brandColors.map((c, i) => {
-        const role = i === 0 ? 'Primary/background' : i === 1 ? 'Accent/text' : i === 2 ? 'Secondary accent' : 'Highlight';
-        return `${role}: ${c}`;
-      });
-      const cp = [colorRoles.length ? `MANDATORY palette -- ${colorRoles.join('; ')}.` : '', brand.note ? `Brand notes: ${brand.note}.` : ''].filter(Boolean).join(' ');
-      lines.push(`COLOUR (use these exact colours): ${cp} Do not substitute or ignore these.`); lines.push('');
-    }
-    if (refImg) {
-      if (refAnalysis) {
-        const al = refOverride && hasBrand ? refAnalysis.split('\n').filter(l => !l.startsWith('colors')).join('\n') : refAnalysis;
-        lines.push('STYLE REFERENCE (match this image visual DNA):'); lines.push(al);
-        if (refOverride && hasBrand) lines.push('Apply brand colours above instead of reference colours.');
-      } else {
-        lines.push(`STYLE: Match layout and energy of the attached reference image.${refOverride && hasBrand ? ' Use brand colours above instead.' : ''}`);
-      }
-      lines.push('');
-    }
-    if (extraNote.trim()) { lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`); lines.push(''); }
-    lines.push('Make it bold, high-contrast, impossible to ignore at small thumbnail size. Professional photography and design quality.');
-    const p = lines.join('\n');
-    setPrompt(p); setBuilt(true);
-    setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-  }
-
-  function openIn(tool) {
-    // Route through the shared handoffs (ChatGPT pre-fills via URL; Gemini copies
-    // synchronously so the paste actually works).
-    if (tool.id === 'chatgpt' && window.openInChatGPT) return window.openInChatGPT(prompt);
-    if (tool.id === 'gemini' && window.openInGemini) return window.openInGemini(prompt);
-    try { window.copyText && window.copyText(prompt); } catch (e) {}
-    if (tool.useQ) window.open(tool.url + '?q=' + encodeURIComponent(prompt.slice(0, 6000)), '_blank', 'noopener,noreferrer');
-    else window.open(tool.url, '_blank', 'noopener,noreferrer');
-  }
-
-  async function copyPhoto(person, idx) {
-    if (!person.photo) return;
-    try { await bCopyImageToClipboard(person.photo.preview, person.photo.mime); setCopyFeedback('ok-' + idx); }
-    catch (e) { setCopyFeedback('fail-' + idx); }
-    setTimeout(() => setCopyFeedback(''), 2200);
-  }
-
-  async function copyRefImgFn() {
-    try { await bCopyImageToClipboard(refImg.preview, refImg.mime); setCopyFeedback('ref-ok'); }
-    catch (e) { setCopyFeedback('ref-fail'); }
-    setTimeout(() => setCopyFeedback(''), 2200);
-  }
-
-  const photoPeople = people.filter(p => p.photo);
-
   return (
-    <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
-      <BWH mood={mood} eyebrow="Prompt Studio" title="Build your thumbnail prompt"
-        sub="Check your current thumbnail free (it tells you what's wrong and writes the fix), or build one from scratch -- then send it to ChatGPT or Gemini." />
-
-      {/* CLOUD CHECK -- free, no API key */}
-      <BB mood={mood} title="Check & fix my thumbnail" desc="Runs free inside Claude -- no API key. Describe your current thumbnail (or upload it if you have an API key for image vision). It finds what's wrong using the research and writes the fixed prompt below.">
-        {analyseImg && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-            <img src={analyseImg.preview} alt="" style={{ width: 120, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
-            <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
-              onClick={() => { setAnalyseImg(null); clearForm(); setAnalyseState('idle'); }}>Remove image</button>
-          </div>
-        )}
-        {!analyseImg && (
-          <label className="ci-drop" style={{ minHeight: 72, flexDirection: 'row', gap: 8, cursor: 'pointer', padding: 12, marginBottom: 10 }}>
-            <input type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { clearForm(); setAnalyseState('idle'); setAnalyseImg(img); })} />
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
-            <span style={{ fontSize: 12.5 }}>Upload your thumbnail <span style={{ color: 'var(--text-5)' }}>(optional -- only read with an API key)</span></span>
-          </label>
-        )}
-        <label className="ci-label">Describe your current thumbnail</label>
-        <textarea className="ci-textarea" style={{ minHeight: 80 }} value={analyseDesc} onChange={e => setAnalyseDesc(e.target.value)}
-          placeholder="e.g. My face on the right looking normal, big white text 'NEW PHONE' on a grey background, phone in my hand on the left." />
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
-          <window.GlowButton mood={mood} onClick={cloudCheck} style={{ opacity: analyseState === 'loading' ? 0.65 : 1 }}>
-            {analyseState === 'loading' ? 'Checking...' : analyseState === 'done' ? 'Check again' : (hasKey && analyseImg ? 'Check my image (free)' : 'Check & fix it (free)')}
-          </window.GlowButton>
-          {analyseState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Reading the research...</span>}
-          {analyseState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>{analyseSummary}</span>}
-          {analyseState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Couldn't read the result -- try again.</span>}
-          {analyseState === 'needinput' && <span style={{ fontSize: 12, color: '#F0C85A' }}>Describe or upload your thumbnail first.</span>}
-        </div>
-        {analyseState === 'nokey' && (
-          <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 10, padding: '10px 12px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)', lineHeight: 1.5 }}>
-            To check for free, open this app inside <b>Claude.ai</b> (it uses Claude's cloud, no key). Or add your own API key in Settings.
-          </div>
-        )}
-        {feedback.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>What's wrong (from the research):</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {feedback.map((f, i) => (
-                <div key={i} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
-                  <span style={{ color: m.accentFrom, fontWeight: 800, flexShrink: 0 }}>{i + 1}.</span>
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10 }}>The fixed prompt is ready below -- send it to ChatGPT or Gemini.</div>
-          </div>
-        )}
-      </BB>
-
-      {/* ASPECT RATIO */}
-      <BB mood={mood}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>Aspect ratio</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {BUILDER_RATIOS.map(r => (
-            <button key={r.id} className="pill" onClick={() => setRatio(r.id)}
-              style={{ height: 36, padding: '0 18px', fontFamily: 'var(--font-mono)', fontSize: 13.5, fontWeight: 700,
-                background: ratio === r.id ? `${m.accentFrom}1a` : 'transparent',
-                borderColor: ratio === r.id ? m.accentGlow : 'var(--stroke-1)',
-                color: ratio === r.id ? m.accentFrom : 'var(--text-3)' }}>
-              {r.label}
-            </button>
-          ))}
-        </div>
-        <div style={{ marginTop: 7, fontSize: 11.5, color: 'var(--text-5)' }}>{currentRatio.w} x {currentRatio.h} px</div>
-      </BB>
-
-      {/* PEOPLE */}
-      <BB mood={mood} title="People" desc="Add up to 10 subjects. Describe appearance -- it goes into the prompt. Upload a photo only to paste manually into ChatGPT.">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {people.map((p, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.2)', border: '1px solid var(--stroke-1)' }}>
-              <div style={{ flexShrink: 0 }}>
-                {p.photo ? (
-                  <div style={{ position: 'relative', width: 58 }}>
-                    <img src={p.photo.preview} alt="" style={{ width: 58, height: 58, objectFit: 'cover', borderRadius: 8, display: 'block', border: '1px solid var(--stroke-1)' }} />
-                    <button onClick={() => clearPersonPhoto(i)}
-                      style={{ position: 'absolute', top: -5, right: -5, width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.8)', color: '#fff', fontSize: 8, cursor: 'pointer', lineHeight: '16px', textAlign: 'center', padding: 0 }}>x</button>
-                  </div>
-                ) : (
-                  <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 58, height: 58, borderRadius: 8, border: '1.5px dashed var(--stroke-2)', cursor: 'pointer', color: 'var(--text-5)', gap: 2, background: 'rgba(255,255,255,0.02)' }}>
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => e.target.files[0] && setPersonPhoto(i, e.target.files[0])} />
-                    <span style={{ fontSize: 20, lineHeight: 1 }}>+</span>
-                    <span style={{ fontSize: 9 }}>photo</span>
-                  </label>
-                )}
-              </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Person {i + 1}</div>
-                <input className="ci-input" style={{ fontSize: 12 }} value={p.desc} onChange={e => setPersonDesc(i, e.target.value)}
-                  placeholder="Describe appearance -- e.g. man in 30s, brown hair, glasses" />
-                <select className="ci-input" style={{ fontSize: 12, height: 30, padding: '0 6px', appearance: 'auto' }}
-                  value={p.expression} onChange={e => setPersonExpr(i, e.target.value)}>
-                  {BUILDER_EXPRESSIONS.map(ex => <option key={ex.id} value={ex.id}>{ex.emoji} {ex.label}</option>)}
-                </select>
-              </div>
-              <button onClick={() => removePerson(i)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-5)', cursor: 'pointer', fontSize: 14, padding: '2px 4px', lineHeight: 1, flexShrink: 0, marginTop: 2 }}>x</button>
-            </div>
-          ))}
-        </div>
-        {people.length < 10 && (
-          <button className="ci-copybtn" style={{ marginTop: people.length > 0 ? 8 : 0, fontSize: 12.5 }} onClick={addPerson}>+ Add person</button>
-        )}
-        {people.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 6 }}>No people added -- leave empty to generate without subjects.</div>}
-      </BB>
-
-      {/* TEXT */}
-      <BB mood={mood} title="Text on thumbnail" desc="Optional -- leave blank to skip">
-        <input className="ci-input" value={headline} onChange={e => setHeadline(e.target.value)} placeholder='Main headline -- e.g. I QUIT MY JOB' />
-        <input className="ci-input" style={{ marginTop: 8 }} value={subline} onChange={e => setSubline(e.target.value)} placeholder="Sub-text -- e.g. what happened next" />
-      </BB>
-
-      {/* VISUAL ELEMENTS */}
-      <BB mood={mood} title="Visual elements" desc="Pick what you want in the thumbnail">
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {BUILDER_ELEMENTS.map(el => {
-            const on = elements.includes(el);
-            return (
-              <button key={el} className="pill" onClick={() => toggleEl(el)}
-                style={{ height: 32, borderColor: on ? m.accentGlow : 'var(--stroke-1)', color: on ? m.accentFrom : 'var(--text-3)', background: on ? `${m.accentFrom}1a` : 'transparent' }}>
-                {on ? '+ ' : '+ '}{el}
-              </button>
-            );
-          })}
-        </div>
-      </BB>
-
-      {/* REFERENCE IMAGE */}
-      <BB mood={mood} title="Reference image" desc="Optional -- upload a thumbnail whose style you want to match">
-        {!refImg ? (
-          <label className="ci-drop" style={{ minHeight: 90, flexDirection: 'column', gap: 6, cursor: 'pointer', padding: 14 }}>
-            <input type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { setRefImg(img); setRefAnalysis(''); setRefState('idle'); })} />
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
-            <span style={{ fontSize: 13 }}>Drop a reference thumbnail</span>
-          </label>
-        ) : (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-            <img src={refImg.preview} alt="" style={{ width: 140, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
-                <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }}
-                  onClick={() => { setRefImg(null); setRefAnalysis(''); setRefState('idle'); }}>Remove</button>
-                {window.getKey?.() && refState === 'idle' && (
-                  <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }} onClick={analyzeRef}>Detect style</button>
-                )}
-                {refState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Detecting...</span>}
-                {refState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A' }}>Style detected</span>}
-                {refState === 'error' && <span style={{ fontSize: 12, color: '#f5788c' }}>Detection failed</span>}
-              </div>
-              {refAnalysis && <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6, padding: '8px 10px', background: 'rgba(0,0,0,0.2)', borderRadius: 8, marginBottom: 10 }}>{refAnalysis}</div>}
-              {hasBrand && <BTg on={refOverride} onChange={setRefOverride} mood={mood}>Override reference colours with my brand colours</BTg>}
-              {!window.getKey?.() && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6 }}>Add a Claude API key in Settings to auto-detect style.</div>}
-            </div>
-          </div>
-        )}
-      </BB>
-
-      {/* EXTRA DIRECTION */}
-      <BB mood={mood} title="Extra direction" desc="Optional -- any vibe, constraint or detail you want included">
-        <textarea className="ci-textarea" style={{ minHeight: 72 }} value={extraNote} onChange={e => setExtraNote(e.target.value)}
-          placeholder='e.g. Dark dramatic lighting. Minimal background. Two hosts facing each other.' />
-      </BB>
-
-      <div style={{ marginTop: 6 }}>
-        <window.GlowButton mood={mood} size="lg" onClick={buildPrompt} style={{ width: '100%' }}>
-          Build my prompt
-        </window.GlowButton>
-      </div>
-
-      {built && prompt && (
-        <div id="builder-output" style={{ marginTop: 20 }}>
-
-          {/* Generate in ChatGPT or Gemini */}
-          <div style={{ padding: '18px 18px', borderRadius: 14, background: `linear-gradient(135deg, ${m.orbB}24, var(--surface-1))`, border: `1.5px solid ${m.accentGlow}` }}>
-            <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-1)', marginBottom: 4, fontFamily: 'var(--font-display)' }}>Generate it in ChatGPT or Gemini</div>
-            <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.55 }}>
-              These edit your real face accurately. {(photoPeople.length > 0 || refImg) ? 'Copy each photo below, open a tool, paste the photo(s), then the prompt is already there.' : 'Open a tool -- the prompt is copied and pre-filled -- then press enter.'}
-            </div>
-            {(photoPeople.length > 0 || refImg) && (
-              <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.22)', border: '1px solid var(--stroke-1)' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>Copy images to clipboard -- one at a time:</div>
-                <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                  {people.map((person, i) => {
-                    if (!person.photo) return null;
-                    const isFail = copyFeedback === 'fail-' + i;
-                    return (
-                      <button key={i} className="ci-copybtn"
-                        style={{ height: 34, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: isFail ? '#f5788c88' : undefined, color: isFail ? '#f5788c' : undefined }}
-                        onClick={() => copyPhoto(person, i)}>
-                        <img src={person.photo.preview} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
-                        {copyFeedback === 'ok-' + i ? 'Copied!' : isFail ? 'Failed' : `Copy person ${i + 1}`}
-                      </button>
-                    );
-                  })}
-                  {refImg && (
-                    <button className="ci-copybtn"
-                      style={{ height: 34, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                      onClick={copyRefImgFn}>
-                      <img src={refImg.preview} alt="" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover' }} />
-                      {copyFeedback === 'ref-ok' ? 'Copied!' : copyFeedback === 'ref-fail' ? 'Failed' : 'Copy reference'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-            <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 4 }}>Your prompt (edit if needed):</div>
-            <textarea className="ci-textarea" style={{ minHeight: 130, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}
-              value={prompt} onChange={e => setPrompt(e.target.value)} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {OUTPUT_TOOLS.map(tool => (
-                <div key={tool.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.18)', border: '1px solid var(--stroke-1)' }}>
-                  <span style={{ fontSize: 18 }}>{tool.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-1)' }}>{tool.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>{tool.note}</div>
-                  </div>
-                  <button className="ci-copybtn" style={{ height: 34, padding: '0 13px', background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 600, fontSize: 12.5 }}
-                    onClick={() => openIn(tool)}>Open</button>
-                  <button className="ci-copybtn" style={{ height: 34, padding: '0 10px', fontSize: 12 }}
-                    onClick={() => { window.copyText && window.copyText(prompt); }}>Copy</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
+    <div style={{ position: 'relative' }}>
+      <label htmlFor={id} className="ci-drop" style={{ minHeight: 100, flexDirection: 'column', gap: 6, overflow: 'hidden', padding: image ? 0 : 10, cursor: 'pointer' }}>
+        <input id={id} type="file" accept="image/*" style={{ display: 'none' }}
+          onChange={e => readFile(e.target.files[0])} />
+        {image
+          ? <img src={image.preview} alt="reference" style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 9 }} />
+          : <>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
+              <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Drop a reference image (optional)</span>
+            </>}
+      </label>
+      {image && (
+        <button onClick={onClear} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.65)', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
       )}
     </div>
   );
 }
-window.BuilderTab = BuilderTab;
 
-
-</script>
-<script type="text/babel" data-presets="react">
-/* ===== ci-platform.jsx ===== */
-// ContentIntel -- Platform IQ tab
-// Mosseri AMA + YouTube algorithm data (2024-2026)
-
-const { MOODS: PLM, Block: PLB, WorkHead: PLWH } = window;
-
-// ── Data ──────────────────────────────────────────────────────────────────────
-
-const MOSSERI_CARDS = [
-  { n:"1",  title:"Top 3 Ranking Signals (Jan 2025)",          highlight:false, source:"Mosseri, January 2025",
-    body:"Watch Time (#1 across all surfaces), Sends per Reach (DM shares -- 3-5x more valuable for new audiences), Likes per Reach. Applies to Feed, Reels, Stories and Explore." },
-  { n:"2",  title:"Watch Time -- Users Decide in 1.7 Seconds", highlight:false, source:"Meta internal data, 2025",
-    body:"Meta internal data: users make stay/scroll decision in 1.7 seconds. Aim for 60%+ hold rate at the 3-second mark. Strong hooks outperform weak hooks by 5-10x in total reach." },
-  { n:"3",  title:"DM Shares -- 3-5x More Valuable Than Likes",highlight:false, source:"Mosseri + Metricool 2025",
-    body:"694K Reels sent via DM every minute (Metricool 2025). Create 'send this to someone who...' moments. Shares signal genuine human connection -- the strongest signal for non-follower reach." },
-  { n:"4",  title:"The Audition System -- How Reels Distribute", highlight:false, source:"Instagram internal system, 2025",
-    body:"Post → small non-follower test group → strong performance → wider audition. Peak visibility 6-12 hours after posting. First 30-60 minutes = most critical window. Do not post and go to sleep." },
-  { n:"5",  title:"Trial Reels -- Test Before Full Publish",    highlight:false, source:"Instagram data + Mosseri, Feb 2026",
-    body:"Shown to non-followers only. 40% of creators who use it post more Reels. 80% see increased non-follower reach. Now schedulable (Feb 2026). Compare only to other Trial Reels." },
-  { n:"6",  title:"'Your Algorithm' Feature -- Dec 2025",       highlight:false, source:"Mosseri, December 2025",
-    body:"Users can add/remove topics from Reels recommendations. Biggest structural shift to Reels in years. Niche consistency and topic clarity are now critical. Settings → Content Preferences." },
-  { n:"7",  title:"Reposts Penalty -- 10 = Banned From Recs",  highlight:false, source:"Instagram policy, 2025",
-    body:"10+ reposts within any 30-day window = completely excluded from ALL recommendations (Explore, Reels for non-followers, suggested posts). Strictly enforced. No exceptions." },
-  { n:"8",  title:"Carousels = Highest Engagement Format 2026", highlight:false, source:"Buffer data + Instagram, 2026",
-    body:"Up to 20 slides. Reshown to users who did not see all slides = multiple impression opportunities per post. First slide = hook. Buffer data (4M+ posts): carousels consistently outperform single images." },
-  { n:"9",  title:"Stories -- Hard Cap at 5-7 Per Session",     highlight:false, source:"Mosseri",
-    body:"View counts drop after the 5th Story in a session. Do not directly boost post reach but maintain follower warmth. Stickers, polls, questions increase replies = algorithmic boost. Best time: 8-10 AM India." },
-  { n:"10", title:"AI Translations = Reach Multiplier",         highlight:false, source:"Mosseri, late 2025",
-    body:"Auto-translates Reels captions + audio to Hindi, Portuguese, English, Spanish. Mosseri specifically called this out as a reach tactic. Hindi content now reaches global Indian diaspora automatically." },
-  { n:"11", title:"Captions Are An Official Ranking Factor",    highlight:false, source:"Mosseri confirmed",
-    body:"Mosseri listed captions as an official Reels ranking factor. Most users watch sound-off. Captions also help Instagram AI correctly categorize content for recommendations. Easiest improvement -- zero extra effort." },
-  { n:"12", title:"Original Content Gets 40-60% More Distribution", highlight:false, source:"Mosseri year-end memo, Dec 31 2025",
-    body:"Dec 31 2025 Mosseri memo: Instagram will prioritize raw, real human content over AI-generated material throughout 2026. Reposts receive significantly less algorithmic push." },
-  { n:"13", title:"Instagram Is Now A Search Engine",           highlight:false, source:"Mosseri",
-    body:"Instagram reads captions like Google reads page copy. Keywords in captions, titles, alt text, on-screen text all feed the search algorithm. Keyword-rich captions beat vague ones in search distribution." },
-  { n:"14", title:"Hashtags Changed Function",                  highlight:false, source:"Mosseri confirmed 2024-2025",
-    body:"Hashtags = minor topic signals for Instagram AI -- NOT discovery tools. Following hashtags removed December 2024. Use 3-5 highly relevant max. Focus on keyword-rich captions instead. 30-hashtag stacking hurts." },
-  { n:"15", title:"Comments Are Searchable Too",                highlight:false, source:"Mosseri",
-    body:"Instagram now understands comment context around posts. Ask specific questions to generate quality responses. Threaded conversations carry significant algorithmic weight." },
-  { n:"16", title:"Shares > Likes. Always.",                    highlight:false, source:"Mosseri",
-    body:"Instagram calls shares 'bringing people together' and heavily rewards it. Opinions outperform information. Relatable > educational when it comes to shareability. 'Send this to someone who...' is the most powerful CTA." },
-  { n:"17", title:"5 Rules For Recommendation Eligibility",     highlight:false, source:"Instagram policy",
-    body:"(1) No watermarks from other platforms, (2) Must include audio, (3) Under 3 minutes, (4) Original content not reposted, (5) No community guideline violations. Break any rule = follower-only distribution." },
-  { n:"18", title:"Private Sharing Is The New Viral",           highlight:false, source:"Mosseri",
-    body:"DMs, group chats, Stories sharing growing faster than public sharing. Most content travels privately before it goes public. Optimize for person-to-person shareability." },
-  { n:"19", title:"Feed Posts Still Matter",                    highlight:false, source:"Mosseri",
-    body:"Main feed remains critically important. Do not go Reels-only. Carousels still drive high saves and deep engagement. Creators who went Reels-only saw follower relationship quality decline." },
-  { n:"20", title:"The Mosseri Playbook -- One Sentence",       highlight:true,  source:"Adam Mosseri",
-    body:"Create content that a stranger can discover through search, watch until the end, and immediately send to a friend. Every strategy decision should pass this test." },
-];
-
-const PLAT_SUBTABS = {
-  instagram: [
-    { k:"reels",     label:"Reels" },
-    { k:"stories",   label:"Stories" },
-    { k:"carousels", label:"Carousels" },
-    { k:"features",  label:"New Features" },
-    { k:"seo",       label:"Search & SEO" },
-  ],
-  youtube: [
-    { k:"longform",  label:"Long-form" },
-    { k:"shorts",    label:"Shorts" },
-    { k:"seo",       label:"SEO & Search" },
-    { k:"community", label:"Community" },
-  ],
-};
-
-const PLAT_QUICK_Q = {
-  instagram: {
-    reels:     ["Best Reel length for finance content?","How does Trial Reels work?","Hook strategy for first 3 seconds?","Should I add captions to all Reels?","How many Reels per week?","Best time to post Reels in India?"],
-    stories:   ["How many Stories per day?","Do Stories boost Reel reach?","Best stickers for engagement?","When to post Stories in India?","Polls vs questions -- which works better?"],
-    carousels: ["How many slides is optimal?","First slide strategy?","Carousels vs Reels for reach?","How to get saves on carousels?","Educational carousel structure for finance?"],
-    features:  ["What is the 'Your Algorithm' feature?","How to use Trial Reels effectively?","How does AI translation boost reach?","How to reset Instagram recommendations?"],
-    seo:       ["How to use keywords in captions?","Hashtag strategy for 2025-2026?","How does Instagram search work now?","Alt text strategy on Instagram?","How to write comments that help SEO?"],
-  },
-  youtube: {
-    longform:  ["Ideal video length for finance content?","Hook strategy for YouTube?","Pattern interrupt tips to reduce drop-off?","How to use end screens and cards?","Best upload time in India?"],
-    shorts:    ["Does posting Shorts help my main channel?","Should I cross-post Reels as Shorts?","Best Shorts length for discovery?","Hook in first second -- tips?","When do Shorts go viral?"],
-    seo:       ["Keyword in title -- where exactly?","YouTube description best practices?","Do tags still matter?","How to use chapter timestamps?","How to rank a finance video in India?"],
-    community: ["How to use Community posts for growth?","Best types of Community posts?","Do polls outperform text posts?","How often to post in Community tab?","How to grow engagement via comments?"],
-  },
-};
-
-const ANALYTICS_GUIDE = {
-  instagram: [
-    { signal:"Low reach despite posting",        problem:"10+ reposts = banned from recommendations",   fix:"Stop reposting for 30 days, post original content only" },
-    { signal:"Low sends per reach",              problem:"Content not opinionated or relatable enough", fix:"Add more personal opinions, use 'send this to someone who...' CTA" },
-    { signal:"Stories views declining",          problem:"Posting too many stories",                    fix:"Cap at 5-7 per session. Never more." },
-    { signal:"Reels not reaching non-followers", problem:"Watermark, no audio, or topic unclear",       fix:"Remove watermarks, add audio, pick clear niche topic" },
-    { signal:"Low saves",                        problem:"No clear reference/value to save",            fix:"Switch to carousels with step-by-step content" },
-    { signal:"High impressions, low reach",      problem:"Content not recommended beyond followers",    fix:"Check all 5 eligibility rules. Improve hook for audition system." },
-  ],
-  youtube: [
-    { signal:"Low CTR (under 2%)",               problem:"Thumbnail or title mismatch",                 fix:"A/B test thumbnail and title separately" },
-    { signal:"Low AVD (under 30%)",              problem:"Hook or pacing problem",                      fix:"Tighten first 30 seconds. Add pattern interrupt every 2-3 min." },
-    { signal:"High impressions, low views",      problem:"Title/thumbnail not compelling",              fix:"Realign thumbnail promise with title. Research competitor thumbnails." },
-    { signal:"Low Shorts completion",            problem:"Hook too slow",                               fix:"Fix first 1-2 seconds. Start with a result or shock statement." },
-    { signal:"High watch time, low subscribers", problem:"Weak end screen / subscribe CTA",             fix:"Add explicit subscribe ask at 70% mark and in end screen" },
-    { signal:"Shorts not getting views",         problem:"Shorts can go viral weeks later",             fix:"Wait 2-3 weeks before judging Shorts performance. Never delete." },
-  ],
-};
-
-const POSTING_TIMES = {
-  instagram: {
-    reels:     ["7-9 AM IST","12-2 PM IST","7-9 PM IST"],
-    stories:   ["8-10 AM IST"],
-    best_days: ["Tuesday","Wednesday","Thursday","Friday"],
-    finance:   ["Monday mornings (salary anxiety)","Friday evenings (weekend investing mood)"],
-  },
-  youtube: {
-    longform: ["Sat-Sun 10 AM-12 PM IST","Weekdays 6-8 PM IST"],
-    shorts:   ["12-2 PM IST","6-8 PM IST"],
-    finance:  ["Monday-Wednesday (investing decision mood)"],
-  },
-};
-
-// ── Component ─────────────────────────────────────────────────────────────────
-
-function PlatformTimeRow({ label, times }) {
-  if (!times || !times.length) return null;
+// ── Style card grid ───────────────────────────────────────────────────────────
+function StyleGrid({ value, onChange, accentFrom, accentGlow }) {
   return (
-    <div style={{ display:"flex", gap:10, alignItems:"flex-start", flexWrap:"wrap" }}>
-      <div style={{ fontSize:12, fontWeight:700, color:"var(--text-4)", minWidth:110, paddingTop:3 }}>{label}</div>
-      <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-        {times.map(function(t, i) {
-          return (
-            <span key={i} style={{ padding:"3px 11px", borderRadius:20, background:"rgba(0,0,0,0.2)", border:"1px solid var(--stroke-1)", fontSize:12, color:"var(--text-2)" }}>{t}</span>
-          );
-        })}
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 7 }}>
+      {DESIGN_STYLES.map(s => {
+        const active = value === s.id;
+        return (
+          <button key={s.id} onClick={() => onChange(s.id)}
+            style={{
+              background: active ? `linear-gradient(135deg, ${accentFrom}26, ${accentFrom}0a)` : 'var(--surface-1)',
+              border: active ? `1.5px solid ${accentFrom}99` : '1.5px solid var(--stroke-1)',
+              borderRadius: 11, padding: '11px 8px 9px', cursor: 'pointer', textAlign: 'center',
+              color: 'var(--text-1)', transition: 'border-color .12s, background .12s',
+              boxShadow: active ? `0 0 10px ${accentGlow}` : 'none',
+            }}>
+            <div style={{ fontSize: 20, marginBottom: 5, lineHeight: 1 }}>{s.icon}</div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.25, marginBottom: 3, color: active ? accentFrom : 'var(--text-2)' }}>{s.label}</div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-4)', lineHeight: 1.35 }}>{s.desc}</div>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function PlatformTab() {
-  var mood = "violet";
-  var m = PLM[mood];
+// ── Platform picker ───────────────────────────────────────────────────────────
+function PlatformPicker({ value, customW, customH, onPlatform, onCustomW, onCustomH }) {
+  const cats = [...new Set(STUDIO_PLATFORMS.map(p => p.cat))];
+  const plat = STUDIO_PLATFORMS.find(p => p.id === value) || STUDIO_PLATFORMS[0];
+  return (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      <select className="ci-input" value={value} onChange={e => onPlatform(e.target.value)}
+        style={{ appearance: 'auto', flex: '1 1 240px' }}>
+        {cats.map(cat => (
+          <optgroup key={cat} label={cat}>
+            {STUDIO_PLATFORMS.filter(p => p.cat === cat).map(p => (
+              <option key={p.id} value={p.id}>
+                {p.label}{p.w ? ' — ' + p.w + '×' + p.h + 'px' : ''}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
 
-  var platRes = window.getResearch ? (window.getResearch("platform") || {}) : {};
-  var platSys = platRes.systemGuidance || "You are a platform strategy expert for Indian content creators. Answer with bullet points, 5-7 points max. Give India-specific, actionable advice.";
+      {value === 'custom' ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input className="ci-input" type="number" min="100" max="5000" value={customW}
+            onChange={e => onCustomW(e.target.value)} placeholder="W" style={{ width: 80 }} />
+          <span style={{ color: 'var(--text-4)', fontWeight: 600 }}>×</span>
+          <input className="ci-input" type="number" min="100" max="5000" value={customH}
+            onChange={e => onCustomH(e.target.value)} placeholder="H" style={{ width: 80 }} />
+          <span style={{ fontSize: 12, color: 'var(--text-4)' }}>px</span>
+        </div>
+      ) : plat.w ? (
+        <span style={{ fontSize: 12, color: 'var(--text-4)', whiteSpace: 'nowrap' }}>
+          {plat.w}×{plat.h}px · {stRatio(plat.w, plat.h)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
-  var rPlat  = React.useState("instagram");
-  var plat   = rPlat[0]; var setPlat = rPlat[1];
+// ── Main StudioTab ────────────────────────────────────────────────────────────
+function StudioTab({ onOpenKey }) {
+  const mood = 'violet';
+  const m = StM[mood];
 
-  var rSub   = React.useState("reels");
-  var sub    = rSub[0]; var setSub = rSub[1];
+  const [styleId, setStyleId]     = React.useState('editorial');
+  const [platId, setPlatId]       = React.useState('ig-post');
+  const [customW, setCustomW]     = React.useState('1080');
+  const [customH, setCustomH]     = React.useState('1080');
+  const [desc, setDesc]           = React.useState('');
+  const [refImage, setRefImage]   = React.useState(null);
+  const [genModelId, setGenModelId] = React.useState('poll-flux');
 
-  var rQ     = React.useState("");
-  var q      = rQ[0]; var setQ = rQ[1];
+  const [phase, setPhase]             = React.useState('idle'); // idle | crafting | generating | done | error
+  const [craftedPrompt, setCrafted]   = React.useState('');
+  const [editedPrompt, setEdited]     = React.useState('');
+  const [genOut, setGenOut]           = React.useState(null);
+  const [genVia, setGenVia]           = React.useState('');
+  const [errMsg, setErrMsg]           = React.useState('');
 
-  var rState = React.useState("idle");
-  var askState = rState[0]; var setAskState = rState[1];
+  const plat = STUDIO_PLATFORMS.find(p => p.id === platId) || STUDIO_PLATFORMS[0];
+  const w = platId === 'custom' ? (parseInt(customW) || 1080) : plat.w;
+  const h = platId === 'custom' ? (parseInt(customH) || 1080) : plat.h;
+  const selStyle = DESIGN_STYLES.find(s => s.id === styleId) || DESIGN_STYLES[0];
+  const hasKey = !!window.getKey();
 
-  var rAns   = React.useState("");
-  var answer = rAns[0]; var setAnswer = rAns[1];
-
-  var rErr   = React.useState("");
-  var askErr = rAns[0]; var setAskErr = rErr[1];
-
-  React.useEffect(function() {
-    var tabs = PLAT_SUBTABS[plat] || [];
-    if (tabs.length) setSub(tabs[0].k);
-  }, [plat]);
-
-  function ask(question) {
-    var qText = (question || q || "").trim();
-    if (!qText) return;
-    if (question) setQ(question);
-    setAskState("loading"); setAnswer(""); setAskErr("");
-    window.callClaude({ system: platSys, userText: qText, maxTokens: 700 })
-      .then(function(res) { setAnswer(res.text || ""); setAskState("done"); })
-      .catch(function(e) {
-        if (String(e.message) === "NO_KEY") { setAskState("nokey"); return; }
-        setAskErr(e.message || "Something went wrong.");
-        setAskState("error");
-      });
+  // ── Step 1: craft the prompt via Claude ──────────────────────────────────────
+  async function craftPrompt(briefText) {
+    if (hasKey) {
+      const r = window.getResearch('studio') || {};
+      const sGuide = (r.styles || {})[styleId] || '';
+      const sys = buildStudioSystem(r, selStyle, sGuide, w, h, plat.label || platId);
+      const userMsg = 'Design brief: ' + briefText.trim() +
+        (refImage ? '\n(A reference image was uploaded — match its colour mood and subject; do not replicate it literally)' : '');
+      const { text } = await window.callClaude({ system: sys, userText: userMsg, image: refImage || undefined, maxTokens: 550 });
+      return (text || '').trim();
+    }
+    return stFallbackPrompt(styleId, briefText, w, h);
   }
 
-  var subtabs = PLAT_SUBTABS[plat] || [];
-  var quickQs = ((PLAT_QUICK_Q[plat] || {})[sub]) || [];
-  var analyticsRows = ANALYTICS_GUIDE[plat] || [];
-  var times = POSTING_TIMES[plat] || {};
-  var platLabel = plat === "instagram" ? "Instagram" : "YouTube";
+  // ── One-click: craft → generate ─────────────────────────────────────────────
+  async function handleGenerate() {
+    if (!desc.trim() && !editedPrompt.trim()) return;
+    setGenOut(null); setErrMsg('');
+
+    let prompt = editedPrompt.trim();
+
+    // Always re-craft when user has typed a description
+    if (desc.trim()) {
+      setPhase('crafting');
+      try {
+        prompt = await craftPrompt(desc);
+        setCrafted(prompt);
+        setEdited(prompt);
+      } catch (e) {
+        // Fall back silently — still generate with a basic prompt
+        prompt = stFallbackPrompt(styleId, desc, w, h);
+        setCrafted(prompt);
+        setEdited(prompt);
+      }
+    }
+
+    if (!prompt) { setPhase('idle'); return; }
+    await doGenerate(prompt);
+  }
+
+  // Re-generate from the (possibly edited) crafted prompt
+  async function reGenerate() {
+    const p = editedPrompt || craftedPrompt;
+    if (!p) return;
+    await doGenerate(p);
+  }
+
+  async function doGenerate(p) {
+    setPhase('generating'); setErrMsg('');
+    const gm = ST_IMG_MODELS.find(x => x.id === genModelId) || ST_IMG_MODELS[0];
+    try {
+      let out, via;
+      if (gm.provider === 'pollinations') {
+        const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(p) +
+          '?width=' + (w || 1080) + '&height=' + (h || 1080) +
+          '&nologo=true&model=' + (gm.pmodel || 'flux') + '&seed=' + Math.floor(Math.random() * 1e6);
+        await new Promise((res, rej) => {
+          const im = new Image();
+          im.onload = res;
+          im.onerror = () => rej(new Error('Free generator did not respond — try again or pick another model.'));
+          im.src = url;
+        });
+        out = url; via = 'Free · ' + (gm.pmodel || 'flux');
+      } else if (gm.provider === 'nvidia') {
+        out = await window.generateThumbnailFlux({ prompt: p, model: gm.id, size: stFluxSize(w || 1024, h || 1024) });
+        via = 'NVIDIA FLUX';
+      } else if (gm.provider === 'reve') {
+        out = await window.generateThumbnailReve({ prompt: p, model: gm.id });
+        via = 'Reve';
+      } else if (gm.provider === 'gemini') {
+        const instruction = refImage
+          ? 'Edit the reference image to match this design direction. Maintain the subject but apply the style: ' + p
+          : 'Create this design: ' + p;
+        out = await window.generateThumbnail({ instruction, image: refImage });
+        via = 'Google Gemini';
+      }
+      setGenOut(out); setGenVia(via); setPhase('done');
+    } catch (e) {
+      const em = String(e.message);
+      const msg = (em === 'NO_GOOGLE_KEY' || em === 'NO_NV_KEY' || em === 'NO_REVE_KEY')
+        ? 'Add the required API key in Settings (top-right) for this model.'
+        : (e.message || 'Could not generate — try again.');
+      setErrMsg(msg); setPhase('error');
+    }
+  }
+
+  const busy = phase === 'crafting' || phase === 'generating';
+  const btnLabel = phase === 'crafting' ? '✦ Art directing…' : phase === 'generating' ? '⟳ Generating…' : '✦ Generate design →';
 
   return (
-    <div className="ci-work" style={{ "--ci-accent": m.accentFrom, "--ci-glow": m.accentGlow }}>
-      <PLWH mood={mood} eyebrow="Platform IQ"
-        title="Instagram and YouTube intelligence"
-        sub="Algorithm facts confirmed by Mosseri and YouTube 2024-2026. Click a quick question or type your own." />
+    <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
+      <StWH mood={mood}
+        eyebrow="Design Studio"
+        title="Generate a professional design"
+        sub="Pick a style and platform, describe what you want — Claude acts as your art director and crafts a precise visual prompt before generating." />
 
-      {/* Platform picker */}
-      <div style={{ display:"flex", gap:8, marginBottom:16 }}>
-        {["instagram","youtube"].map(function(p) {
-          var active = plat === p;
-          return (
-            <button key={p} className="pill" onClick={function() { return setPlat(p); }}
-              style={{ height:40, padding:"0 22px", fontWeight:700, fontSize:13.5,
-                background: active ? m.accentFrom + "1a" : "transparent",
-                borderColor: active ? m.accentGlow : "var(--stroke-1)",
-                color: active ? m.accentFrom : "var(--text-3)" }}>
-              {p === "instagram" ? "Instagram" : "YouTube"}
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Style picker ── */}
+      <StB mood={mood}>
+        <label className="ci-label" style={{ marginBottom: 10 }}>Design style</label>
+        <StyleGrid value={styleId} onChange={id => { setStyleId(id); setCrafted(''); setEdited(''); setGenOut(null); }} accentFrom={m.accentFrom} accentGlow={m.accentGlow} />
+      </StB>
 
-      {/* Sub-tabs */}
-      <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:18 }}>
-        {subtabs.map(function(t) {
-          var active = sub === t.k;
-          return (
-            <button key={t.k} className="pill" onClick={function() { return setSub(t.k); }}
-              style={{ height:32, fontSize:12.5, padding:"0 14px",
-                background: active ? m.accentFrom + "15" : "transparent",
-                borderColor: active ? m.accentGlow : "var(--stroke-1)",
-                color: active ? m.accentFrom : "var(--text-4)" }}>
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* ── Platform + size ── */}
+      <StB mood={mood}>
+        <label className="ci-label" style={{ marginBottom: 10 }}>Platform &amp; output size</label>
+        <PlatformPicker value={platId} customW={customW} customH={customH}
+          onPlatform={v => { setPlatId(v); setGenOut(null); }}
+          onCustomW={setCustomW} onCustomH={setCustomH} />
 
-      {/* Ask section */}
-      <PLB mood={mood} title="Ask a question" desc="Click a quick question below or type your own">
-
-        {quickQs.length > 0 && (
-          <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
-            {quickQs.map(function(qq, i) {
-              return (
-                <button key={i} onClick={function() { return ask(qq); }}
-                  style={{ height:30, padding:"0 13px", borderRadius:20, border:"1px solid var(--stroke-1)", background:"transparent", color:"var(--text-3)", fontSize:12, cursor:"pointer" }}>
-                  {qq}
-                </button>
-              );
-            })}
+        {/* Size reference table */}
+        <details style={{ marginTop: 14 }}>
+          <summary style={{ fontSize: 12, color: 'var(--text-4)', cursor: 'pointer', userSelect: 'none' }}>
+            ▸ All platform sizes reference
+          </summary>
+          <div style={{ marginTop: 10, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11.5, color: 'var(--text-3)' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--stroke-1)', color: 'var(--text-4)', textAlign: 'left' }}>
+                  <th style={{ padding: '4px 10px 4px 0', fontWeight: 600 }}>Platform</th>
+                  <th style={{ padding: '4px 10px', fontWeight: 600 }}>Format</th>
+                  <th style={{ padding: '4px 10px', fontWeight: 600 }}>Pixels</th>
+                  <th style={{ padding: '4px 0', fontWeight: 600 }}>Ratio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {STUDIO_PLATFORMS.filter(p => p.w).map(p => (
+                  <tr key={p.id} onClick={() => setPlatId(p.id)}
+                    style={{ borderBottom: '1px solid var(--stroke-1)', cursor: 'pointer', background: platId === p.id ? m.accentFrom + '14' : 'transparent' }}>
+                    <td style={{ padding: '5px 10px 5px 0', color: 'var(--text-4)' }}>{p.cat}</td>
+                    <td style={{ padding: '5px 10px', color: 'var(--text-2)' }}>{p.label}</td>
+                    <td style={{ padding: '5px 10px', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{p.w}×{p.h}</td>
+                    <td style={{ padding: '5px 0', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-4)' }}>{stRatio(p.w, p.h)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
+        </details>
+      </StB>
 
-        <div style={{ display:"flex", gap:8 }}>
-          <input className="ci-input" style={{ flex:1 }} value={q}
-            onChange={function(e) { return setQ(e.target.value); }}
-            onKeyDown={function(e) { if (e.key === "Enter") ask(); }}
-            placeholder={"Ask anything about " + platLabel + " algorithm, growth or strategy..."} />
-          <button className="ci-copybtn"
-            style={{ height:44, padding:"0 18px", background:m.accentFrom + "18", borderColor:m.accentGlow, color:m.accentFrom, fontWeight:700, fontSize:13, flexShrink:0, opacity: askState === "loading" ? 0.6 : 1 }}
-            onClick={function() { return ask(); }} disabled={askState === "loading"}>
-            {askState === "loading" ? "Asking..." : "Ask"}
-          </button>
+      {/* ── Brief + reference ── */}
+      <StB mood={mood}>
+        <label className="ci-label">Describe your design</label>
+        <textarea className="ci-textarea" style={{ minHeight: 100 }}
+          value={desc} onChange={e => { setDesc(e.target.value); setCrafted(''); setEdited(''); }}
+          placeholder="e.g. 'A launch announcement for my new SaaS product — dark theme, product screenshot mockup, headline: Launch Day is Here, primary color deep blue'" />
+
+        <div style={{ marginTop: 14 }}>
+          <label className="ci-label">Reference image <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— optional, for mood / palette / subject inspiration</span></label>
+          <StudioImageDrop image={refImage} onPick={setRefImage} onClear={() => setRefImage(null)} />
         </div>
+      </StB>
 
-        {askState === "loading" && (
-          <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:8, color:"var(--text-4)", fontSize:13 }}>
-            <span style={{ display:"inline-block", width:12, height:12, border:"2px solid currentColor", borderRightColor:"transparent", borderRadius:"50%" }} className="spin" />
-            Thinking...
+      {/* ── Generator model + go ── */}
+      <StB mood={mood}>
+        <label className="ci-label">Image generator</label>
+        <select className="ci-input" value={genModelId} onChange={e => setGenModelId(e.target.value)} style={{ appearance: 'auto', maxWidth: 400 }}>
+          {ST_IMG_MODELS.map(mm => <option key={mm.id} value={mm.id}>{mm.label}</option>)}
+        </select>
+        {!hasKey && (
+          <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 8, lineHeight: 1.5 }}>
+            No API key — Claude art direction is skipped and a built-in style template is used instead. Add a key in{' '}
+            <button onClick={onOpenKey} style={{ background: 'none', border: 'none', color: 'var(--text-2)', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: 12 }}>Settings</button>
+            {' '}for AI-crafted prompts.
           </div>
         )}
 
-        {askState === "done" && answer && (
-          <div style={{ marginTop:14, padding:"15px 16px", borderRadius:12, background:"rgba(0,0,0,0.22)", border:"1px solid " + m.accentGlow + "30", fontSize:13.5, color:"var(--text-1)", lineHeight:1.7, whiteSpace:"pre-wrap" }}>
-            <div style={{ fontSize:11, color:m.accentFrom, fontWeight:700, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.07em" }}>Answer</div>
-            {answer}
-            <div style={{ display:"flex", gap:8, marginTop:12 }}>
-              <button className="ci-copybtn" style={{ height:28, fontSize:11.5 }}
-                onClick={function() { if (window.copyText) window.copyText(answer); }}>Copy</button>
-              <button className="ci-copybtn" style={{ height:28, fontSize:11.5 }}
-                onClick={function() { setAskState("idle"); setAnswer(""); }}>Clear</button>
+        <div style={{ marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <window.GlowButton mood={mood} size="lg" onClick={handleGenerate} disabled={busy || (!desc.trim() && !editedPrompt.trim())}>
+            {busy
+              ? <><span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> {btnLabel}</>
+              : btnLabel}
+          </window.GlowButton>
+        </div>
+        {errMsg && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 10, lineHeight: 1.5 }}>{errMsg}</div>}
+      </StB>
+
+      {/* ── Crafted prompt (editable) ── */}
+      {craftedPrompt && (
+        <StB mood={mood}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 10 }}>
+            <div>
+              <label className="ci-label" style={{ margin: 0 }}>Art-director prompt</label>
+              <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 2 }}>Edit below, then re-generate — or copy it into any image tool</div>
             </div>
+            <button className="ci-copybtn" style={{ flexShrink: 0 }} onClick={() => window.copyText && window.copyText(editedPrompt || craftedPrompt)}>⧉ Copy</button>
           </div>
-        )}
-
-        {askState === "nokey" && (
-          <window.FreeModeHint system={platSys} userText={q} />
-        )}
-
-        {askState === "error" && (
-          <div style={{ marginTop:10, fontSize:13, color:"#f5788c" }}>{askErr}</div>
-        )}
-      </PLB>
-
-      {/* Mosseri 20 Cards */}
-      <details className="ci-block ci-collapse" style={{ padding:0, marginTop:4 }}>
-        <summary style={{ cursor:"pointer", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", fontWeight:700, fontSize:14, color:"var(--text-1)" }}>
-          <span>Adam Mosseri -- 20 Confirmed Insights (2024-2026)</span>
-          <span style={{ opacity:0.4, fontSize:11.5 }}>tap to open</span>
-        </summary>
-        <div style={{ padding:"0 16px 16px", display:"flex", flexDirection:"column", gap:10 }}>
-          {MOSSERI_CARDS.map(function(card) {
-            return (
-              <div key={card.n} style={{ padding:"12px 14px", borderRadius:10,
-                background: card.highlight ? m.accentFrom + "12" : "rgba(0,0,0,0.18)",
-                border: "1px solid " + (card.highlight ? m.accentGlow : "var(--stroke-1)") }}>
-                <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
-                  <span style={{ fontSize:11, fontWeight:700, color:m.accentFrom, minWidth:22, marginTop:2 }}>{card.n}</span>
-                  <div style={{ flex:1 }}>
-                    <div style={{ fontWeight:700, fontSize:13.5, color:"var(--text-1)", marginBottom:4 }}>{card.title}</div>
-                    <div style={{ fontSize:13, color:"var(--text-2)", lineHeight:1.65 }}>{card.body}</div>
-                    <div style={{ fontSize:10.5, color:"var(--text-5)", marginTop:5 }}>Source: {card.source}</div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </details>
-
-      {/* Analytics troubleshooter */}
-      <details className="ci-block ci-collapse" style={{ padding:0, marginTop:4 }}>
-        <summary style={{ cursor:"pointer", padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", fontWeight:700, fontSize:14, color:"var(--text-1)" }}>
-          <span>Analytics troubleshooter -- {platLabel}</span>
-          <span style={{ opacity:0.4, fontSize:11.5 }}>tap to open</span>
-        </summary>
-        <div style={{ padding:"0 16px 16px" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"3fr 3fr 3fr", gap:6, marginBottom:8, padding:"0 4px" }}>
-            {["Signal","Problem","Fix"].map(function(h) {
-              return <div key={h} style={{ fontSize:10, fontWeight:700, color:"var(--text-5)", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</div>;
-            })}
+          <textarea className="ci-textarea"
+            style={{ minHeight: 90, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-3)', lineHeight: 1.6 }}
+            value={editedPrompt} onChange={e => setEdited(e.target.value)} />
+          <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <window.GlowButton mood={mood} size="md" onClick={reGenerate} disabled={phase === 'generating'}>
+              {phase === 'generating'
+                ? <><span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%' }} className="spin" /> Generating…</>
+                : '⟳ Re-generate →'}
+            </window.GlowButton>
+            <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }}
+              onClick={() => window.open('https://chatgpt.com/?q=' + encodeURIComponent((editedPrompt || craftedPrompt).slice(0, 6000)), '_blank', 'noopener,noreferrer')}>
+              Open in ChatGPT →
+            </button>
           </div>
-          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {analyticsRows.map(function(row, i) {
-              return (
-                <div key={i} style={{ display:"grid", gridTemplateColumns:"3fr 3fr 3fr", gap:8, padding:"10px 12px", borderRadius:10, background:"rgba(0,0,0,0.15)", border:"1px solid var(--stroke-1)" }}>
-                  <div style={{ fontSize:12.5, color:"var(--text-2)", lineHeight:1.5 }}>{row.signal}</div>
-                  <div style={{ fontSize:12.5, color:"var(--text-3)", lineHeight:1.5 }}>{row.problem}</div>
-                  <div style={{ fontSize:12.5, color:"#8FD86A", lineHeight:1.5 }}>{row.fix}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </details>
+        </StB>
+      )}
 
-      {/* Posting times */}
-      <PLB mood={mood} title={"Best posting times -- " + platLabel + " (India IST)"}>
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {plat === "instagram" ? (
-            <>
-              <PlatformTimeRow label="Reels" times={times.reels} />
-              <PlatformTimeRow label="Stories" times={times.stories} />
-              <PlatformTimeRow label="Best days" times={times.best_days} />
-              <PlatformTimeRow label="Finance" times={times.finance} />
-            </>
-          ) : (
-            <>
-              <PlatformTimeRow label="Long-form" times={times.longform} />
-              <PlatformTimeRow label="Shorts" times={times.shorts} />
-              <PlatformTimeRow label="Finance" times={times.finance} />
-            </>
+      {/* ── Generated result ── */}
+      {genOut && phase === 'done' && (
+        <StB mood={mood}>
+          {genVia && (
+            <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 8 }}>
+              Generated with {genVia} · {w}×{h}px · {stRatio(w, h)}
+            </div>
           )}
-        </div>
-      </PLB>
-
+          <div style={{ position: 'relative', lineHeight: 0 }}>
+            <img src={genOut} alt="generated design"
+              style={{ width: '100%', maxWidth: Math.min(w, 640), aspectRatio: w + '/' + h, borderRadius: 12, display: 'block', border: '1px solid var(--stroke-2)', objectFit: 'cover' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            <a className="ci-copybtn" href={genOut} download={'design-' + styleId + '-' + platId + '.png'}
+              style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none' }}>
+              ↓ Download
+            </a>
+            <button className="ci-copybtn" style={{ height: 34, padding: '0 14px' }}
+              onClick={() => { setGenOut(null); setEdited(craftedPrompt); }}>
+              ↺ Try again
+            </button>
+          </div>
+        </StB>
+      )}
     </div>
   );
 }
 
-window.PlatformTab = PlatformTab;
-
+window.StudioTab = StudioTab;
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -5378,7 +5018,6 @@ function PlaybookTab() {
 
 Object.assign(window, { PlaybookTab });
 
-
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-research.jsx ===== */
@@ -5566,7 +5205,6 @@ function ResearchTab({ onClose, onNav }) {
 }
 
 Object.assign(window, { isAdmin, promptAdmin, exitAdmin, ResearchTab });
-
 
 </script>
 <script type="text/babel" data-presets="react">
@@ -5925,11 +5563,10 @@ function StatList({ title, items, n }) {
 
 Object.assign(window, { TrainTab });
 
-
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-app.jsx ===== */
-// ContentIntel -- main app
+// ContentIntel — main app
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "typeSet": "grotesk",
@@ -5979,7 +5616,7 @@ function CIApp() {
   function onAdmin() { nav('research'); }
   function exitResearch() { setAdmin(window.isAdmin()); nav('home'); }
 
-  // If unlocked via ?admin=... on this browser, jump straight to the editor.
+  // If unlocked via ?admin=… on this browser, jump straight to the editor.
   React.useEffect(() => {
     try {
       if (window.isAdmin() && new URLSearchParams(location.search).get('admin')) { setAdmin(true); setTab('research'); }
@@ -5992,8 +5629,7 @@ function CIApp() {
   else if (tab === 'thumbnail') View = <ThumbnailTab onOpenKey={openKey} />;
   else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
-  else if (tab === 'builder') View = <BuilderTab />;
-  else if (tab === 'platform') View = <PlatformTab />;
+  else if (tab === 'studio') View = <StudioTab onOpenKey={openKey} />;
   else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
@@ -6046,7 +5682,6 @@ function CIApp() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<CIApp />);
-
 
 </script>
 </body>

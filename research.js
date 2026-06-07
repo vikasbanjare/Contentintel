@@ -373,113 +373,131 @@ If two ad variants (A and B) are provided, compare them and fill the "winner" fi
     notes: "Compute truncation against the exact limits above. Add a compliance row ONLY for regulated products.",
   },
 
-  // ── PLATFORM IQ ─────────────────────────────────────────────────────────────
-  platform: {
-    label: "Platform IQ",
+  // ── DESIGN STUDIO — art-director system for professional image generation ──
+  studio: {
+    label: "Design Studio",
+
+    // Universal principles Claude uses when crafting image prompts
     systemGuidance:
-`You are a platform strategy expert for Indian content creators.
-Answer in plain text with bullet points. 5-7 points max unless asked for more depth.
-Always give India-specific, actionable advice. Answer the actual question first, then add context.
+`WHAT SEPARATES PROFESSIONAL DESIGN FROM AI-GENERIC (2025–26 research):
 
-INSTAGRAM -- MOSSERI CONFIRMED DATA (2024-2026):
+SPECIFICITY IS EVERYTHING
+Name exact colours (Pantone 485 C, Mocha Mousse PMS 7522 C, warm ivory #FAF3E0, deep navy #0D1B2A), exact typefaces (Helvetica Neue Bold Condensed, Garamond Italic, PP Neue Montreal, Canela Thin), exact composition logic (Swiss 12-column grid, golden-ratio vertical rhythm, rule-of-thirds focal point, asymmetric left-weighted layout). Vague → generic AI output.
 
-TOP 3 RANKING SIGNALS (Mosseri, Jan 2025 -- all surfaces):
-- Watch Time: #1 signal. Users decide stay/scroll in 1.7 seconds. Aim 60%+ hold at 3-second mark.
-- Sends per Reach (DM shares): 3-5x more valuable than likes for new audiences. 694K Reels sent via DM every minute.
-- Likes per Reach: Still matters, more important for existing followers than for discovery.
+SIGNAL HUMAN CRAFT (use these in every prompt)
+"offset print grain", "ink on cold-press paper", "screen-print texture", "risograph dot halftone", "letterpress emboss", "gouache brushwork", "vector Bézier precision", "Adobe Illustrator pathfinder", "scanned texture overlay", "Procreate brush texture". These steer generators away from the mushy-gradient AI default.
 
-4 SURFACES, 4 SEPARATE AI SYSTEMS:
-Feed (relationship signals + past interactions), Reels (entertainment + discovery via Audition System),
-Stories (viewing history + reply frequency), Explore (quality + topic relevance over relationships).
+QUALITY KEYWORDS THAT WORK (use these — they're specific):
+- Camera/film: "shot on Hasselblad X2D 45mm", "Kodak Portra 400 film emulation" (warm tones, desaturated), "Fujifilm Pro 400H" (neutral, clean), "f/2.8 depth of field"
+- Lighting: "Rembrandt lighting", "large softbox key light, white seamless", "3-point studio lighting", "overcast diffused natural light"
+- Art direction: "editorial photography, Communication Arts annual", "Behance award winner", "Dribbble featured", "designed by Pentagram", "flat vector, Adobe Illustrator"
+- Texture/material: "natural film grain 400 ISO", "visible surface imperfections", "physically-based materials"
 
-REELS:
-- 7-15s: viral/trending, highest completion rate
-- 30-90s: optimal for education/finance
-- Up to 3 min: can reach non-followers via recommendations
-- No watermarks (TikTok/CapCut) = ineligible for ALL recommendations
-- Captions = official ranking factor (Mosseri confirmed). Most users watch sound-off.
-- Audition System: Post → small non-follower test → good = wider audience. Peak 6-12 hours. First 30-60 min critical.
-- Trial Reels: Shown to non-followers only. 40% of users post more after using it. 80% see increased non-follower reach.
-  Can now be scheduled (Feb 2026). Compare Trial Reels only to other Trial Reels.
+WORDS THAT PRODUCE GENERIC AI LOOKS (never use alone):
+stunning, beautiful, amazing, masterpiece, epic, hyperrealistic, extremely detailed, incredibly detailed, 8K, 4K ultra HD, aesthetic vibe, premium feel, clean minimalist (be specific instead).
 
-STORIES:
-- Post max 5-7 -- view counts drop after 5th
-- Do NOT directly boost post reach but maintain follower warmth
-- Stickers/polls/questions increase replies = algorithmic boost
-- Best time: 8-10 AM India
+COLOUR DISCIPLINE — 60-30-10 rule:
+60% dominant background (one neutral), 30% secondary (cards, headers), 10% accent (CTA, highlights). Max 4 intentional colours. Name palette roles: "deep navy background, single warm amber accent, pure white type". Name Pantone refs where possible: Pantone 2025 COTY = Mocha Mousse (warm mellow brown); Pantone 2026 COTY = Cloud Dancer (billowy balanced white). Never say "vibrant colour palette".
 
-CAROUSELS (highest engagement format 2026):
-- Up to 20 slides. Reshown to users who did not see all slides = multiple impressions per post.
-- First slide = hook. Consistently outperforms single images (Buffer data, 4M+ posts).
+COMPOSITION LANGUAGE (name it explicitly):
+"asymmetric left-weighted layout", "centred Swiss-grid hierarchy", "diagonal flow bottom-left to top-right", "bento 3×2 card grid", "rule-of-thirds focal point, subject at right intersection", "magazine bleed full-frame crop". Composition specificity is the single biggest separator between pro and amateur AI output.
 
-NEW FEATURES (2025-2026):
-- Your Algorithm (Dec 2025): Users add/remove Reels topics. Niche consistency now critical.
-- Trial Reels: Schedule + test with non-followers before full publish.
-- AI Translations: Auto-translates to Hindi, Portuguese, English, Spanish. Mosseri called it a reach tactic.
+TYPOGRAPHIC HIERARCHY (shapes layout even in abstract images):
+"dominant H1 at 3× body size, Black weight", "tight editorial leading 1.2×", "flush left ragged right", "all-caps tracking +80 label", "weight contrast Light 300 paired with Black 900". Professional hierarchy: Display (48–72px Black) → H2 (28–36px SemiBold) → Body (16px Regular) → Caption (12px Medium).
 
-CONTENT RULES:
-- 10+ reposts in 30 days = EXCLUDED from ALL recommendations
-- Original content gets 40-60% more distribution than reposts
-- Dec 31 2025 Mosseri memo: prioritizing raw, real human content over AI-generated content in 2026
+PLATFORM COMPOSITION RULES:
+- Vertical 9:16 (Stories, Reels, TikTok): keep focal content in upper 60%, safe zone centre 1080×1420
+- Portrait 4:5 (Instagram feed): highest engagement format; focal mass centred, 15% margins
+- Square 1:1: centred composition, equal visual weight all quadrants
+- Landscape 16:9 (YouTube, Twitter): horizontal rule-of-thirds, focal point at left third
+- Wide banner (LinkedIn, YouTube channel): horizontal thirds; text at left, visual at right; extreme safe margins
 
-SEARCH & SEO:
-- Instagram reads captions like Google reads page copy
-- Keywords in captions + titles + alt text + on-screen text all matter
-- Hashtags = minor topic signals only (NOT discovery). Use 3-5 max.
-- Comment quality is also searchable -- ask specific questions in posts
+QUALITY ANCHORS — end every prompt with 2–3 matching the style:
+- Editorial/flat: "vector Bézier precision, print-ready CMYK, offset press quality"
+- 3D render: "Keyshot studio render, product photography lighting, ray-traced subsurface scattering"
+- Character art: "Procreate illustration, editorial commission quality, consistent character design"
+- Swiss/grid: "Communication Arts annual design, grid-aligned, Helvetica precision"
+- Hand-drawn: "scanned cold-press paper texture, Procreate brush, editorial sketch commission"
+- Luxury: "embossed foil print, fashion editorial, tactile packaging aesthetic"
 
-INDIA POSTING TIMES:
-- Reels: 7-9 AM, 12-2 PM, 7-9 PM IST (Tue-Fri best)
-- Stories: 8-10 AM IST
-- Finance content: Monday mornings (salary anxiety), Friday evenings
+ANTI-AI CHECKLIST before outputting a prompt:
+1. Is every colour named specifically? (not "dark blue" → "deep navy #0D1B2A")
+2. Is the composition named explicitly? (not "well composed" → "rule-of-thirds, subject at right intersection, 40% negative space left")
+3. Is the craft signal present? (offset print grain / Procreate brush / Bézier vector / scanned texture)
+4. Are generic amplifiers removed? (stunning / beautiful / amazing / hyperrealistic)
+5. Is there a clear quality anchor at the end? (matching the chosen style)`,
 
----
-YOUTUBE -- 2025-2026 CONFIRMED DATA:
+    // Per-style guidance injected when the user selects a category
+    styles: {
+      editorial:
+`Target: editorial illustration — magazine commissions, agency illustration, editorial press.
+Prompt vocabulary to use: "editorial magazine illustration, ink linework on paper, stippling cross-hatch texture, limited 3-colour Pantone spot palette, New Yorker / Bloomberg Businessweek / Monocle commission style, flat graphic shapes with ink detail, bold silhouette composition, negative space, offset print register, hand-lettered title treatment".
+Composition cues: strong diagonal or triangular focal mass; at least 40% negative space; subject isolated from background by silhouette.
+Colour: max 3 Pantone colours — typically one dark neutral, one ink colour, one spot accent.
+Avoid: photorealism, 3D depth, glowing effects, smooth AI gradients, random watercolour washes.`,
 
-TOP METRICS:
-- CTR: Thumbnail + Title → initial distribution. 4-6% avg, 7%+ excellent.
-- AVD (Average View Duration): Most important after click. Efficiency > length.
-- Satisfaction: Likes, comments, shares, subscriptions after watching.
+      flat:
+`Target: flat/geometric design — app icons, explainer illustrations, product marketing.
+Prompt vocabulary: "clean flat vector illustration, Dribbble award-winning, 2D geometric composition, 4-colour palette, bold primary colours, hard-edge shapes, no gradients no shadows no textures, purposeful whitespace, icon-system aesthetic, SVG Bézier precision, Material Design / Apple HIG influence".
+Composition cues: clear figure-ground; shapes interlock or overlap with intentional hierarchy; text placeholder areas implied by layout geometry.
+Colour: 3–4 intentional colours; one dominant neutral background; strong accent for CTA elements.
+Avoid: textures, gradients, bevels, drop-shadows, anything that implies depth or tactility.`,
 
-2025 BIG SHIFT -- CHANNELS, NOT VIDEOS:
-- YouTube now judges channels as a whole, not individual videos
-- Pattern consistency > one-off virals
-- Gemini AI analyzes video tone, on-screen elements, semantic meaning -- not just titles/tags
-- YouTube actively promotes channels under 500 subscribers
+      isometric:
+`Target: isometric design — SaaS, fintech, productivity tools, tech announcements.
+Prompt vocabulary: "isometric vector illustration, 30-degree axonometric projection, clean technical linework, Flat-3D without perspective, muted desaturated palette with single vivid accent, geometric building-block scene, software product / server / data concept, vector precision, crisp 1px rule lines, depth implied by face shading not shadows, Craftwork / Storyset isometric style".
+Composition cues: focal isometric object centred; secondary elements at smaller scale receding; ground plane visible at ~30% from bottom.
+Colour: max 5 tones — background, 3 object face values (light / mid / dark of one hue), 1 accent.
+Avoid: perspective distortion, random floating objects, photographic textures, excessive detail on small faces.`,
 
-LONG-FORM:
-- 8-20 min optimal for finance/education. Hook in first 30 seconds. Pattern interrupt every 2-3 min.
-- Takes off in 48 hours or does not (Shorts can go viral weeks later).
-- Keyword in title (first 40 chars) + first 2 lines of description + say it out loud in video.
-- Viewer who watches 100% of 8 min + likes > viewer who watches 40% of 25 min and leaves.
+      '3d-render':
+`Target: 3D render / CGI — product launches, hero images, brand announcements.
+Prompt vocabulary: "3D render, Blender Cycles / Keyshot / Cinema 4D quality, studio 3-point HDRI lighting, physically-based materials (borosilicate glass, brushed aluminium, matte clay, soft-touch plastic), subsurface scattering on organic surfaces, ray-traced reflections and caustics, product photography studio backdrop (pure white or deep gradient), precise shadow detail, depth-of-field at f/2.8".
+Composition cues: product hero centred at optical centre; secondary props at rule-of-thirds; camera at eye level or 15° above.
+Colour: neutral studio backdrop; material palette on the object; one key light accent colour in reflections.
+Avoid: cartoon shading, flat look, cel-shading, overly busy backgrounds, lens flare.`,
 
-SHORTS (90-200B daily views):
-- Fully decoupled from long-form algorithm (late 2025)
-- Key signals: Completion rate + Rewatchability (loops). Swipe = bad signal.
-- 30-60s best for discovery (limit expanded to 3 min in 2025)
-- Shorts = fast feedback system. Test topics before making long-form.
-- Shorts can go viral WEEKS after posting -- never delete failed Shorts.
-- Consistent Shorts engagement → YouTube recommends your long-form.
+      cartoon:
+`Target: cartoonist / character art — creator brands, mascots, community content.
+Prompt vocabulary: "character illustration, expressive cartoon style, bold consistent outlines, flat colour with subtle cel shading, character design turnaround quality, personality-driven pose and exaggerated expression, vector character art, Procreate / Illustrator brush feel, warm limited palette, cohesive visual language, editorial mascot quality".
+Composition cues: character fills 60–70% of frame; pose indicates action/emotion; secondary props tell story; no busy background.
+Colour: warm 5-colour character palette; background 1–2 tones; accent for emotion/energy.
+Avoid: photorealistic rendering, stiff T-pose, generic clip-art, off-model proportions, uncanny valley.`,
 
-SEO:
-- Title: Keyword in first 40 characters
-- Description: Keyword in first 2 lines, then expand
-- Chapters/timestamps: Improve AVD
-- Tags: 10-15 relevant ones. Less important than before but still use them.
-- Use Ask Studio AI in YouTube Studio (20M+ users).
+      brutalism:
+`Target: brutalist design — youth brands, cultural events, fashion, music, editorial.
+Prompt vocabulary: "brutalist graphic design, raw editorial typography, thick 3–5px black rule borders, extreme high contrast (black / white / one neon), deconstructed asymmetric grid, deliberate misalignment and overlap, xerox / photocopy halftone grain, constructivist poster influence, zine cut-paste aesthetic, confrontational visual hierarchy, intentional ugliness as craft".
+Composition cues: text and image overlap aggressively; border frames are thick and irregular; empty space used as tension not comfort.
+Colour: black + white + exactly ONE neon (magenta, yellow, cyan, or red). No pastels.
+Avoid: soft colours, rounded corners, decorative ornaments, harmony — brutalism should feel intentionally wrong.`,
 
-INDIA POSTING TIMES -- YOUTUBE:
-- Long-form: Sat-Sun 10 AM-12 PM IST. Weekdays: 6-8 PM IST.
-- Shorts: 12-2 PM and 6-8 PM IST.
-- Finance: Mon-Wed (investing decision mood).
+      swiss:
+`Target: Swiss International Typographic Style — agency decks, cultural institutions, annual reports.
+Prompt vocabulary: "Swiss International Style, Neue Haas Grotesk / Helvetica Neue Bold, strict 12-column grid system, generous whitespace as active element, ruled grid lines, modernist editorial poster, Josef Müller-Brockmann / Armin Hofmann influence, strong visual hierarchy (H1 at 4× body), 2-colour Pantone (red #ED1C24 + black, or navy + black), photography as geometric block".
+Composition cues: grid is visible; all elements align to column gutters; heavy type block anchors one corner; photography is cropped to exact grid rectangle.
+Colour: 2 colours maximum — classic is Pantone 485 red + black on white; or midnight blue + black.
+Avoid: decorative typefaces, ornaments, gradients, rounded corners, more than 2 type weights.`,
 
-ANALYTICS INTERPRETATION:
-- Low CTR (<2%): Thumbnail or title problem. A/B test both.
-- Low AVD (<30%): Hook or pacing problem. Tighten first 30 seconds.
-- Low IG sends: Content not opinionated/relatable enough. More opinions.
-- Stories declining: Posting too many (cap at 5-7).
-- Low Shorts completion: Hook too slow -- fix first 1-2 seconds.
-- High watch time, low subs: End screen/subscribe CTA not strong enough.
-- Low IG reach despite posting: Check reposts (10+ = banned from recs).`,
+      glass:
+`Target: glassmorphism / bento UI — digital product launches, app screenshots, tech announcements.
+Prompt vocabulary: "glassmorphism UI design, frosted glass card panels with white 1px stroke, dark navy #0D1B2A or deep charcoal background, bento grid 2×3 card layout, ambient gradient glow (electric blue #3B82F6, violet #8B5CF6, teal #06B6D4), backdrop-blur frosted effect, Apple WWDC / Vercel / Linear design system aesthetic, 2025 dark-mode UI, subtle inner glow, SF Pro / Inter typeface, card-based information hierarchy".
+Composition cues: 2×2 or 2×3 bento card grid; largest card (hero metric) at 2× size; glow source implied behind cards; consistent 16px border-radius.
+Colour: near-black base; 2 gradient accent colours for glow; frosted card at 10–15% white opacity.
+Avoid: light mode, skeuomorphism, paper textures, vintage aesthetics, hard drop shadows.`,
+
+      handdrawn:
+`Target: hand-drawn / organic — personal brands, artisan products, creative studios, wellness.
+Prompt vocabulary: "hand-drawn ink illustration, sketch pencil texture, watercolour wash overlay, Procreate brush texture, organic imperfect linework, loose brushstroke, risograph two-colour print, pen-and-ink editorial style, warm cream paper background #FAF0E6, charcoal pencil roughness, human imperfection and warmth, editorial commission for indie magazine".
+Composition cues: subject slightly off-centre; gestural surrounding marks (lines, dots, texture fill) give life; text implied by hand-lettering style placeholder.
+Colour: warm neutrals (cream, warm grey, warm brown) + 1–2 ink colours (deep navy or forest green + amber or terracotta).
+Avoid: perfectly smooth vectors, digital clean edges, sharp geometric shapes, neon or highly saturated colours.`,
+
+      luxury:
+`Target: dark luxury — premium brands, fashion, jewellery, high-end services.
+Prompt vocabulary: "dark luxury brand design, near-black background #0A0A0A or deep charcoal #1C1C1C, gold foil typography effect (Pantone 871 C metallic gold), elegant high-contrast serif typeface (Didot / Bodoni / Canela), editorial fashion minimalism, Vogue / Harper's Bazaar / Bottega Veneta layout, metallic gradient accent (gold to champagne), moody directional studio light, generous negative space, tactile packaging aesthetic".
+Composition cues: text is centred, generous margins (20–30% on each side); single hero element (product or abstract shape) floats in dark field; light source from upper-left.
+Colour: near-black + metallic gold or platinum; optional deep wine or forest green accent; never bright colours.
+Avoid: bright colours, playful elements, sans-serif body copy, cluttered layouts, obvious AI-default gradients.`,
+    },
   },
 };
