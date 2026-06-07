@@ -74,8 +74,8 @@
   --nav-bg: rgba(255, 255, 255, 0.88);
   --inset: rgba(12, 18, 38, 0.07);
   --inset-soft: rgba(12, 18, 38, 0.04);
-  /* Light mode hero uses a stronger dark scrim so white text stays legible over video */
-  --hero-scrim: linear-gradient(180deg, rgba(6,8,20,0.68) 0%, rgba(6,8,20,0.42) 45%, rgba(6,8,20,0.92) 100%);
+  /* Light mode: dark scrim top for legible white text, fades out at bottom to avoid harsh edge */
+  --hero-scrim: linear-gradient(180deg, rgba(6,8,20,0.70) 0%, rgba(6,8,20,0.48) 45%, rgba(6,8,20,0.18) 75%, transparent 100%);
   --hero-fallback: linear-gradient(135deg, #1a1d2e 0%, #2a1428 55%, #1a1d2e 100%);
 }
 
@@ -103,6 +103,18 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
     inset 0 1px 0 rgba(255,255,255,0.08),
     inset 0 -1px 0 rgba(0,0,0,0.2),
     0 12px 40px rgba(0,0,0,0.4);
+}
+
+/* Light mode — opaque white cards, real shadows */
+[data-theme="light"] .glass {
+  background: rgba(255,255,255,0.96);
+  border-color: rgba(12,18,38,0.09);
+  box-shadow: 0 1px 3px rgba(12,18,38,0.05), 0 8px 28px rgba(12,18,38,0.07);
+}
+[data-theme="light"] .glass-strong {
+  background: #FFFFFF;
+  border-color: rgba(12,18,38,0.11);
+  box-shadow: 0 2px 8px rgba(12,18,38,0.06), 0 20px 52px rgba(12,18,38,0.09);
 }
 
 /* art board container — frames the dark app inside the canvas */
@@ -855,6 +867,97 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
 .ci-collapse > summary:hover { background: rgba(255,255,255,0.02); }
 .ci-collapse[open] > summary .ci-collapse-caret::after { content: ""; }
 .ci-collapse[open] > summary .ci-collapse-caret { opacity: 0.3; }
+
+/* ══════════════════════════════════════════════════════
+   LIGHT MODE — comprehensive overrides
+   ══════════════════════════════════════════════════════ */
+
+/* Page background: very subtle warm gradient so it's not flat white */
+[data-theme="light"] body {
+  background: linear-gradient(180deg, #F4F6FB 0%, #F0F2F8 100%);
+}
+
+/* Blocks / cards: solid white with elevation shadow */
+[data-theme="light"] .ci-block {
+  background: #FFFFFF;
+  border-color: rgba(12,18,38,0.09);
+  box-shadow: 0 1px 4px rgba(12,18,38,0.05), 0 6px 20px rgba(12,18,38,0.06);
+}
+[data-theme="light"] .ci-block-title { color: var(--text-1); }
+[data-theme="light"] .ci-block-desc { color: var(--text-3); }
+
+/* Inputs: white background, visible border */
+[data-theme="light"] .ci-textarea {
+  background: #FFFFFF;
+  border-color: rgba(12,18,38,0.15);
+  color: var(--text-1);
+}
+[data-theme="light"] .ci-textarea:focus {
+  border-color: rgba(232,57,107,0.45);
+  box-shadow: 0 0 0 3px rgba(232,57,107,0.08);
+}
+[data-theme="light"] .ci-input {
+  background: #FFFFFF;
+  border-color: rgba(12,18,38,0.15);
+  color: var(--text-1);
+}
+[data-theme="light"] .ci-input:focus {
+  border-color: rgba(232,57,107,0.45);
+  box-shadow: 0 0 0 3px rgba(232,57,107,0.08);
+}
+
+/* Section headings */
+[data-theme="light"] .ci-h2 { color: var(--text-1); }
+[data-theme="light"] .ci-sub { color: var(--text-2); }
+
+/* Feature cards: white with colored top accent */
+[data-theme="light"] .ci-feature {
+  background: #FFFFFF !important;
+  border-color: rgba(12,18,38,0.09) !important;
+  box-shadow: 0 1px 4px rgba(12,18,38,0.05), 0 8px 24px rgba(12,18,38,0.06);
+}
+
+/* Chips / pills in light mode */
+[data-theme="light"] .ci-chip-label,
+[data-theme="light"] .ci-chiprow span {
+  border-color: rgba(12,18,38,0.14);
+  color: var(--text-3);
+  background: rgba(12,18,38,0.03);
+}
+
+/* Copy / action buttons */
+[data-theme="light"] .ci-copybtn {
+  background: rgba(12,18,38,0.05);
+  border-color: rgba(12,18,38,0.14);
+  color: var(--text-2);
+}
+[data-theme="light"] .ci-copybtn:hover {
+  background: rgba(12,18,38,0.09);
+}
+
+/* Score pills and light indicators */
+[data-theme="light"] .ci-collapse > summary:hover { background: rgba(12,18,38,0.03); }
+
+/* Key modal and overlays */
+[data-theme="light"] .ci-modal-overlay { background: rgba(12,18,38,0.35); }
+
+/* Upload / drop zone */
+[data-theme="light"] .ci-dropzone {
+  background: rgba(12,18,38,0.03);
+  border-color: rgba(12,18,38,0.15);
+}
+[data-theme="light"] .ci-dropzone:hover {
+  background: rgba(232,57,107,0.04);
+  border-color: rgba(232,57,107,0.30);
+}
+
+/* Section accent gradient for home sections */
+.ci-section-warm {
+  background: linear-gradient(180deg, rgba(232,57,107,0.04) 0%, transparent 100%);
+}
+[data-theme="light"] .ci-section-warm {
+  background: linear-gradient(180deg, rgba(232,57,107,0.06) 0%, rgba(255,249,246,0.5) 60%, transparent 100%);
+}
 
   </style>
 </head>
@@ -2931,12 +3034,16 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
         </div>
       </section>
 
+      {/* Hero-to-page fade: smooth gradient covers the hard hero bottom edge */}
+      <div style={{ height: 100, marginTop: -100, position: 'relative', zIndex: 4, pointerEvents: 'none',
+        background: `linear-gradient(to bottom, transparent 0%, var(--bg-0) 100%)` }} />
+
       {/* STATS strip */}
-      <div style={{ maxWidth: 1140, margin: '0 auto', padding: '0 26px' }}>
-        <div className="glass" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderRadius: 16, marginTop: -28, position: 'relative', zIndex: 3, overflow: 'hidden' }}>
+      <div style={{ maxWidth: 1140, margin: '0 auto', padding: '0 26px', marginTop: -20, position: 'relative', zIndex: 5 }}>
+        <div className="glass" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderRadius: 20, overflow: 'hidden' }}>
           {stats.map((s, i) => (
-            <div key={i} style={{ padding: '22px 28px', borderLeft: i ? '1px solid var(--stroke-1)' : 'none' }}>
-              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 34, letterSpacing: '-0.01em' }}>{s.v}</div>
+            <div key={i} style={{ padding: '24px 28px', borderLeft: i ? '1px solid var(--stroke-1)' : 'none' }}>
+              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 36, letterSpacing: '-0.01em', color: 'var(--text-1)' }}>{s.v}</div>
               <div style={{ fontSize: 13.5, color: 'var(--text-3)', marginTop: 5 }}>{s.l}</div>
             </div>
           ))}
@@ -2944,15 +3051,15 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
       </div>
 
       {/* FEATURE SHOWCASE */}
-      <section style={{ maxWidth: 1140, margin: '0 auto', padding: '72px 32px 48px', position: 'relative' }}>
-        <AmbientBloom mood={mood} intensity={0.4} variant="subtle" />
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 28 }}>
+      <section className="ci-section-warm" style={{ marginTop: 48, padding: '56px 32px 56px', position: 'relative' }}>
+        <AmbientBloom mood={mood} intensity={0.35} variant="subtle" />
+        <div style={{ maxWidth: 1140, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32 }}>
             <div>
               <Eyebrow mood={mood} glow>Four checks · one workflow</Eyebrow>
-              <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 50, margin: '10px 0 0', letterSpacing: '-0.01em' }}>Everything you ship, graded first.</h2>
+              <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 50, margin: '10px 0 0', letterSpacing: '-0.01em', color: 'var(--text-1)' }}>Everything you ship, graded first.</h2>
             </div>
-            <div style={{ fontSize: 14.5, color: 'var(--text-3)', maxWidth: 300, textAlign: 'right', lineHeight: 1.6 }}>
+            <div style={{ fontSize: 14.5, color: 'var(--text-3)', maxWidth: 300, textAlign: 'right', lineHeight: 1.65 }}>
               Pick a format to run a check. Each report is plain-English, scored 0-100, with copy-ready fixes.
             </div>
           </div>
@@ -2962,24 +3069,23 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
               const fm = MOODS[f.mood];
               return (
                 <div key={f.id} className="ci-feature" onClick={() => onNav(f.id)}
-                  style={{ padding: 26, minHeight: 250, background: 'var(--surface-2)', borderRadius: 20, border: '1px solid var(--stroke-1)' }}>
-                  <div style={{ position: 'absolute', right: -50, top: -50, width: 150, height: 150, background: `radial-gradient(circle, ${fm.orbB}, transparent 70%)`, opacity: 0.18, filter: 'blur(34px)' }} />
+                  style={{ padding: 26, minHeight: 260, background: 'var(--surface-2)', borderRadius: 20, border: '1px solid var(--stroke-1)',
+                    borderTop: `2px solid ${fm.accentFrom}55` }}>
+                  <div style={{ position: 'absolute', right: -30, top: -40, width: 160, height: 160, background: `radial-gradient(circle, ${fm.orbB}, transparent 70%)`, opacity: 0.22, filter: 'blur(40px)' }} />
                   <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    {/* icon + capability pills */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${fm.accentGlow}`, background: `${fm.accentFrom}18`, display: 'grid', placeItems: 'center', color: fm.accentFrom, flexShrink: 0 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: 11, border: `1px solid ${fm.accentFrom}40`, background: `${fm.accentFrom}15`, display: 'grid', placeItems: 'center', color: fm.accentFrom, flexShrink: 0 }}>
                         <CITabIcon name={f.icon} />
                       </div>
-                      <span style={{ fontSize: 17, color: fm.accentFrom, opacity: 0.8 }}>→</span>
+                      <span style={{ fontSize: 16, color: fm.accentFrom }}>→</span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 16 }}>
                       {f.tags.map(t => (
                         <span key={t} style={{ fontSize: 11.5, color: 'var(--text-3)', padding: '4px 10px', borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--inset-soft)', whiteSpace: 'nowrap' }}>{t}</span>
                       ))}
                     </div>
-                    {/* serif heading + description */}
                     <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 28, marginTop: 18, letterSpacing: '-0.01em', color: 'var(--text-1)' }}>{f.label}</div>
-                    <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 8, lineHeight: 1.6, flex: 1 }}>{f.line}</div>
+                    <div style={{ fontSize: 14.5, color: 'var(--text-2)', marginTop: 8, lineHeight: 1.65, flex: 1 }}>{f.line}</div>
                   </div>
                 </div>
               );
@@ -2989,7 +3095,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
       </section>
 
       {/* HOW IT READS -- sample teaser */}
-      <section style={{ maxWidth: 1140, margin: '0 auto', padding: '20px 26px 90px' }}>
+      <section style={{ maxWidth: 1140, margin: '0 auto', padding: '20px 32px 90px' }}>
         <div className="glass-strong" style={{ borderRadius: 22, padding: 32, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', left: -80, bottom: -80, width: 320, height: 320, background: `radial-gradient(circle, ${m.orbB}, transparent 70%)`, opacity: 0.25, filter: 'blur(50px)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
@@ -4506,7 +4612,7 @@ async function bCopyImageToClipboard(dataUrl, mime) {
 }
 
 function BuilderTab() {
-  const mood = 'lime';
+  const mood = 'ember';
   const m = BM[mood];
 
   const [ratio, setRatio] = React.useState('wide');
