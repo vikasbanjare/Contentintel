@@ -2166,6 +2166,21 @@ async function generateThumbnailReve({ prompt, model, size }) {
   throw new Error("Reve returned no image (the response format may differ -- share your provider's docs and I'll adjust).");
 }
 
+// Image-gen handoff: copy the prompt + open the tool in a new tab. The user
+// pastes their own photo(s) there and presses enter -- generation runs on their
+// own ChatGPT / Gemini plan (no key, no cost to us, no flaky free generator).
+function openInChatGPT(promptText) {
+  const p = String(promptText || "");
+  try { window.copyText && window.copyText(p); } catch (e) {}
+  window.open("https://chatgpt.com/?q=" + encodeURIComponent(p.slice(0, 6000)), "_blank", "noopener,noreferrer");
+}
+function openInGemini(promptText) {
+  const p = String(promptText || "");
+  try { window.copyText && window.copyText(p); } catch (e) {}
+  // Gemini's web app doesn't accept a ?q= prompt, so we just copy + open it.
+  window.open("https://gemini.google.com/app", "_blank", "noopener,noreferrer");
+}
+
 // Pull the grounded regen prompt out of a report (falls back to the biggest fix).
 function regenPromptFromReport(report) {
   const secs = (report && report.sections) || [];
@@ -2231,6 +2246,13 @@ function buildSystem(type, opts = {}) {
   if (provenText && niche && niche !== "Auto-detect") {
     if (niche === "None (universal)") provenText = "";
     else provenText = splitPlaybookBlocks(provenText).filter(b => nicheName(b) === niche).join("\n\n");
+  } else if (provenText && opts.compactPlaybook && (!niche || niche === "Auto-detect")) {
+    // Token saver: when auto-detecting, don't dump EVERY niche playbook. Send
+    // just the niche names + a self-detect instruction (cuts input tokens a lot).
+    const names = splitPlaybookBlocks(provenText).map(nicheName).filter(Boolean);
+    provenText = names.length
+      ? `Detect which of these niches the content belongs to, then apply that niche's known conventions from your own knowledge: ${names.join(", ")}. If it matches none, use universal principles only.`
+      : "";
   }
   // Optional structured design library (currently used by the thumbnail check).
   const cat = (arr) => (arr || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
@@ -2420,6 +2442,24 @@ function Collapsible({ title, desc, children }) {
   );
 }
 
+// One ranked upgrade prompt -- copy it, or send it straight to ChatGPT / Gemini.
+function GenPromptCard({ block, mood }) {
+  const m = EM[mood] || EM.navy;
+  const [done, setDone] = React.useState(false);
+  function copy() { try { window.copyText && window.copyText(block.text); } catch (e) {} setDone(true); setTimeout(() => setDone(false), 1500); }
+  return (
+    <div style={{ padding: "13px 14px", borderRadius: 12, background: "rgba(0,0,0,0.22)", border: "1px solid var(--stroke-1)" }}>
+      {block.label && <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6, letterSpacing: "0.01em" }}>{block.label}</div>}
+      <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{block.text}</div>
+      <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap" }}>
+        <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12, background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700 }} onClick={() => openInChatGPT(block.text)}>🎨 ChatGPT</button>
+        <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInGemini(block.text)}>✨ Gemini</button>
+        <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={copy}>{done ? "✓ Copied" : "⧉ Copy"}</button>
+      </div>
+    </div>
+  );
+}
+
 // ── ReportView -- dashboard-style report renderer ─────────────────────────────
 function ReportView({ report, mood }) {
   const m = EM[mood] || EM.navy;
@@ -2500,12 +2540,24 @@ function ReportView({ report, mood }) {
 
       {/* Everything else -- collapsible to keep it scannable */}
       {rest.map((sec, i) => {
-        if (sec.type === "copy")
+        if (sec.type === "copy") {
+          // Thumbnail upgrade prompts: show them OPEN and prominent, each with a
+          // one-click "send to ChatGPT / Gemini" so the user can generate it.
+          if (/upgrade|redesign|generate/i.test(sec.title || ""))
+            return (
+              <Block key={"r" + i} title={sec.title || "Ways to upgrade it"} mood={mood}>
+                {sec.desc && <div style={{ fontSize: 12.5, color: "var(--text-3)", margin: "0 0 12px", lineHeight: 1.5 }}>{sec.desc}</div>}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {(sec.blocks || []).map((b, j) => <GenPromptCard key={j} block={b} mood={mood} />)}
+                </div>
+              </Block>
+            );
           return <Collapsible key={"r" + i} title={sec.title || "Copy & rewrites"} desc={sec.desc}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {(sec.blocks || []).map((b, j) => <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono} />)}
             </div>
           </Collapsible>;
+        }
         if (sec.type === "checklist")
           return <Collapsible key={"r" + i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
         if (sec.type === "kv")
@@ -2560,7 +2612,7 @@ function KeyModal({ open, onClose }) {
         </div>
 
         <div style={{ marginTop: 18, padding: "12px 14px", borderRadius: 10, background: "var(--surface-1)", border: "1px solid var(--stroke-1)", fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.5 }}>
-          🎨 <b>Thumbnail images</b> are generated in <b>ChatGPT</b> now -- the Thumbnail tab gives you a ready prompt and a "Generate in ChatGPT" button (no extra keys needed here).
+          🎨 <b>Thumbnail images</b> are made in <b>ChatGPT or Gemini</b> -- the Thumbnail and Studio tabs give you a ready prompt and one-click buttons to open either (no extra keys needed here).
         </div>
 
         <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
@@ -2588,6 +2640,7 @@ Object.assign(window, {
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
+  openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
 });
@@ -3534,7 +3587,7 @@ window.ScriptTab = ScriptTab;
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-tabs.jsx ===== */
-// ContentIntel — Thumbnail / Title / Ads / History tabs
+// ContentIntel -- Thumbnail / Title / Ads / History tabs
 
 const {
   MOODS: TM, TrafficLight: TTL, Block: TB, ScoreItem: TSI, Issue: TIs,
@@ -3570,7 +3623,7 @@ function ImageDrop({ image, onPick, label }) {
   );
 }
 
-// Brand kit — persisted in the visitor's browser so they set colours once.
+// Brand kit -- persisted in the visitor's browser so they set colours once.
 const LS_BRAND = 'ci_brandkit';
 function loadBrandKit() {
   try { return JSON.parse(localStorage.getItem(LS_BRAND)) || { colors: [], note: '' }; }
@@ -3584,24 +3637,13 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 // sent the image via URL, so the user attaches their thumbnail there.)
 function chatgptPrompt(base, hasImage, strict, guidance) {
   const head = hasImage
-    ? `Edit the attached YouTube thumbnail into an improved 16:9 version. ${strict ? 'KEEP the same person(s), the exact text, fonts and overall palette — change ONLY what I describe below.' : 'A bolder redesign is fine, but keep the same person(s), topic and exact text.'}`
+    ? `Edit the attached YouTube thumbnail into an improved 16:9 version. ${strict ? 'KEEP the same person(s), the exact text, fonts and overall palette -- change ONLY what I describe below.' : 'A bolder redesign is fine, but keep the same person(s), topic and exact text.'}`
     : `Create a bold, high click-through 16:9 YouTube thumbnail.`;
   return `${head}\n\n${(base || '').trim()}${guidance ? '\n\n' + guidance : ''}`;
 }
-function openInChatGPT(promptText) {
-  try { window.copyText && window.copyText(promptText); } catch (e) {}
-  window.open('https://chatgpt.com/?q=' + encodeURIComponent(String(promptText).slice(0, 6000)), '_blank', 'noopener,noreferrer');
-}
-
-// Image-generation models the user can pick. Extend with Reve / more FLUX once
-// their endpoints are confirmed. provider routes to the right engine + key.
-const IMG_MODELS = [
-  { id: 'poll-flux', label: 'Free · FLUX — no key, no setup', provider: 'pollinations', pmodel: 'flux' },
-  { id: 'poll-turbo', label: 'Free · Turbo — faster, no key', provider: 'pollinations', pmodel: 'turbo' },
-  { id: 'black-forest-labs/flux.2-klein-4b', label: 'FLUX klein-4B — NVIDIA (needs proxy)', provider: 'nvidia' },
-  { id: 'gemini-2.5-flash-image', label: 'Gemini — edits YOUR image (Google key, paid)', provider: 'gemini' },
-  { id: 'reve/create-image', label: 'Reve — image (Reve key)', provider: 'reve' },
-];
+// Image generation is a handoff: copy the prompt + open ChatGPT or Gemini in a
+// new tab (window.openInChatGPT / window.openInGemini). The user pastes their
+// photo there. No in-app generator -- the free ones were unreliable.
 
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
 function ThumbnailTab({ onOpenKey }) {
@@ -3613,7 +3655,7 @@ function ThumbnailTab({ onOpenKey }) {
   const compare = count > 1;
   const [title, setTitle] = React.useState('');
   const [showTitle, setShowTitle] = React.useState(true);
-  const [kind, setKind] = React.useState('Lifestyle');
+  const [kind, setKind] = React.useState('Auto-detect');
   const [layout, setLayout] = React.useState('Auto-detect');
   const [scheme, setScheme] = React.useState('Auto-detect');
   const [nicheSel, setNicheSel] = React.useState('Auto-detect');
@@ -3651,13 +3693,13 @@ function ThumbnailTab({ onOpenKey }) {
     ((layout === 'Auto-detect' && scheme === 'Auto-detect') ? 'Auto-detect the layout archetype and colour scheme and judge their fit.\n' : '');
   const brandColors = (brand.colors || []).filter(Boolean);
   const guidance = [
-    brandColors.length ? `Brand colours: ${brandColors.join(', ')} — build the regenerated thumbnail's palette around these (background / highlight box / number / accents) so it is on-brand, keeping strong contrast.` : '',
+    brandColors.length ? `Brand colours: ${brandColors.join(', ')} -- build the regenerated thumbnail's palette around these (background / highlight box / number / accents) so it is on-brand, keeping strong contrast.` : '',
     brand.note ? `Brand notes: ${brand.note}` : '',
     emphasis.length ? `What to add / emphasise in the regeneration: ${emphasis.join('; ')}.` : '',
     addNote.trim() ? `Also for the regeneration: ${addNote.trim()}` : '',
   ].filter(Boolean).join('\n');
   const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
-  const head = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none given)'}\nContent type: ${kind}\n${targetLine}\n`;
+  const head = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none given)'}\nContent type: ${kind === 'Auto-detect' ? '(detect it from the thumbnail/title)' : kind}\n${targetLine}\n`;
   const userText = (compare
     ? head +
       Array.from({ length: count }, (_, i) => `THUMBNAIL ${LBL[i]} (= Image ${i + 1}): ${descsAll[i].trim() || `(see attached Image ${i + 1})`}`).join('\n') + '\n\n' +
@@ -3667,70 +3709,25 @@ function ThumbnailTab({ onOpenKey }) {
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
   // Vision works for single AND multi-image (A/B/C) when a key is present.
   const imgs = hasVision ? (compare ? imgsAll.slice(0, count).filter(Boolean) : (imgA ? [imgA] : [])) : [];
+  // Ask for 3 ranked, ready-to-generate upgrade prompts (basic -> mild -> bold).
+  const upgradeAsk = compare ? '' :
+    '\n\nALSO: end the report with a "copy" section titled "3 ways to upgrade this thumbnail" containing EXACTLY 3 blocks, each a complete, ready-to-paste image prompt for ChatGPT/Gemini that keeps the same person, topic and exact text:\n' +
+    '- block 1 label "1 - Basic fix (quickest)": the smallest change with the biggest payoff.\n' +
+    '- block 2 label "2 - Mild redesign (medium effort)": a moderate reworking of layout/contrast/elements.\n' +
+    '- block 3 label "3 - Full redesign (boldest)": a bold, scroll-stopping reimagining.';
   // Niche routing + edit mode are baked into the system prompt (one source of truth).
-  const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict });
-  const estIn = window.estTokens(system, userText) + imgs.length * 1400;
-  function check() { run({ userText, images: imgs, maxTokens: count === 3 ? 7000 : count === 2 ? 6000 : 4200, system }); }
-
-  // ── Image generation (shared) ───────────────────────────────────────────────
-  const [genModelId, setGenModelId] = React.useState(IMG_MODELS[0].id);
+  // compactPlaybook trims the playbook when auto-detecting -> fewer input tokens.
+  const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict, compactPlaybook: true });
+  const fullUserText = userText + upgradeAsk;
+  const estIn = window.estTokens(system, fullUserText) + imgs.length * 1400;
+  // Generate mode: describe-from-scratch prompt (no analysis, no tokens).
   const [genPrompt, setGenPrompt] = React.useState('');
-  const [gen, setGen] = React.useState({ loading: false, out: null, err: '', via: '', surface: '' });
-  React.useEffect(() => { setGen({ loading: false, out: null, err: '', via: '', surface: '' }); }, [report]);
-  const genModel = IMG_MODELS.find(x => x.id === genModelId) || IMG_MODELS[0];
-  async function runGenerate(basePrompt, surface) {
-    if (genModel.provider === 'gemini' && !imgA) { setGen({ loading: false, out: null, err: 'Upload an image first (Gemini edits your image).', via: '', surface }); return; }
-    setGen({ loading: true, out: null, err: '', via: '', surface });
-    try {
-      let out, via;
-      if (genModel.provider === 'pollinations') {
-        const p = `Professional YouTube thumbnail, 16:9, bold, high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
-        const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(p) + '?width=1280&height=720&nologo=true&model=' + (genModel.pmodel || 'flux') + '&seed=' + Math.floor(Math.random() * 1e6);
-        await new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(); im.onerror = () => reject(new Error('Free generator did not respond — try again, or pick another free model.')); im.src = url; });
-        out = url; via = 'Free · ' + (genModel.pmodel || 'flux');
-      } else if (genModel.provider === 'nvidia') {
-        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
-        out = await window.generateThumbnailFlux({ prompt, model: genModel.id }); via = 'NVIDIA FLUX (klein-4B)';
-      } else if (genModel.provider === 'reve') {
-        const prompt = `Professional YouTube thumbnail, 16:9, bold and high click-through. ${basePrompt}${guidance ? '\n' + guidance : ''}`;
-        out = await window.generateThumbnailReve({ prompt, model: genModel.id }); via = 'Reve';
-      } else {
-        const instruction = `Edit THIS thumbnail image into an improved version. ${strict ? 'Keep the same person(s), exact text, fonts and palette — change only what is described.' : 'A bolder redesign is allowed, but keep the same person(s), topic and exact text.'}\n\n${basePrompt}${guidance ? '\n\n' + guidance : ''}\n\nOutput a single 16:9 thumbnail.`;
-        out = await window.generateThumbnail({ instruction, image: imgA }); via = 'Google Gemini';
-      }
-      setGen({ loading: false, out, err: '', via, surface });
-    } catch (e) {
-      const em = String(e.message);
-      const msg = (em === 'NO_GOOGLE_KEY' || em === 'NO_NV_KEY')
-        ? 'Add an NVIDIA (FLUX) or Google AI key in Settings (top-right) for this model.'
-        : (e.message || 'Could not generate — try again.');
-      setGen({ loading: false, out: null, err: msg, via: '', surface });
-    }
-  }
-  const ModelPicker = () => (
-    <select className="ci-input" value={genModelId} onChange={e => setGenModelId(e.target.value)} style={{ appearance: 'auto', maxWidth: 380 }}>
-      {IMG_MODELS.map(mm => <option key={mm.id} value={mm.id}>{mm.label}</option>)}
-    </select>
-  );
-  const GenResult = ({ surface }) => (gen.surface === surface ? (
-    <div>
-      {gen.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12, lineHeight: 1.5 }}>{gen.err}</div>}
-      {gen.out && (
-        <div style={{ marginTop: 14 }}>
-          {gen.via && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 6 }}>Generated with {gen.via}</div>}
-          <img src={gen.out} alt="generated thumbnail" style={{ width: '100%', maxWidth: 640, borderRadius: 12, display: 'block', border: '1px solid var(--stroke-2)' }} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <a className="ci-copybtn" href={gen.out} download="thumbnail.png" style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none' }}>↓ Download</a>
-          </div>
-        </div>
-      )}
-    </div>
-  ) : null);
+  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5200 : count === 2 ? 4200 : 3200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
       <TWH mood={mood} eyebrow="Thumbnail studio" title={mode === 'Generate' ? 'Generate a thumbnail' : 'Check your thumbnail'}
-        sub={mode === 'Generate' ? 'Describe what you want (and optionally upload one to remix) — generate straight away, no analysis.' : "Upload your thumbnail. We'll check if it'll get clicks — based on what actually works, not how pretty it looks."} />
+        sub={mode === 'Generate' ? 'Describe what you want (and optionally upload one to remix) -- generate straight away, no analysis.' : "Upload your thumbnail. We'll check if it'll get clicks -- based on what actually works, not how pretty it looks."} />
 
       <div style={{ marginBottom: 16 }}>
         <TCG label="Mode" options={['Check', 'Generate']} value={mode} onChange={setMode} />
@@ -3738,17 +3735,18 @@ function ThumbnailTab({ onOpenKey }) {
 
       {mode === 'Generate' && (
         <TB mood={mood}>
-          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— optional; attach it in ChatGPT to edit it</span></label>
-          <ImageDrop image={imgA} onPick={setImgA} label="Drop an image — JPG or PNG (optional)" />
+          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- optional; attach it in ChatGPT to edit it</span></label>
+          <ImageDrop image={imgA} onPick={setImgA} label="Drop an image -- JPG or PNG (optional)" />
           <label className="ci-label" style={{ marginTop: 16 }}>Describe the thumbnail you want</label>
           <textarea className="ci-textarea" style={{ minHeight: 90 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
             placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-            <window.GlowButton mood={mood} size="lg" onClick={() => openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
+            <window.GlowButton mood={mood} size="lg" onClick={() => window.openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
+            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.openInGemini(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>✨ Open in Gemini</button>
             <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>
-            Opens ChatGPT with your prompt (also copied). In ChatGPT: <b>attach your thumbnail</b> (drag it in), then press enter — image generation runs there, on your ChatGPT plan.
+            Opens ChatGPT or Gemini with your prompt (also copied). There: <b>attach your thumbnail</b> (drag it in), then press enter -- image generation runs on your own plan.
           </div>
         </TB>
       )}
@@ -3762,14 +3760,14 @@ function ThumbnailTab({ onOpenKey }) {
           {Array.from({ length: count }).map((_, i) => (
             <div key={i}>
               {compare && <div style={{ fontSize: 12, fontWeight: 700, color: m.accentFrom, marginBottom: 6, letterSpacing: '.04em' }}>{LBL[i]}</div>}
-              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image — JPG or PNG' : `Drop image ${LBL[i]}`} />
+              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image -- JPG or PNG' : `Drop image ${LBL[i]}`} />
             </div>
           ))}
         </div>
 
         {!hasVision && (
           <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 10, padding: '8px 11px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)', lineHeight: 1.5 }}>
-            The free AI inside Claude can't see images — so <b>describe each thumbnail below</b> and that's what gets reviewed. (Add an API key in Settings for real image vision.)
+            The free AI inside Claude can't see images -- so <b>describe each thumbnail below</b> and that's what gets reviewed. (Add an API key in Settings for real image vision.)
           </div>
         )}
 
@@ -3778,7 +3776,7 @@ function ThumbnailTab({ onOpenKey }) {
             <div key={i}>
               <label className="ci-label">{compare ? `Describe thumbnail ${LBL[i]}` : 'Describe your thumbnail (text, faces, colors, layout)'}</label>
               <textarea className="ci-textarea" style={{ minHeight: 72 }} value={descsAll[i]} onChange={e => setDescs[i](e.target.value)}
-                placeholder={i === 0 ? "e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background…" : `Describe thumbnail ${LBL[i]} the same way…`} />
+                placeholder={i === 0 ? "e.g. Close-up of a shocked face, big yellow text 'I QUIT', dark kitchen background..." : `Describe thumbnail ${LBL[i]} the same way...`} />
             </div>
           ))}
         </div>
@@ -3786,15 +3784,15 @@ function ThumbnailTab({ onOpenKey }) {
         <div style={{ marginTop: 16 }}>
           <TTg on={showTitle} onChange={setShowTitle} mood={mood}>Pair with a title (checks if thumb + title work together)</TTg>
           {showTitle && (
-            <input className="ci-input" style={{ marginTop: 10 }} value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your video title here…" />
+            <input className="ci-input" style={{ marginTop: 10 }} value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your video title here..." />
           )}
         </div>
         <div style={{ marginTop: 14 }}>
-          <TCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
+          <TCG label="Content" options={['Auto-detect', 'Education', 'Entertainment', 'Tech', 'Lifestyle', 'Food', 'Gaming', 'Fitness', 'Finance', 'Other']} value={kind} onChange={setKind} />
         </div>
         <details className="ci-collapse" style={{ marginTop: 16, border: '1px solid var(--stroke-1)', borderRadius: 12, background: 'var(--surface-1)' }}>
           <summary style={{ cursor: 'pointer', padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 600, fontSize: 13.5, color: 'var(--text-2)' }}>
-            <span>⚙ Advanced — layout, niche & on-brand regeneration</span>
+            <span>⚙ Advanced -- layout, niche & on-brand regeneration</span>
             <span className="ci-collapse-caret" style={{ opacity: 0.45, fontSize: 11.5 }}>optional ▾</span>
           </summary>
           <div style={{ padding: '0 16px 16px' }}>
@@ -3805,7 +3803,7 @@ function ThumbnailTab({ onOpenKey }) {
               <TCG label="Colour scheme" options={schemeOpts} value={scheme} onChange={setScheme} />
             </div>
             <div style={{ marginTop: 16 }}>
-              <label className="ci-label">Niche playbook <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— pick yours, or “None” for a clean, unbiased review</span></label>
+              <label className="ci-label">Niche playbook <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- pick yours, or "None" for a clean, unbiased review</span></label>
               <select className="ci-input" value={nicheSel} onChange={e => setNicheSel(e.target.value)} style={{ appearance: 'auto' }}>
                 {nicheOpts.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
@@ -3813,7 +3811,7 @@ function ThumbnailTab({ onOpenKey }) {
 
             <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--stroke-1)' }}>
               <label className="ci-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                🎨 Brand colours <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— keeps the regen on-brand (saved here)</span>
+                🎨 Brand colours <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- keeps the regen on-brand (saved here)</span>
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                 {(brand.colors || []).map((c, i) => (
@@ -3829,9 +3827,9 @@ function ThumbnailTab({ onOpenKey }) {
                 )}
               </div>
               <input className="ci-input" style={{ marginTop: 10 }} value={brand.note || ''} onChange={e => setBrand(b => ({ ...b, note: e.target.value }))}
-                placeholder="Optional brand note — e.g. 'logo bottom-right, bold Montserrat-style font'" />
+                placeholder="Optional brand note -- e.g. 'logo bottom-right, bold Montserrat-style font'" />
 
-              <label className="ci-label" style={{ marginTop: 16 }}>✨ Regeneration — what should we add or emphasise?</label>
+              <label className="ci-label" style={{ marginTop: 16 }}>✨ Regeneration -- what should we add or emphasise?</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
                 {EMPHASIS_CHIPS.map(c => {
                   const on = emphasis.includes(c);
@@ -3844,9 +3842,9 @@ function ThumbnailTab({ onOpenKey }) {
                 })}
               </div>
               <input className="ci-input" style={{ marginTop: 10 }} value={addNote} onChange={e => setAddNote(e.target.value)}
-                placeholder="Anything else for the new version…" />
+                placeholder="Anything else for the new version..." />
               <div style={{ marginTop: 14 }}>
-                <TTg on={strict} onChange={setStrict} mood={mood}>Strict edit — keep my image, change only what I ask</TTg>
+                <TTg on={strict} onChange={setStrict} mood={mood}>Strict edit -- keep my image, change only what I ask</TTg>
               </div>
             </div>
           </div>
@@ -3865,12 +3863,13 @@ function ThumbnailTab({ onOpenKey }) {
           {!compare && imgA && (
             <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>🎨 Generate the improved thumbnail</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Takes the grounded fix above into ChatGPT — attach your thumbnail there and it edits it.</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Takes the grounded fix above into ChatGPT or Gemini -- attach your thumbnail there and it edits it.</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <window.GlowButton mood={mood} onClick={() => openInChatGPT(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
+                <window.GlowButton mood={mood} onClick={() => window.openInChatGPT(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
+                <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.openInGemini(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>✨ Open in Gemini</button>
                 <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.copyText(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>⧉ Copy prompt</button>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>Prompt is copied + prefilled in ChatGPT. Attach your thumbnail there, then press enter.</div>
+              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>Prompt is copied + prefilled. Attach your thumbnail there, then press enter.</div>
             </div>
           )}
         </div>
@@ -3882,7 +3881,7 @@ function ThumbnailTab({ onOpenKey }) {
             <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key and upload an image to analyze your real thumbnail → <span style={{ textDecoration: 'underline' }}>Connect key</span>
           </div>
           <TTL level="yellow" title="Decent, but missing key elements"
-            text="Good structure and colors — but no human face is hurting your click-through rate." />
+            text="Good structure and colors -- but no human face is hurting your click-through rate." />
 
           <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 14 }}>
             {/* what we see */}
@@ -3900,7 +3899,7 @@ function ThumbnailTab({ onOpenKey }) {
             </TB>
 
             {/* quick scores */}
-            <TB title="Quick scores" desc="Overall: 72 — good structure, but no face" mood={mood}>
+            <TB title="Quick scores" desc="Overall: 72 -- good structure, but no face" mood={mood}>
               <TQS name="Main subject clarity" score={8} why="Easy to understand what this is about." />
               <TQS name="Readable on phone" score={7} why="Title is fine, but model names underneath are hard to read." />
               <TQS name="Color contrast" score={8} why="Bright logos on dark background works well." />
@@ -3919,22 +3918,22 @@ function ThumbnailTab({ onOpenKey }) {
           </TB>
 
           <TB title="What to fix" mood={mood}>
-            <TIs level="red">Add your face (or any face showing surprise) — this alone can boost clicks 20–30%.</TIs>
-            <TIs level="yellow">Put a crown or trophy on the winning model — teases the answer without revealing it.</TIs>
-            <TIs level="yellow">Make the model names bigger — they disappear on phone screens.</TIs>
+            <TIs level="red">Add your face (or any face showing surprise) -- this alone can boost clicks 20-30%.</TIs>
+            <TIs level="yellow">Put a crown or trophy on the winning model -- teases the answer without revealing it.</TIs>
+            <TIs level="yellow">Make the model names bigger -- they disappear on phone screens.</TIs>
           </TB>
 
           <TB title="AI prompts for a better thumbnail" mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <TCB text="Young Indian man, shocked expression, holding phone, 5 glowing AI logos floating behind him, dark tech background, neon lighting, 16:9" label="Copy prompt" />
-              <TCB text="Split-screen battle — 3 AI logos with red X vs 2 with gold crown, dark background, VS text in center, dramatic lighting" label="Copy prompt" />
+              <TCB text="Split-screen battle -- 3 AI logos with red X vs 2 with gold crown, dark background, VS text in center, dramatic lighting" label="Copy prompt" />
             </div>
           </TB>
 
           <TB mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
             <Eyebrow mood={mood} glow>Bottom line</Eyebrow>
             <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10 }}>
-              Good thumbnail for tech — clear topic, strong contrast, real curiosity. The biggest weakness is no human face. Add a reaction face and a "winner" hint like a crown — <span style={{ color: m.accentFrom, fontWeight: 600 }}>that'll make a big difference without cluttering the design.</span>
+              Good thumbnail for tech -- clear topic, strong contrast, real curiosity. The biggest weakness is no human face. Add a reaction face and a "winner" hint like a crown -- <span style={{ color: m.accentFrom, fontWeight: 600 }}>that'll make a big difference without cluttering the design.</span>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <button className="ci-copybtn" style={{ height: 34 }}>📋 Copy report</button>
@@ -3981,7 +3980,7 @@ function TitleTab({ onOpenKey }) {
     ['Negative framing', 'Never Make These 5 SIP Mistakes in 2026'],
     ['Question', 'Kya Aap Bhi Yeh 5 SIP Galtiyan Kar Rahe Ho?'],
     ['Listicle', '5 SIP Mistakes [With Real Examples]'],
-    ['Controversial', 'Your SIP Is Losing Money — Here Is Why'],
+    ['Controversial', 'Your SIP Is Losing Money -- Here Is Why'],
     ['Social proof', '5 SIP Mistakes 90% Beginners Make'],
     ['Aspirational', 'Avoid These 5 Mistakes, Build ₹1 Crore With SIP'],
   ];
@@ -3993,11 +3992,11 @@ function TitleTab({ onOpenKey }) {
 
       <TB mood={mood}>
         <div style={{ marginBottom: 14 }}><TTg on={compare} onChange={setCompare} mood={mood}>Compare two titles</TTg></div>
-        <input className="ci-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your title here…" style={{ fontSize: 16 }} />
-        {compare && <input className="ci-input" value={titleB} onChange={e => setTitleB(e.target.value)} placeholder="Second title…" style={{ marginTop: 10, fontSize: 16 }} />}
+        <input className="ci-input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Type your title here..." style={{ fontSize: 16 }} />
+        {compare && <input className="ci-input" value={titleB} onChange={e => setTitleB(e.target.value)} placeholder="Second title..." style={{ marginTop: 10, fontSize: 16 }} />}
         <div style={{ marginTop: 14 }}>
-          <label className="ci-label">What's the video about? (optional — helps us judge if title matches content)</label>
-          <input className="ci-input" value={about} onChange={e => setAbout(e.target.value)} placeholder="One line about the video…" />
+          <label className="ci-label">What's the video about? (optional -- helps us judge if title matches content)</label>
+          <input className="ci-input" value={about} onChange={e => setAbout(e.target.value)} placeholder="One line about the video..." />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
           <TCG label="Language" options={['Auto-detect', 'English', 'Hindi', 'Hinglish', 'Spanish', 'Other']} value={lang} onChange={setLang} />
@@ -4008,7 +4007,7 @@ function TitleTab({ onOpenKey }) {
           <span>Characters: <b>{chars}</b></span>
           <span style={{ color: 'var(--text-5)' }}>·</span>
           <span style={{ color: chars <= 60 ? '#8FD86A' : '#F0C85A', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-            <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good — under 60' : 'Long — may truncate'}
+            <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good -- under 60' : 'Long -- may truncate'}
           </span>
         </div>
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title" /></div>
@@ -4026,7 +4025,7 @@ function TitleTab({ onOpenKey }) {
           <div className="ci-sample-note" onClick={onOpenKey}>
             <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key to analyze your real title → <span style={{ textDecoration: 'underline' }}>Connect key</span>
           </div>
-          <TTL level="yellow" title="Close — a few tweaks will lift it" text="Clear and readable, but the hook word and keyword position need work." />
+          <TTL level="yellow" title="Close -- a few tweaks will lift it" text="Clear and readable, but the hook word and keyword position need work." />
 
           <TB title="Scores" mood={mood}>
             <TSI mood={mood} name="Click chance" score={58} why="Doesn't create enough urgency to click. Needs a stronger hook word up front." />
@@ -4036,11 +4035,11 @@ function TitleTab({ onOpenKey }) {
 
           <TB title="Title breakdown" mood={mood}>
             {[
-              ['Characters', `${chars} — good, under 60`, 'green'],
-              ['Power words', '2 found — decent, 3+ is ideal', 'yellow'],
-              ['Numbers', 'Yes — numbers boost clicks 15–25%', 'green'],
-              ['Brackets', 'None — adding [2026] or [Step-by-Step] can help', 'yellow'],
-              ['Keyword position', '"SIP" appears at word 2 — good, keep it in the first 3 words', 'green'],
+              ['Characters', `${chars} -- good, under 60`, 'green'],
+              ['Power words', '2 found -- decent, 3+ is ideal', 'yellow'],
+              ['Numbers', 'Yes -- numbers boost clicks 15-25%', 'green'],
+              ['Brackets', 'None -- adding [2026] or [Step-by-Step] can help', 'yellow'],
+              ['Keyword position', '"SIP" appears at word 2 -- good, keep it in the first 3 words', 'green'],
             ].map(([k, v, lvl]) => (
               <div key={k} style={{ display: 'grid', gridTemplateColumns: '20px 130px 1fr', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--stroke-1)', fontSize: 13 }}>
                 <span className={'ci-dot ' + lvl} />
@@ -4049,11 +4048,11 @@ function TitleTab({ onOpenKey }) {
               </div>
             ))}
             <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid var(--stroke-1)', fontSize: 12.5, color: 'var(--text-2)' }}>
-              On mobile, viewers see: <span style={{ color: 'var(--text-1)', fontWeight: 500 }}>"{title.slice(0, 40)}{title.length > 40 ? '…' : ''}"</span>
+              On mobile, viewers see: <span style={{ color: 'var(--text-1)', fontWeight: 500 }}>"{title.slice(0, 40)}{title.length > 40 ? '...' : ''}"</span>
             </div>
           </TB>
 
-          <TB title="10 alternative titles" desc="Different angles — copy whichever fits" mood={mood}>
+          <TB title="10 alternative titles" desc="Different angles -- copy whichever fits" mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {alts.map(([angle, t]) => (
                 <div key={angle} className="ci-copyblock">
@@ -4088,7 +4087,7 @@ function AdsTab({ onOpenKey }) {
   const mood = 'violet';
   const m = TM[mood];
   const [platform, setPlatform] = React.useState('Meta');
-  const [primary, setPrimary] = React.useState('Tired of trainers that fall apart in 3 months? The Atlas Mach lasts 800km — guaranteed, or your money back.');
+  const [primary, setPrimary] = React.useState('Tired of trainers that fall apart in 3 months? The Atlas Mach lasts 800km -- guaranteed, or your money back.');
   const [headline, setHeadline] = React.useState('Built to Outlast Your PR');
   const [cta, setCta] = React.useState('Shop Now');
   const [goal, setGoal] = React.useState('Conversions');
@@ -4129,15 +4128,15 @@ function AdsTab({ onOpenKey }) {
             </div>
             <div>
               <label className="ci-label">Description (most people never see this)</label>
-              <input className="ci-input" placeholder="Optional supporting line…" />
+              <input className="ci-input" placeholder="Optional supporting line..." />
             </div>
             <TCG label="CTA button" options={['Learn More', 'Sign Up', 'Shop Now', 'Download', 'Apply Now']} value={cta} onChange={setCta} />
             <TCG label="Goal" options={['Traffic', 'Leads', 'Conversions', 'Awareness']} value={goal} onChange={setGoal} />
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><label className="ci-label">Headlines (one per line — max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} defaultValue={'Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days'} /></div>
-            <div><label className="ci-label">Descriptions (one per line — max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} defaultValue={'The $90 trainer that beat the $200 ones in a real half-marathon. Try risk-free.'} /></div>
+            <div><label className="ci-label">Headlines (one per line -- max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} defaultValue={'Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days'} /></div>
+            <div><label className="ci-label">Descriptions (one per line -- max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} defaultValue={'The $90 trainer that beat the $200 ones in a real half-marathon. Try risk-free.'} /></div>
             <div><label className="ci-label">Keywords you're targeting</label><input className="ci-input" defaultValue="running shoes, marathon trainer, cushioned running shoe" /></div>
           </div>
         )}
@@ -4157,10 +4156,10 @@ function AdsTab({ onOpenKey }) {
           <div className="ci-sample-note" onClick={onOpenKey}>
             <span className="ci-dot yellow" /> <b>Sample report.</b> Add your API key to analyze your real ad → <span style={{ textDecoration: 'underline' }}>Connect key</span>
           </div>
-          <TTL level="red" title="Not ready — your hook is hidden" text="Your strongest line falls after the 'See More' cutoff. Most people won't read it." />
+          <TTL level="red" title="Not ready -- your hook is hidden" text="Your strongest line falls after the 'See More' cutoff. Most people won't read it." />
 
           <TB title="Scores" mood={mood}>
-            <TSI mood={mood} name="Scroll-stopping power" score={45} why="Your opening line blends into the feed. The benefit is buried — lead with it." />
+            <TSI mood={mood} name="Scroll-stopping power" score={45} why="Your opening line blends into the feed. The benefit is buried -- lead with it." />
             <TSI mood={mood} name="Copy quality" score={62} why="Message is clear but doesn't create urgency." />
             <TSI mood={mood} name="CTA fit" score={78} why={`"${cta}" matches your ${goal.toLowerCase()} objective well.`} />
           </TB>
@@ -4169,11 +4168,11 @@ function AdsTab({ onOpenKey }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid var(--stroke-1)' }}>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-4)', marginBottom: 5 }}>ON FEED · BEFORE "SEE MORE"</div>
-                <div style={{ fontSize: 13.5, color: 'var(--text-1)' }}>"{primary.slice(0, META_PRIMARY)}{primary.length > META_PRIMARY ? '… See More' : ''}"</div>
+                <div style={{ fontSize: 13.5, color: 'var(--text-1)' }}>"{primary.slice(0, META_PRIMARY)}{primary.length > META_PRIMARY ? '... See More' : ''}"</div>
               </div>
               <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.25)', border: '1px solid var(--stroke-1)' }}>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-4)', marginBottom: 5 }}>HEADLINE ON MOBILE</div>
-                <div style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: 600 }}>"{headline.slice(0, META_HEAD)}{headline.length > META_HEAD ? '…' : ''}"</div>
+                <div style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: 600 }}>"{headline.slice(0, META_HEAD)}{headline.length > META_HEAD ? '...' : ''}"</div>
               </div>
             </div>
           </TB>
@@ -4186,14 +4185,14 @@ function AdsTab({ onOpenKey }) {
 
           <TB title="Stronger versions" mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div><div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>Stronger main text</div><TCB text="Your trainers shouldn't die at 3 months. The Atlas Mach lasts 800km — guaranteed, or your money back. Runners are switching for a reason." label="Copy" /></div>
+              <div><div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>Stronger main text</div><TCB text="Your trainers shouldn't die at 3 months. The Atlas Mach lasts 800km -- guaranteed, or your money back. Runners are switching for a reason." label="Copy" /></div>
               <div><div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6 }}>Stronger headline</div><TCB text="800km or Money Back" label="Copy" /></div>
             </div>
           </TB>
 
           <TB mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
             <Eyebrow mood={mood} glow>Bottom line</Eyebrow>
-            <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10 }}>Your offer is strong but it's hidden. Move the guarantee to your first line and harden the headline — <span style={{ color: m.accentFrom, fontWeight: 600 }}>that's the difference between a scroll and a click.</span></div>
+            <div style={{ fontSize: 16, lineHeight: 1.55, marginTop: 10 }}>Your offer is strong but it's hidden. Move the guarantee to your first line and harden the headline -- <span style={{ color: m.accentFrom, fontWeight: 600 }}>that's the difference between a scroll and a click.</span></div>
           </TB>
         </div>
       )}
@@ -4257,7 +4256,7 @@ function HistoryTab() {
                   <div style={{ fontSize: 12, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>{timeAgo(it.t)}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span className={'ci-dot ' + lvl} />
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: lvl === 'green' ? '#8FD86A' : lvl === 'yellow' ? '#F0C85A' : '#F06A7E' }}>{it.score != null ? it.score : '—'}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: lvl === 'green' ? '#8FD86A' : lvl === 'yellow' ? '#F0C85A' : '#F06A7E' }}>{it.score != null ? it.score : '--'}</span>
                   </div>
                 </div>
               );
@@ -4310,22 +4309,8 @@ const BUILDER_RATIOS = [
 ];
 
 const OUTPUT_TOOLS = [
-  { id: 'chatgpt', label: 'ChatGPT',       icon: '💬', url: 'https://chatgpt.com/',          useQ: true,  note: 'Prompt pre-filled -- paste photos with Ctrl+V after opening' },
-  { id: 'gemini',  label: 'Google Gemini', icon: '✨', url: 'https://gemini.google.com/app', useQ: false, note: 'Free -- great for creative concepts -- prompt copied, paste it in' },
-  { id: 'ideogram',label: 'Ideogram',      icon: '✏️', url: 'https://ideogram.ai/t/explore', useQ: false, note: 'Free -- excellent for text inside images -- paste into prompt box' },
-];
-
-const COLOR_SCHEMES = [
-  'Bold crimson red and deep black with clean white text',
-  'Rich navy blue and electric yellow -- maximum contrast',
-  'Warm burnt orange and dark charcoal with ivory text',
-  'Vivid cyan and dark indigo with white highlights',
-  'Deep forest green and off-white cream',
-  'Hot magenta and jet black, editorial high-fashion feel',
-  'Royal cobalt blue and bright gold accent',
-  'Deep burgundy and slate grey with pale text',
-  'Electric lime green and dark navy',
-  'Rich violet and vibrant magenta accent on near-black',
+  { id: 'chatgpt', label: 'ChatGPT',       icon: '💬', url: 'https://chatgpt.com/',          useQ: true,  note: 'Prompt pre-filled -- paste your photo(s) with Ctrl+V, then press enter' },
+  { id: 'gemini',  label: 'Google Gemini', icon: '✨', url: 'https://gemini.google.com/app', useQ: false, note: 'Free -- prompt copied, paste it in and attach your photo(s)' },
 ];
 
 function bReadImage(file, cb) {
@@ -4386,9 +4371,6 @@ function BuilderTab() {
   const [prompt, setPrompt] = React.useState('');
   const [built, setBuilt] = React.useState(false);
   const [copyFeedback, setCopyFeedback] = React.useState('');
-  const [genState, setGenState] = React.useState('idle');
-  const [genUrl, setGenUrl] = React.useState('');
-  const [genErr, setGenErr] = React.useState('');
 
   async function analyseExisting() {
     const key = window.getKey ? window.getKey() : null;
@@ -4422,7 +4404,8 @@ function BuilderTab() {
         })));
       }
       if (Array.isArray(parsed.elements)) setElements(parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)));
-      if (parsed.styleNotes) setExtraNote(parsed.styleNotes);
+      // Note: we deliberately do NOT auto-fill "Extra direction" from styleNotes --
+      // that pre-filled suggestion led to repetitive, off-target generations.
       const parts = [
         parsed.headline && `headline "${parsed.headline}"`,
         parsed.subline && `sub-text "${parsed.subline}"`,
@@ -4480,6 +4463,8 @@ function BuilderTab() {
       lines.push('');
     }
     if (elements.length > 0) { lines.push(`VISUAL ELEMENTS: ${elements.join('. ')}.`); lines.push(''); }
+    // Colour is only added when the user actually set brand colours (or notes).
+    // No auto-filled/random palette -- that caused unwanted, off-brand colours.
     if (hasBrand && (refOverride || !refImg)) {
       const colorRoles = brandColors.map((c, i) => {
         const role = i === 0 ? 'Primary/background' : i === 1 ? 'Accent/text' : i === 2 ? 'Secondary accent' : 'Highlight';
@@ -4487,9 +4472,6 @@ function BuilderTab() {
       });
       const cp = [colorRoles.length ? `MANDATORY palette -- ${colorRoles.join('; ')}.` : '', brand.note ? `Brand notes: ${brand.note}.` : ''].filter(Boolean).join(' ');
       lines.push(`COLOUR (use these exact colours): ${cp} Do not substitute or ignore these.`); lines.push('');
-    } else if (!refImg) {
-      const scheme = COLOR_SCHEMES[Math.floor(Math.random() * COLOR_SCHEMES.length)];
-      lines.push(`COLOUR: ${scheme}. Palette should be bold and high-contrast, not muted.`); lines.push('');
     }
     if (refImg) {
       if (refAnalysis) {
@@ -4504,14 +4486,8 @@ function BuilderTab() {
     if (extraNote.trim()) { lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`); lines.push(''); }
     lines.push('Make it bold, high-contrast, impossible to ignore at small thumbnail size. Professional photography and design quality.');
     const p = lines.join('\n');
-    setPrompt(p); setBuilt(true); setGenState('idle'); setGenUrl(''); setGenErr('');
+    setPrompt(p); setBuilt(true);
     setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-  }
-
-  function runGenerate() {
-    setGenState('loading'); setGenErr('');
-    const seed = Math.floor(Math.random() * 1e6);
-    setGenUrl(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${currentRatio.w}&height=${currentRatio.h}&model=flux&nologo=true&seed=${seed}`);
   }
 
   function openIn(tool) {
@@ -4700,43 +4676,11 @@ function BuilderTab() {
       {built && prompt && (
         <div id="builder-output" style={{ marginTop: 20 }}>
 
-          {/* Free generation */}
-          <div style={{ padding: '20px 18px', borderRadius: 16, background: `linear-gradient(135deg, ${m.orbB}30, var(--surface-1))`, border: `1.5px solid ${m.accentGlow}`, marginBottom: 14 }}>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)', marginBottom: 4 }}>Generate now -- free, no key needed</div>
-            <div style={{ fontSize: 13, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.5 }}>
-              Uses FLUX AI directly in the app. No account, no cost. Download or regenerate until right.
-              {people.some(p => p.photo) && <span style={{ color: 'var(--text-4)' }}> Note: uploaded photos not sent -- use ChatGPT below for photo-accurate results.</span>}
-            </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <window.GlowButton mood={mood} size="lg" onClick={runGenerate} style={{ opacity: genState === 'loading' ? 0.65 : 1 }}>
-                {genState === 'loading' ? 'Generating...' : genState === 'done' ? 'Regenerate' : 'Generate now'}
-              </window.GlowButton>
-              {genState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Takes 15-40 seconds...</span>}
-            </div>
-            {genState === 'error' && <div style={{ marginTop: 10, fontSize: 13, color: '#f5788c' }}>{genErr}</div>}
-            {genUrl && (
-              <div style={{ marginTop: 14 }}>
-                {genState === 'loading' && <div style={{ fontSize: 12, color: 'var(--text-5)', marginBottom: 8 }}>Waiting for image...</div>}
-                <img key={genUrl} src={genUrl} alt="Generated thumbnail"
-                  style={{ width: '100%', maxWidth: 560, borderRadius: 12, display: genState === 'done' ? 'block' : 'none', border: '1px solid var(--stroke-1)' }}
-                  onLoad={() => setGenState('done')}
-                  onError={() => { setGenState('error'); setGenErr('Generation failed -- try again or use a tool below.'); setGenUrl(''); }} />
-                {genState === 'done' && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                    <a className="ci-copybtn" href={genUrl} download="thumbnail.png" target="_blank" rel="noopener noreferrer"
-                      style={{ height: 34, display: 'inline-flex', alignItems: 'center', padding: '0 14px', textDecoration: 'none', fontSize: 12.5 }}>Download</a>
-                    <button className="ci-copybtn" style={{ height: 34, fontSize: 12.5 }} onClick={runGenerate}>Try again</button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* External tools */}
-          <div style={{ padding: '18px 18px', borderRadius: 14, background: 'var(--surface-1)', border: '1px solid var(--stroke-1)' }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-1)', marginBottom: 4 }}>Use your own AI tools</div>
+          {/* Generate in ChatGPT or Gemini */}
+          <div style={{ padding: '18px 18px', borderRadius: 14, background: `linear-gradient(135deg, ${m.orbB}24, var(--surface-1))`, border: `1.5px solid ${m.accentGlow}` }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-1)', marginBottom: 4, fontFamily: 'var(--font-display)' }}>Generate it in ChatGPT or Gemini</div>
             <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14, lineHeight: 1.55 }}>
-              For photo-based results -- editing your real face -- use ChatGPT. Copy photos one at a time, open ChatGPT, paste them, then paste the prompt.
+              These edit your real face accurately. {(photoPeople.length > 0 || refImg) ? 'Copy each photo below, open a tool, paste the photo(s), then the prompt is already there.' : 'Open a tool -- the prompt is copied and pre-filled -- then press enter.'}
             </div>
             {(photoPeople.length > 0 || refImg) && (
               <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 11, background: 'rgba(0,0,0,0.22)', border: '1px solid var(--stroke-1)' }}>
