@@ -856,6 +856,18 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
   <!-- RESEARCH DATA — external on purpose, additive & multi-file. -->
   <script src="research.js"></script>
   <script src="research-2.js"></script>
+  <script src="research-2.js"></script>
+
+<script type="text/babel" data-presets="react">
+
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- RESEARCH DATA — external on purpose, additive & multi-file. -->
+  <script src="research.js"></script>
+  <script src="research-2.js"></script>
 
 <script type="text/babel" data-presets="react">
 /* ===== tweaks-panel.jsx ===== */
@@ -1392,6 +1404,7 @@ Object.assign(window, {
 
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ui.jsx ===== */
@@ -1924,6 +1937,7 @@ Object.assign(window, {
   AmbientBloom, Sidebar, Topbar, Eyebrow, GlowButton, Chip, Card, ScoreRing, StepDots,
   NavIcon, NAV, PROJECTS,
 });
+
 
 
 
@@ -2716,6 +2730,7 @@ Object.assign(window, {
 
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-shell.jsx ===== */
@@ -2729,10 +2744,10 @@ Object.assign(window, {
 // NOT work in a <video> tag. Empty LIGHT values fall back to the dark video.
 window.__resources = (typeof window !== 'undefined' && window.__resources) || {};
 const CI_VIDEOS = {
-  heroDark:     window.__resources.heroVideoDark     || "hero-dark.mp4",
-  heroLight:    window.__resources.heroVideoLight    || "hero-light.mp4",
-  ambientDark:  window.__resources.ambientVideoDark  || "ambient-dark.mp4",
-  ambientLight: window.__resources.ambientVideoLight || "ambient-light.mp4",
+  heroDark:     window.__resources.heroVideoDark     || "https://github.com/user-attachments/assets/bba9884a-b375-4b8a-9e2e-35594c121d3a",
+  heroLight:    window.__resources.heroVideoLight    || "https://github.com/user-attachments/assets/2a0b12f2-7288-4a07-adf9-f02e38d92870",
+  ambientDark:  window.__resources.ambientVideoDark  || "https://github.com/user-attachments/assets/e50bc266-97ba-43f9-bb4f-8c2594ede9b4",
+  ambientLight: window.__resources.ambientVideoLight || "https://github.com/user-attachments/assets/f09e7494-5ae7-41ad-9f10-4a616831d96b",
 };
 function ciHeroVideo(theme)    { return (theme === 'light' && CI_VIDEOS.heroLight)    ? CI_VIDEOS.heroLight    : CI_VIDEOS.heroDark; }
 function ciAmbientVideo(theme) { return (theme === 'light' && CI_VIDEOS.ambientLight) ? CI_VIDEOS.ambientLight : CI_VIDEOS.ambientDark; }
@@ -3030,6 +3045,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
 window.HomeView = HomeView;
 window.CI_TABS = TABS;
 window.CI_VIDEO = VIDEO_SRC;
+
 
 
 
@@ -3369,6 +3385,7 @@ Object.assign(window, {
   Toggle, RunButton, WorkHead, LoadingResults, QScore, Check, setAccentVars,
   ScoreDonut, ScoreBar, QualityGraph, BeatSheet, copyText, downloadText,
 });
+
 
 
 
@@ -3719,6 +3736,7 @@ function ScriptTab({ onOpenKey }) {
   );
 }
 window.ScriptTab = ScriptTab;
+
 
 
 
@@ -4418,6 +4436,7 @@ window.HistoryTab = HistoryTab;
 
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-builder.jsx ===== */
@@ -4958,6 +4977,7 @@ window.BuilderTab = BuilderTab;
 
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-platform.jsx ===== */
@@ -5319,6 +5339,7 @@ window.PlatformTab = PlatformTab;
 
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-playbook.jsx ===== */
@@ -5545,6 +5566,7 @@ Object.assign(window, { PlaybookTab });
 
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-research.jsx ===== */
@@ -5732,6 +5754,7 @@ function ResearchTab({ onClose, onNav }) {
 }
 
 Object.assign(window, { isAdmin, promptAdmin, exitAdmin, ResearchTab });
+
 
 
 
@@ -6094,6 +6117,7 @@ Object.assign(window, { TrainTab });
 
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-app.jsx ===== */
@@ -6221,6 +6245,7 @@ function CIApp() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<CIApp />);
+
 
 
 
