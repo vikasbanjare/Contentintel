@@ -2740,10 +2740,10 @@ Object.assign(window, {
 // NOT work in a <video> tag. Empty LIGHT values fall back to the dark video.
 window.__resources = (typeof window !== 'undefined' && window.__resources) || {};
 const CI_VIDEOS = {
-  heroDark:     window.__resources.heroVideoDark     || "https://github.com/user-attachments/assets/bba9884a-b375-4b8a-9e2e-35594c121d3a",
-  heroLight:    window.__resources.heroVideoLight    || "https://github.com/user-attachments/assets/2a0b12f2-7288-4a07-adf9-f02e38d92870",
-  ambientDark:  window.__resources.ambientVideoDark  || "https://github.com/user-attachments/assets/e50bc266-97ba-43f9-bb4f-8c2594ede9b4",
-  ambientLight: window.__resources.ambientVideoLight || "https://github.com/user-attachments/assets/f09e7494-5ae7-41ad-9f10-4a616831d96b",
+  heroDark:     window.__resources.heroVideoDark     || "https://github.com/user-attachments/assets/2a0b12f2-7288-4a07-adf9-f02e38d92870",
+  heroLight:    window.__resources.heroVideoLight    || "https://github.com/user-attachments/assets/bba9884a-b375-4b8a-9e2e-35594c121d3a",
+  ambientDark:  window.__resources.ambientVideoDark  || "https://github.com/user-attachments/assets/f09e7494-5ae7-41ad-9f10-4a616831d96b",
+  ambientLight: window.__resources.ambientVideoLight || "https://github.com/user-attachments/assets/e50bc266-97ba-43f9-bb4f-8c2594ede9b4",
 };
 function ciHeroVideo(theme)    { return (theme === 'light' && CI_VIDEOS.heroLight)    ? CI_VIDEOS.heroLight    : CI_VIDEOS.heroDark; }
 function ciAmbientVideo(theme) { return (theme === 'light' && CI_VIDEOS.ambientLight) ? CI_VIDEOS.ambientLight : CI_VIDEOS.ambientDark; }
