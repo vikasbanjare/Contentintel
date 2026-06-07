@@ -34,6 +34,35 @@
      <type>.notes     : optional extra instruction
    ============================================================================ */
 
+/* ----------------------------------------------------------------------------
+   ADDITIVE MERGE ENGINE — lets research grow across MANY files safely.
+   research.js is the base. Each later file (research-2.js, research-3.js, ...)
+   calls  window.addResearch({ ... })  to MERGE more research in:
+     - strings are APPENDED (old text is kept, new text added after it)
+     - arrays are CONCATENATED
+     - objects are deep-merged
+   Because add-files never touch the older files, old research can NEVER be
+   overwritten or lost. To add research: create the NEXT-numbered file, never edit
+   the old ones. (Owner deploys by uploading the new file + index.html to GitHub.)
+   ---------------------------------------------------------------------------- */
+window.__ciMerge = function (base, patch) {
+  base = (base && typeof base === "object") ? base : (Array.isArray(patch) ? [] : {});
+  if (Array.isArray(patch)) return (Array.isArray(base) ? base : []).concat(patch);
+  for (var k in patch) {
+    if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+    var pv = patch[k], bv = base[k];
+    if (typeof pv === "string") base[k] = (typeof bv === "string" && bv) ? (bv + "\n\n" + pv) : pv;
+    else if (Array.isArray(pv)) base[k] = (Array.isArray(bv) ? bv : []).concat(pv);
+    else if (pv && typeof pv === "object") base[k] = window.__ciMerge(bv && typeof bv === "object" ? bv : {}, pv);
+    else base[k] = pv;
+  }
+  return base;
+};
+window.addResearch = function (patch) {
+  window.CI_RESEARCH = window.__ciMerge(window.CI_RESEARCH || {}, patch || {});
+  return window.CI_RESEARCH;
+};
+
 window.CI_RESEARCH = {
   meta: { version: 4, updated: "2026-06-03", owner: "you" },
 

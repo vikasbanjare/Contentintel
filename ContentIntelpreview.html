@@ -829,6 +829,7 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
   <!-- RESEARCH DATA — external on purpose. Edit research.js + redeploy; the app
        below never needs to change. -->
   <script>
+/* ===== research.js ===== */
 /* ============================================================================
    ContentIntel — RESEARCH DATA  (this is the ONLY file you edit day-to-day)
    ----------------------------------------------------------------------------
@@ -864,6 +865,35 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
      <type>.rubric    : [{ name, what }] scoring dimensions (graded 0–100)
      <type>.notes     : optional extra instruction
    ============================================================================ */
+
+/* ----------------------------------------------------------------------------
+   ADDITIVE MERGE ENGINE — lets research grow across MANY files safely.
+   research.js is the base. Each later file (research-2.js, research-3.js, ...)
+   calls  window.addResearch({ ... })  to MERGE more research in:
+     - strings are APPENDED (old text is kept, new text added after it)
+     - arrays are CONCATENATED
+     - objects are deep-merged
+   Because add-files never touch the older files, old research can NEVER be
+   overwritten or lost. To add research: create the NEXT-numbered file, never edit
+   the old ones. (Owner deploys by uploading the new file + index.html to GitHub.)
+   ---------------------------------------------------------------------------- */
+window.__ciMerge = function (base, patch) {
+  base = (base && typeof base === "object") ? base : (Array.isArray(patch) ? [] : {});
+  if (Array.isArray(patch)) return (Array.isArray(base) ? base : []).concat(patch);
+  for (var k in patch) {
+    if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+    var pv = patch[k], bv = base[k];
+    if (typeof pv === "string") base[k] = (typeof bv === "string" && bv) ? (bv + "\n\n" + pv) : pv;
+    else if (Array.isArray(pv)) base[k] = (Array.isArray(bv) ? bv : []).concat(pv);
+    else if (pv && typeof pv === "object") base[k] = window.__ciMerge(bv && typeof bv === "object" ? bv : {}, pv);
+    else base[k] = pv;
+  }
+  return base;
+};
+window.addResearch = function (patch) {
+  window.CI_RESEARCH = window.__ciMerge(window.CI_RESEARCH || {}, patch || {});
+  return window.CI_RESEARCH;
+};
 
 window.CI_RESEARCH = {
   meta: { version: 4, updated: "2026-06-03", owner: "you" },
@@ -1340,6 +1370,32 @@ ANALYTICS INTERPRETATION:
 - Low IG reach despite posting: Check reposts (10+ = banned from recs).`,
   },
 };
+
+/* ===== research-2.js ===== */
+/* ============================================================================
+   research-2.js — ADDITIVE research, merged ON TOP of research.js.
+   ----------------------------------------------------------------------------
+   HOW THIS WORKS: this file calls window.addResearch({...}), which MERGES into
+   the research already loaded (strings are appended, arrays concatenated). It
+   does NOT touch research.js. To add MORE research later, create research-3.js
+   (then research-4.js, ...) the same way — NEVER edit earlier files, so old
+   research can never be overwritten or lost.
+   Deploy: upload the NEW research file + index.html to GitHub.
+   ============================================================================ */
+window.addResearch({
+  script: {
+    systemGuidance:
+`MORE HOOK PATTERNS (universal — additive; use alongside the families above):
+- Negativity-bias / warning: "Don't [common action] until you watch this." (brains over-weight potential loss).
+- Specific-person callout: name the exact viewer — "If you're under 30 and investing, this is for you."
+- Before/After in one line: "I went from [bad state] to [good state] in [timeframe] — here's the system."
+- Question-to-camera: one sharp question the viewer can't help answering in their head.
+STRONG CTA EXAMPLES (exactly one, specific, tied to the payoff — never "like & subscribe"):
+- Save-trigger: "Save this so you can [do the thing] the moment you need it."
+- Next-step: "Part 2 covers [specific gap] — it's on the channel."
+- Low-friction ask: "Comment '[one word]' and I'll send the [resource]."`,
+  },
+});
 
 </script>
 
@@ -2689,22 +2745,47 @@ function openInChatGPT(promptText) {
   try { window.copyText && window.copyText(p); } catch (e) {}
   window.open("https://chatgpt.com/?q=" + encodeURIComponent(p.slice(0, 6000)), "_blank", "noopener,noreferrer");
 }
-function openInGemini(promptText) {
-  const p = String(promptText || "");
-  // Gemini's web app can't be pre-filled via URL, so we copy the prompt for the
-  // user to paste. Copy SYNCHRONOUSLY (inside the click) so it lands on the
-  // clipboard before the new tab steals focus -- the async clipboard API often
-  // gets cancelled by window.open, which is why pasting was failing.
+// Tiny on-screen toast (pure DOM, no React) so handoffs give clear feedback.
+function ciToast(msg) {
+  try {
+    let el = document.getElementById("ci-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "ci-toast";
+      el.style.cssText = "position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:99999;background:#12151c;color:#f2f4fa;border:1px solid rgba(255,255,255,0.14);box-shadow:0 8px 30px rgba(0,0,0,0.5);padding:13px 18px;border-radius:12px;font-size:13.5px;font-family:var(--font-ui,sans-serif);max-width:90vw;text-align:center;opacity:0;transition:opacity .2s,transform .2s;";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    requestAnimationFrame(() => { el.style.opacity = "1"; el.style.transform = "translateX(-50%) translateY(-4px)"; });
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.opacity = "0"; el.style.transform = "translateX(-50%)"; }, 4200);
+  } catch (e) {}
+}
+
+// Reliable synchronous clipboard copy (works inside a click, before a new tab
+// steals focus). Returns true on success.
+function ciCopySync(p) {
+  let ok = false;
   try {
     const ta = document.createElement("textarea");
     ta.value = p; ta.setAttribute("readonly", "");
     ta.style.position = "fixed"; ta.style.top = "-9999px"; ta.style.opacity = "0";
     document.body.appendChild(ta); ta.focus(); ta.select();
     try { ta.setSelectionRange(0, p.length); } catch (e) {}
-    document.execCommand("copy");
+    ok = document.execCommand("copy");
     document.body.removeChild(ta);
   } catch (e) {}
   try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(p); } catch (e) {}
+  return ok;
+}
+
+function openInGemini(promptText) {
+  const p = String(promptText || "");
+  // Gemini (unlike ChatGPT) has NO URL prompt-prefill, so we copy + open and the
+  // user pastes. Copy first, synchronously, then tell them clearly what to do.
+  const ok = ciCopySync(p);
+  ciToast(ok ? "Prompt copied — switch to the Gemini tab and paste it (Ctrl+V / Cmd+V)"
+             : "Couldn't auto-copy — select the prompt text and copy it manually, then paste in Gemini");
   window.open("https://gemini.google.com/app", "_blank", "noopener,noreferrer");
 }
 
@@ -4240,12 +4321,19 @@ function ThumbnailTab({ onOpenKey }) {
   ].filter(Boolean).join('\n');
   const guidanceBlock = guidance ? `\nREGENERATION GUIDANCE:\n${guidance}\n` : '';
   const head = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none given)'}\nContent type: ${kind === 'Auto-detect' ? '(detect it from the thumbnail/title)' : kind}\n${targetLine}\n`;
+  // No API key => the free AI is TEXT-ONLY and cannot see the uploaded images.
+  // It must NOT fabricate scores or a winner it can't actually see.
+  const noVision = !hasVision;
+  const blindNote = noVision
+    ? `IMPORTANT: Image vision is OFF (no API key connected). You CANNOT see the actual images -- judge ONLY from any text descriptions below. For ANY thumbnail with no description, you genuinely cannot evaluate it: do NOT guess, do NOT score it, and do NOT pick it as the winner. If you do not have enough described thumbnails to compare fairly, say so plainly and tell the user to connect an API key (for real image vision) or describe each thumbnail in words -- and in that case DO NOT output a winner.\n\n`
+    : '';
+  const cell = (i) => descsAll[i].trim() || (noVision ? '(no description given -- and the image cannot be seen)' : `(see attached Image ${i + 1})`);
   const userText = (compare
-    ? head +
-      Array.from({ length: count }, (_, i) => `THUMBNAIL ${LBL[i]} (= Image ${i + 1}): ${descsAll[i].trim() || `(see attached Image ${i + 1})`}`).join('\n') + '\n\n' +
-      `Compare these ${count} thumbnails for the SAME video and declare a single winner. Fill the "winner" field with pick = A, B${count === 3 ? ' or C' : ''}; rank them and give the one specific reason it wins.`
-    : head +
-      `THUMBNAIL: ${descA.trim() || '(judge from the attached image)'}\n\n` +
+    ? head + blindNote +
+      Array.from({ length: count }, (_, i) => `THUMBNAIL ${LBL[i]}${noVision ? '' : ` (= Image ${i + 1})`}: ${cell(i)}`).join('\n') + '\n\n' +
+      `Compare these ${count} thumbnails for the SAME video and, ONLY if you can actually evaluate them, declare a single winner: fill the "winner" field with pick = A, B${count === 3 ? ' or C' : ''}, rank them and give the one specific reason it wins. Judge the ACTUAL execution you can see (text legibility, face/expression, contrast, focal clarity) -- a worse-executed "improved" version can legitimately lose to a cleaner original; never favour a version just because it is labelled the upgrade.`
+    : head + blindNote +
+      `THUMBNAIL: ${descA.trim() || (noVision ? '(no description given -- and the image cannot be seen)' : '(judge from the attached image)')}\n\n` +
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
   // Vision works for single AND multi-image (A/B/C) when a key is present.
   const imgs = hasVision ? (compare ? imgsAll.slice(0, count).filter(Boolean) : (imgA ? [imgA] : [])) : [];
@@ -4284,7 +4372,7 @@ function ThumbnailTab({ onOpenKey }) {
             placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
             <window.GlowButton mood={mood} size="lg" onClick={() => window.openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
-            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.openInGemini(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>✨ Open in Gemini</button>
+            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.openInGemini(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>✨ Copy + open Gemini</button>
             <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>
@@ -4408,7 +4496,7 @@ function ThumbnailTab({ onOpenKey }) {
               <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4, marginBottom: 12 }}>Takes the grounded fix above into ChatGPT or Gemini -- attach your thumbnail there and it edits it.</div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <window.GlowButton mood={mood} onClick={() => window.openInChatGPT(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
-                <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.openInGemini(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>✨ Open in Gemini</button>
+                <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.openInGemini(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>✨ Copy + open Gemini</button>
                 <button className="ci-copybtn" style={{ height: 38, padding: '0 14px' }} onClick={() => window.copyText(chatgptPrompt(window.regenPromptFromReport(report) || '', true, strict, guidance))}>⧉ Copy prompt</button>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>Prompt is copied + prefilled. Attach your thumbnail there, then press enter.</div>
@@ -4907,6 +4995,7 @@ function BuilderTab() {
   const [analyseState, setAnalyseState] = React.useState('idle');
   const [analyseSummary, setAnalyseSummary] = React.useState('');
   const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
+  const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
 
   const [extraNote, setExtraNote] = React.useState('');
   const [brand] = React.useState(bLoadBrand);
@@ -4929,15 +5018,15 @@ function BuilderTab() {
       core ? 'RESEARCH PRINCIPLES:\n' + core : '',
       r.systemGuidance ? 'THUMBNAIL METHODOLOGY:\n' + r.systemGuidance : '',
       'You will get a thumbnail as an image if one is attached, otherwise as a text description. Analyse it and return ONLY a single valid JSON object (no markdown, no text around it) in EXACTLY this shape:',
-      '{ "whatsWrong": ["specific problem tied to a real click-through principle", "... up to 6"], "improvedPrompt": "one complete, ready-to-paste image-generation prompt for ChatGPT/Gemini that keeps the SAME person, topic and exact text but fixes every problem -- be concrete about composition, expression, colour, contrast and text size/placement", "headline": "exact main text or empty", "subline": "secondary text or empty", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only from: ' + BUILDER_ELEMENTS.join(', ') + '"] }',
-      'Never invent text, people or brands not present in the thumbnail. Write in the same language as the thumbnail content.',
+      '{ "whatsWrong": ["specific problem tied to a real click-through principle", "... up to 6"], "upgrades": [ { "tier": "Basic fix (quickest)", "prompt": "the SMALLEST change with the biggest payoff -- a complete, ready-to-paste image prompt that keeps the SAME person, topic and exact text" }, { "tier": "Mild redesign (medium effort)", "prompt": "a moderate reworking of layout / contrast / elements -- complete ready-to-paste prompt" }, { "tier": "Full redesign (boldest)", "prompt": "a bold, scroll-stopping reimagining -- complete ready-to-paste prompt" } ], "headline": "exact main text or empty", "subline": "secondary text or empty", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only from: ' + BUILDER_ELEMENTS.join(', ') + '"] }',
+      'Every prompt must be concrete about composition, expression, colour, contrast and text size/placement. Never invent text, people or brands not present in the thumbnail. Write in the same language as the thumbnail content.',
     ].filter(Boolean).join('\n\n');
   }
 
   // Wipe everything from a previous analysis so a new upload starts clean.
   function clearForm() {
     setHeadline(''); setSubline(''); setPeople([]); setElements([]);
-    setFeedback([]); setPrompt(''); setBuilt(false);
+    setFeedback([]); setUpgrades([]); setPrompt(''); setBuilt(false);
     setAnalyseSummary(''); setAnalyseDesc('');
   }
 
@@ -4970,7 +5059,11 @@ function BuilderTab() {
       })) : []);
       setElements(Array.isArray(parsed.elements) ? parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)) : []);
       setFeedback(Array.isArray(parsed.whatsWrong) ? parsed.whatsWrong.filter(Boolean).slice(0, 6) : []);
-      if (parsed.improvedPrompt) { setPrompt(String(parsed.improvedPrompt)); setBuilt(true); }
+      // Three tiers (basic / mild / full). Fall back to a single improvedPrompt if present.
+      let ups = Array.isArray(parsed.upgrades) ? parsed.upgrades.filter(u => u && u.prompt).slice(0, 3) : [];
+      if (!ups.length && parsed.improvedPrompt) ups = [{ tier: 'Improved version', prompt: String(parsed.improvedPrompt) }];
+      setUpgrades(ups);
+      if (ups.length) { setPrompt(ups[0].prompt); setBuilt(true); }
       setAnalyseSummary(hasKey && analyseImg ? 'Checked your image with the research.' : 'Checked your description with the research (free cloud).');
       setAnalyseState('done');
       setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 140);
@@ -5048,7 +5141,7 @@ function BuilderTab() {
     if (extraNote.trim()) { lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`); lines.push(''); }
     lines.push('Make it bold, high-contrast, impossible to ignore at small thumbnail size. Professional photography and design quality.');
     const p = lines.join('\n');
-    setPrompt(p); setBuilt(true);
+    setPrompt(p); setBuilt(true); setUpgrades([]); // manual build = single prompt
     setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   }
 
@@ -5255,6 +5348,27 @@ function BuilderTab() {
 
       {built && prompt && (
         <div id="builder-output" style={{ marginTop: 20 }}>
+
+          {/* THREE UPGRADE TIERS (from the cloud check) -- basic / mild / full */}
+          {upgrades.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-1)', marginBottom: 4, fontFamily: 'var(--font-display)' }}>3 ways to upgrade it</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 12, lineHeight: 1.5 }}>Pick a level. Each is a ready prompt -- send it to ChatGPT or Gemini.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {upgrades.map((u, i) => (
+                  <div key={i} style={{ padding: '13px 14px', borderRadius: 12, background: 'rgba(0,0,0,0.22)', border: '1px solid var(--stroke-1)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6 }}>{i + 1}. {u.tier || ('Option ' + (i + 1))}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{u.prompt}</div>
+                    <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap' }}>
+                      <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12, background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700 }} onClick={() => window.openInChatGPT(u.prompt)}>🎨 ChatGPT</button>
+                      <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }} onClick={() => window.openInGemini(u.prompt)}>✨ Gemini</button>
+                      <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }} onClick={() => { window.copyText && window.copyText(u.prompt); }}>⧉ Copy</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Generate in ChatGPT or Gemini */}
           <div style={{ padding: '18px 18px', borderRadius: 14, background: `linear-gradient(135deg, ${m.orbB}24, var(--surface-1))`, border: `1.5px solid ${m.accentGlow}` }}>
