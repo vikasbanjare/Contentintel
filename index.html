@@ -51,7 +51,7 @@
   --inset: rgba(0, 0, 0, 0.22);
   --inset-soft: rgba(0, 0, 0, 0.12);
   /* Hero scrim — always a dark overlay so hero text stays white in both themes */
-  --hero-scrim: linear-gradient(180deg, rgba(7,9,14,0.50) 0%, rgba(7,9,14,0.22) 45%, rgba(7,9,14,0.92) 100%);
+  --hero-scrim: linear-gradient(180deg, rgba(7,9,14,0.45) 0%, rgba(7,9,14,0.55) 40%, rgba(7,9,14,0.75) 75%, rgba(7,9,14,0.92) 100%);
   --hero-fallback: linear-gradient(135deg, #07090E 0%, #1A0C1A 55%, #07090E 100%);
 }
 
@@ -75,7 +75,7 @@
   --inset: rgba(12, 18, 38, 0.07);
   --inset-soft: rgba(12, 18, 38, 0.04);
   /* Light mode: dark scrim top for legible white text, fades out at bottom to avoid harsh edge */
-  --hero-scrim: linear-gradient(180deg, rgba(6,8,20,0.70) 0%, rgba(6,8,20,0.48) 45%, rgba(6,8,20,0.18) 75%, transparent 100%);
+  --hero-scrim: linear-gradient(180deg, rgba(6,8,20,0.55) 0%, rgba(6,8,20,0.62) 40%, rgba(6,8,20,0.72) 72%, rgba(6,8,20,0.30) 88%, transparent 100%);
   --hero-fallback: linear-gradient(135deg, #1a1d2e 0%, #2a1428 55%, #1a1d2e 100%);
 }
 
@@ -962,6 +962,15 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
   </style>
 </head>
 <body>
+  <!-- Splash screen: shows instantly before React mounts, dismissed by ci-app.jsx -->
+  <div id="ci-splash" style="position:fixed;inset:0;background:#07090E;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.55s ease;gap:20px">
+    <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-size:20px;font-weight:600;color:#F2F4FA;letter-spacing:-0.02em;opacity:0.9">ContentIntel</div>
+    <div style="width:160px;height:2px;background:rgba(255,255,255,0.08);border-radius:999px;overflow:hidden;position:relative">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#E8396B,#FF9CC2);border-radius:999px;animation:ci-spl 1.3s cubic-bezier(0.4,0,0.2,1) forwards"></div>
+    </div>
+  </div>
+  <style>@keyframes ci-spl{from{width:0}to{width:100%}}</style>
+
   <div id="root"></div>
 
   <!-- RESEARCH DATA — external on purpose, additive & multi-file. -->
@@ -3013,11 +3022,13 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: m.accentFrom, boxShadow: `0 0 10px ${m.accentGlow}` }} className="pulse-dot" />
               Pre-publish checker
             </div>
-            <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 80, margin: '18px 0 0', lineHeight: 1.05, letterSpacing: '-0.015em', color: 'rgba(255,255,255,0.96)' }}>
+            <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 90, margin: '18px 0 0', lineHeight: 1.04, letterSpacing: '-0.018em', color: '#FFFFFF',
+              textShadow: '0 2px 24px rgba(0,0,0,0.55), 0 1px 6px rgba(0,0,0,0.45)' }}>
               Know it&rsquo;ll work<br/>before you{' '}
-              <span style={{ fontStyle: 'italic', color: '#FF9CC2' }}>hit publish.</span>
+              <span style={{ fontStyle: 'italic', color: '#FF9CC2', textShadow: '0 2px 24px rgba(0,0,0,0.5)' }}>hit publish.</span>
             </h1>
-            <p style={{ margin: '24px 0 0', fontSize: 17, lineHeight: 1.65, color: 'rgba(255,255,255,0.72)', maxWidth: 560 }}>
+            <p style={{ margin: '26px 0 0', fontSize: 18, lineHeight: 1.65, color: 'rgba(255,255,255,0.85)', maxWidth: 560,
+              textShadow: '0 1px 12px rgba(0,0,0,0.5)' }}>
               Paste a script, drop a thumbnail, test a title or an ad. ContentIntel tells you what&rsquo;s working, what&rsquo;s not, and exactly how to fix it &mdash; in plain language, before it goes live.
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 32 }}>
@@ -6294,24 +6305,61 @@ function CIApp() {
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
   else if (tab === 'train') View = admin ? <TrainTab onClose={exitResearch} onNav={nav} onOpenKey={openKey} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
 
+  // Preload all videos into the browser cache on first mount
+  React.useEffect(() => {
+    const urls = Object.values(window.CI_VIDEOS || {}).filter(Boolean);
+    urls.forEach(url => {
+      const v = document.createElement('video');
+      v.src = url;
+      v.preload = 'auto';
+      v.muted = true;
+    });
+  }, []);
+
+  // Dismiss splash screen once app is mounted
+  React.useEffect(() => {
+    const el = document.getElementById('ci-splash');
+    if (!el) return;
+    const t = setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => { try { el.remove(); } catch(e){} }, 600);
+    }, 1400);
+    return () => clearTimeout(t);
+  }, []);
+
+  const V = window.CI_VIDEOS || {};
+  const ambientDark  = V.ambientDark  || '';
+  const ambientLight = V.ambientLight || V.ambientDark || '';
+  const onTool = tab !== 'home';
+
   return (
     <div className="ci-app">
       <TopNav active={tab} onNav={nav} mood={activeMood} focusMode={focusMode} onToggleFocus={() => setFocusMode(f => !f)}
         onOpenKey={openKey} onAdmin={onAdmin} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
 
+      {/* Ambient videos: ALWAYS mounted so the browser never reloads them on tab switch.
+          Visibility is controlled by opacity + CSS transition only. */}
+      {ambientDark && (
+        <video src={ambientDark} autoPlay muted loop playsInline
+          style={{ position:'fixed', inset:0, width:'100%', height:'100%', objectFit:'cover',
+                   pointerEvents:'none', zIndex:0,
+                   opacity: onTool && theme !== 'light' ? 0.08 : 0,
+                   transition: 'opacity 0.7s ease' }} />
+      )}
+      {ambientLight && (
+        <video src={ambientLight} autoPlay muted loop playsInline
+          style={{ position:'fixed', inset:0, width:'100%', height:'100%', objectFit:'cover',
+                   pointerEvents:'none', zIndex:0,
+                   opacity: onTool && theme === 'light' ? 0.05 : 0,
+                   transition: 'opacity 0.7s ease' }} />
+      )}
+
       <div className="ci-scroll" style={{ position: 'relative', minHeight: 'calc(100vh - 60px)' }}>
-        {/* ambient: a very-low-opacity looping video behind the tool pages, plus the bloom */}
-        {tab !== 'home' && (
-          <>
-            {window.ciAmbientVideo && window.ciAmbientVideo(theme) && (
-              <video key={window.ciAmbientVideo(theme)} src={window.ciAmbientVideo(theme)} autoPlay muted loop playsInline
-                style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', zIndex: 0, opacity: theme === 'light' ? 0.05 : 0.08 }} />
-            )}
-            <div style={{ position: 'fixed', top: 60, left: 0, right: 0, height: '60vh', pointerEvents: 'none', zIndex: 0, opacity: 0.5 }}>
-              <AmbientBloom mood={activeMood} intensity={0.5} variant="subtle" />
-            </div>
-          </>
+        {onTool && (
+          <div style={{ position: 'fixed', top: 60, left: 0, right: 0, height: '60vh', pointerEvents: 'none', zIndex: 0, opacity: 0.5 }}>
+            <AmbientBloom mood={activeMood} intensity={0.5} variant="subtle" />
+          </div>
         )}
         {View}
       </div>
