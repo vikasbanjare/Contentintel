@@ -853,8 +853,7 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
 <body>
   <div id="root"></div>
 
-  <!-- RESEARCH DATA — external on purpose. Edit research.js + redeploy; the app
-       below never needs to change. -->
+  <!-- RESEARCH DATA — external on purpose, additive & multi-file. -->
   <script src="research.js"></script>
   <script src="research-2.js"></script>
 
@@ -1392,6 +1391,7 @@ Object.assign(window, {
 });
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ui.jsx ===== */
@@ -1924,6 +1924,7 @@ Object.assign(window, {
   AmbientBloom, Sidebar, Topbar, Eyebrow, GlowButton, Chip, Card, ScoreRing, StepDots,
   NavIcon, NAV, PROJECTS,
 });
+
 
 
 </script>
@@ -2714,6 +2715,7 @@ Object.assign(window, {
 });
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-shell.jsx ===== */
@@ -2721,8 +2723,36 @@ Object.assign(window, {
 // NOTE: MOODS is the global `const MOODS` declared in ui.jsx (shared across the
 // classic text/babel scripts). We must NOT redeclare it here or it collides.
 
-const VIDEO_SRC = (typeof window !== 'undefined' && window.__resources && window.__resources.heroVideo)
-  || "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260418_094631_d30ab262-45ee-4b7d-99f3-5d5848c8ef13.mp4";
+// ── VIDEO CONFIG ─────────────────────────────────────────────────────────────
+// Two videos x two themes. Use DIRECT .mp4 links (higgsfield's CDN format:
+// https://d8j0ntlcm91z4.cloudfront.net/.../hf_....mp4). The /s/ share links do
+// NOT work in a <video> tag. Empty LIGHT values fall back to the dark video.
+window.__resources = (typeof window !== 'undefined' && window.__resources) || {};
+const CI_VIDEOS = {
+  heroDark:     window.__resources.heroVideoDark     || "hero-dark.mp4",
+  heroLight:    window.__resources.heroVideoLight    || "hero-light.mp4",
+  ambientDark:  window.__resources.ambientVideoDark  || "ambient-dark.mp4",
+  ambientLight: window.__resources.ambientVideoLight || "ambient-light.mp4",
+};
+function ciHeroVideo(theme)    { return (theme === 'light' && CI_VIDEOS.heroLight)    ? CI_VIDEOS.heroLight    : CI_VIDEOS.heroDark; }
+function ciAmbientVideo(theme) { return (theme === 'light' && CI_VIDEOS.ambientLight) ? CI_VIDEOS.ambientLight : CI_VIDEOS.ambientDark; }
+window.CI_VIDEOS = CI_VIDEOS;
+window.ciHeroVideo = ciHeroVideo;
+window.ciAmbientVideo = ciAmbientVideo;
+const VIDEO_SRC = CI_VIDEOS.heroDark; // legacy alias
+
+// Shared theme hook: tracks the current theme and updates live when toggled.
+function useCITheme() {
+  const read = () => (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light') ? 'light' : 'dark';
+  const [t, setT] = React.useState(read);
+  React.useEffect(() => {
+    const f = () => setT(read());
+    window.addEventListener('ci-theme', f);
+    return () => window.removeEventListener('ci-theme', f);
+  }, []);
+  return t;
+}
+window.useCITheme = useCITheme;
 
 // Tab definitions -- each has a mood chosen for its content
 const TABS = [
@@ -2762,6 +2792,7 @@ function ThemeToggle() {
     const root = document.documentElement;
     if (light) root.setAttribute('data-theme', 'light'); else root.removeAttribute('data-theme');
     try { localStorage.setItem('ci_theme', light ? 'light' : 'dark'); } catch (e) {}
+    try { window.dispatchEvent(new Event('ci-theme')); } catch (e) {} // tell themed videos to swap
   }, [light]);
   return (
     <button className="ci-keybtn" title={light ? 'Switch to dark mode' : 'Switch to light mode'} onClick={() => setLight(v => !v)}>
@@ -2836,6 +2867,7 @@ window.TopNav = TopNav;
 function HomeView({ onNav, onOpenKey, hasKey }) {
   const mood = 'burgundy';
   const m = MOODS[mood];
+  const theme = useCITheme();
 
   const features = [
     { id: 'script',    label: 'Script',    icon: 'script', mood: 'navy',     tags: ['Hook strength', 'Retention curve', 'Rewrites'],     line: 'Reads your script line by line -- hook pull, drop-off risk, and a stronger rewrite.' },
@@ -2855,7 +2887,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
     <div className="ci-reveal">
       {/* HERO with looping video */}
       <section className="ci-hero" style={{ minHeight: 560, display: 'flex', alignItems: 'center' }}>
-        <video className="ci-hero-video" src={VIDEO_SRC} autoPlay muted loop playsInline />
+        <video key={ciHeroVideo(theme)} className="ci-hero-video" src={ciHeroVideo(theme)} autoPlay muted loop playsInline />
         <div className="ci-hero-scrim" />
         <div style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}>
           <div className="bloom-orb" style={{ width: 620, height: 620, right: '-12%', top: '-26%', background: m.orbA, opacity: 0.22, filter: 'blur(110px)' }} />
@@ -2998,6 +3030,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
 window.HomeView = HomeView;
 window.CI_TABS = TABS;
 window.CI_VIDEO = VIDEO_SRC;
+
 
 
 </script>
@@ -3336,6 +3369,7 @@ Object.assign(window, {
   Toggle, RunButton, WorkHead, LoadingResults, QScore, Check, setAccentVars,
   ScoreDonut, ScoreBar, QualityGraph, BeatSheet, copyText, downloadText,
 });
+
 
 
 </script>
@@ -3685,6 +3719,7 @@ function ScriptTab({ onOpenKey }) {
   );
 }
 window.ScriptTab = ScriptTab;
+
 
 
 </script>
@@ -4382,6 +4417,7 @@ function HistoryTab() {
 window.HistoryTab = HistoryTab;
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-builder.jsx ===== */
@@ -4921,6 +4957,7 @@ function BuilderTab() {
 window.BuilderTab = BuilderTab;
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-platform.jsx ===== */
@@ -5281,6 +5318,7 @@ function PlatformTab() {
 window.PlatformTab = PlatformTab;
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-playbook.jsx ===== */
@@ -5506,6 +5544,7 @@ function PlaybookTab() {
 Object.assign(window, { PlaybookTab });
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-research.jsx ===== */
@@ -5693,6 +5732,7 @@ function ResearchTab({ onClose, onNav }) {
 }
 
 Object.assign(window, { isAdmin, promptAdmin, exitAdmin, ResearchTab });
+
 
 
 </script>
@@ -6053,6 +6093,7 @@ function StatList({ title, items, n }) {
 Object.assign(window, { TrainTab });
 
 
+
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-app.jsx ===== */
@@ -6067,6 +6108,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 
 function CIApp() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const theme = useCITheme();
   const [tab, setTab] = React.useState('home');
   const [focusMode, setFocusMode] = React.useState(false);
   const [keyOpen, setKeyOpen] = React.useState(false);
@@ -6133,11 +6175,17 @@ function CIApp() {
       <KeyModal open={keyOpen} onClose={closeKey} />
 
       <div className="ci-scroll" style={{ position: 'relative', minHeight: 'calc(100vh - 60px)' }}>
-        {/* ambient bloom for non-home tabs */}
+        {/* ambient: a very-low-opacity looping video behind the tool pages, plus the bloom */}
         {tab !== 'home' && (
-          <div style={{ position: 'fixed', top: 60, left: 0, right: 0, height: '60vh', pointerEvents: 'none', zIndex: 0, opacity: 0.5 }}>
-            <AmbientBloom mood={activeMood} intensity={0.5} variant="subtle" />
-          </div>
+          <>
+            {window.ciAmbientVideo && window.ciAmbientVideo(theme) && (
+              <video key={window.ciAmbientVideo(theme)} src={window.ciAmbientVideo(theme)} autoPlay muted loop playsInline
+                style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', zIndex: 0, opacity: theme === 'light' ? 0.05 : 0.08 }} />
+            )}
+            <div style={{ position: 'fixed', top: 60, left: 0, right: 0, height: '60vh', pointerEvents: 'none', zIndex: 0, opacity: 0.5 }}>
+              <AmbientBloom mood={activeMood} intensity={0.5} variant="subtle" />
+            </div>
+          </>
         )}
         {View}
       </div>
@@ -6173,6 +6221,7 @@ function CIApp() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<CIApp />);
+
 
 
 </script>
