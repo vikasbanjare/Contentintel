@@ -3577,15 +3577,24 @@ function ScriptTab({ onOpenKey }) {
   const seconds = Math.round(words / 2.5); // ~150 wpm
   const lengthOk = where === 'Reels' || where === 'Shorts' ? seconds <= 35 : true;
 
-  const userText =
+  const baseText =
     `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${words} (~${seconds}s)\n\n` +
     `SCRIPT (Version A):\n${text}` +
     (compare && textB.trim()
       ? `\n\nSCRIPT (Version B):\n${textB}\n\nCompare Version A and Version B and declare the winner (fill the "winner" field).`
       : '');
+
+  const hookUpgradeAsk = compare ? '' :
+    '\n\nALSO: end the report with a "copy" section titled "3 ways to rewrite your hook" containing EXACTLY 3 blocks. Each is a fully rewritten opening hook (first 15-25 seconds only, not the whole script). They must differ sharply in approach:\n' +
+    '- block 1 label "1 - Minimal rewrite (same structure, punchier words)": same hook type and structure, just sharpened -- tighter words, stronger stakes, cleaner pattern interrupt\n' +
+    '- block 2 label "2 - New angle (different hook strategy)": completely different hook TYPE -- if the original uses a question, try a bold statement or a story opener; must feel like a different creator wrote it\n' +
+    '- block 3 label "3 - Pattern interrupt (most disruptive)": the most unexpected, scroll-stopping opening possible -- controversial, counterintuitive, or emotionally charged; keep only the topic\n' +
+    'Write each hook in the SAME LANGUAGE as the original script. Make each ready to paste in and record.';
+
+  const userText = baseText + hookUpgradeAsk;
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 5200 }); }
+  function check() { run({ userText, maxTokens: 6000 }); }
 
   // Turn the analysis report into a short brief the rewriter can act on.
   function feedbackBrief() {
@@ -4799,7 +4808,7 @@ function BuilderTab() {
     if (extraNote.trim()) { lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`); lines.push(''); }
     lines.push('Make it bold, high-contrast, impossible to ignore at small thumbnail size. Professional photography and design quality.');
     const p = lines.join('\n');
-    setPrompt(p); setBuilt(true); setUpgrades([]); // manual build = single prompt
+    setPrompt(p); setBuilt(true);
     setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
   }
 
