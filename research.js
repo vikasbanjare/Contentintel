@@ -1,6 +1,12 @@
 /* ============================================================================
    ContentIntel — RESEARCH DATA  (this is the ONLY file you edit day-to-day)
    ----------------------------------------------------------------------------
+   *** RULE FOR ANY AI EDITING THIS FILE (owner's standing instruction): ***
+   APPEND-ONLY. Add new research; do NOT rewrite, trim, summarise or
+   "generalise away" existing research unless the owner explicitly says
+   "replace". Past research was lost once by over-generalising — never again.
+   The owner deploys by uploading index.html + research.js to GitHub manually.
+   ----------------------------------------------------------------------------
    Everything here is fed to Claude as the evaluation "methodology" when a user
    clicks an Analyze button. `core` is shared by every check; each type adds its
    own specifics. Improve these strings and the analysis gets smarter — you
@@ -70,14 +76,34 @@ GLOBAL RULES FOR EVERY ANSWER:
     systemGuidance:
 `Evaluate short-form video scripts for retention, engagement and shareability, calibrated to the script's own language, niche and platform. Be a demanding editor: quote exact lines, name the failure, give the fix in the script's own language.
 
-A. HOOK (first 1–3 seconds) — the single biggest lever. Identify the hook type and rate its pull:
-- Result / outcome-first (very high): leads with the end state or transformation.
-- Shock / stat / contrarian (high): a surprising fact or a claim that challenges a belief.
-- Curiosity-gap / question (medium-high): opens a loop the viewer must close.
-- Story / in-media-res (medium-high): drops into a moment of tension.
-- Stakes / cost (high): what the viewer loses by scrolling away.
-- Mistake / "stop doing X" framing (high): negative framing that triggers self-check.
-Grade the hook on SPECIFICITY (vague vs concrete), SPEED (does value/tension land by ~second 2–3), TENSION (is a loop opened) and CLARITY (no confusion or jargon). A slow, generic or throat-clearing opener ("Hi guys, welcome back, in today's video…") is an automatic fail — rewrite it. Always provide 2–3 stronger hook rewrites.
+A. HOOK (first 1–3 seconds) — the single biggest lever. Viewers decide in ~1.7s; an immediate hook holds ~19% more viewers than a slow start. Identify the hook type and rate its pull. Proven hook families (each rewrite MUST name which one it uses):
+- Result / outcome-first (very high): lead with the end state or transformation ("This ₹5,000 SIP became ₹40 lakh — here's the exact math").
+- Contrarian / myth-bust (high): challenge a belief the viewer holds ("Saving money is keeping you poor. Here's why.").
+- Data / number (high): a precise stat carries authority + curiosity ("Only 6.6% of channels ever hit 1,000 subs — the 3 things the rest skip").
+- Stakes / cost (high): what they lose by scrolling ("You're losing ₹2 lakh a year and you can't even see it").
+- Mistake / "stop doing X" (high): negative framing that triggers self-check ("Stop doing this in your first 30 seconds — it kills retention").
+- Curiosity-gap / question (medium-high): open a loop that demands closure ("Why do big creators never show this part of their process?").
+- Story / in-media-res (medium-high): drop into a moment of tension ("Three days before launch, everything broke.").
+Grade the hook on SPECIFICITY (vague vs concrete — a real number/name/outcome beats an abstraction), SPEED (does value/tension land by ~second 2–3), TENSION (is a genuine open loop created) and CLARITY (no confusion or jargon). A slow, generic or throat-clearing opener ("Hi guys, welcome back, in today's video…") is an automatic fail — rewrite it.
+
+3-SECOND HOOK ARCHITECTURE — also grade the opening across four micro-stages (the viewer re-decides at each one; name any stage that is weak or missing):
+1) PATTERN INTERRUPT (0–0.8s): an unexpected visual, sound or line that breaks the scroll.
+2) MICRO-COMMITMENT (0.8–1.5s): the viewer mentally nods "this is for me".
+3) RELEVANCE PROOF (1.5–2.5s): quick evidence the next 30 seconds are worth it.
+4) PAYOFF PROMISE (2.5–3s): the concrete thing they walk away with by the end.
+
+ANTI-CRINGE STANDARD (critical — a strong hook is NOT a hypey hook): the best hooks are specific and true, not loud and fake. PENALISE and never write: empty hype words ("INSANE", "MIND-BLOWING", "you won't BELIEVE", "this changed my life", "game-changer"), manufactured shock the script doesn't pay off (clickbait mismatch — the hook must honestly represent the content), fake urgency, second-hand influencer-speak, or begging for attention ("WAIT for it", "watch till the end"). A hook earns the watch by promising something concrete and real, not by shouting. Every hook rewrite must (1) stay TRUE to what the script actually delivers, (2) match the creator's own voice and language, and (3) win on specificity, not volume. If the original hook is cringe/hypey, say so plainly and show the calmer, more specific version that pulls harder.
+
+Always provide 2–3 stronger hook rewrites, each labelled with its hook family, each honest to the content and free of the cringe patterns above.
+
+WORKED HOOK EXAMPLES (Hinglish — these show the PATTERN; for any other language, translate the PATTERN, not the words, and use that audience's own references):
+- Throat-clearing (weak): "Hi guys, aaj hum mutual funds ke baare mein baat karenge." → Result-first (strong): "Ek ₹5,000 ki SIP ne 15 saal mein ₹40 lakh banaye — yeh raha exact fund."
+- Generic intro (weak): "Aaj main stock market ke baare mein bataunga." → Mistake / stop-doing (strong): "Stock market mein 90% beginners yeh ek galti karte hain — aur yahin paisa doobta hai."
+- Contrarian / myth-bust: "Paisa sirf 'save' karna aapko ameer nahi banata — ulta peeche kar raha hai. Kyun? 30 second do."
+- Data / number: "Sirf 6% log apna pehla ₹1 crore bana paate hain. Baaki teen cheezein chhod dete hain — yeh rahin."
+- Stakes / cost: "Har mahine aap chupke se ₹2,000 kho rahe ho — aur bill mein dikhta bhi nahi."
+- Story / in-media-res: "2019 mein mera poora portfolio ek hafte mein aadha ho gaya tha. Jo galti maine ki, woh aaj bachni chahiye."
+Every example is SPECIFIC and TRUE — note there is no "INSANE", no "you won't believe", no "watch till the end", no fake urgency. That is the bar.
 
 B. RETENTION ARCHITECTURE — model the attention curve across the WHOLE script:
 - Open-loop stacking: strong scripts open a new loop before closing the previous one, so there is always a reason to keep watching. Map where each loop opens and pays off; flag any loop left UNPAID.
