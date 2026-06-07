@@ -117,6 +117,13 @@ function BuilderTab() {
     ].filter(Boolean).join('\n\n');
   }
 
+  // Wipe everything from a previous analysis so a new upload starts clean.
+  function clearForm() {
+    setHeadline(''); setSubline(''); setPeople([]); setElements([]);
+    setFeedback([]); setPrompt(''); setBuilt(false);
+    setAnalyseSummary(''); setAnalyseDesc('');
+  }
+
   // Cloud check: works free inside Claude (text description) OR with an API key
   // (image vision). Finds what's wrong per the research and writes the fixed prompt.
   async function cloudCheck() {
@@ -135,16 +142,16 @@ function BuilderTab() {
       const { text } = await window.callClaude({ system: thumbSystem(), userText, images, maxTokens: 1600 });
       const parsed = JSON.parse((String(text).match(/\{[\s\S]*\}/) || ['null'])[0]);
       if (!parsed) { setAnalyseState('error'); return; }
-      if (parsed.headline) setHeadline(parsed.headline);
-      if (parsed.subline) setSubline(parsed.subline);
-      if (Array.isArray(parsed.people) && parsed.people.length > 0) {
-        setPeople(parsed.people.slice(0, 10).map(p => ({
-          photo: null,
-          expression: BUILDER_EXPRESSIONS.find(e => e.id === p.expression) ? p.expression : 'none',
-          desc: p.desc || '',
-        })));
-      }
-      if (Array.isArray(parsed.elements)) setElements(parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)));
+      // Replace fields unconditionally so a new thumbnail fully overwrites the
+      // last one (empty values clear the old text instead of leaving it behind).
+      setHeadline(parsed.headline || '');
+      setSubline(parsed.subline || '');
+      setPeople(Array.isArray(parsed.people) ? parsed.people.slice(0, 10).map(p => ({
+        photo: null,
+        expression: BUILDER_EXPRESSIONS.find(e => e.id === p.expression) ? p.expression : 'none',
+        desc: p.desc || '',
+      })) : []);
+      setElements(Array.isArray(parsed.elements) ? parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)) : []);
       setFeedback(Array.isArray(parsed.whatsWrong) ? parsed.whatsWrong.filter(Boolean).slice(0, 6) : []);
       if (parsed.improvedPrompt) { setPrompt(String(parsed.improvedPrompt)); setBuilt(true); }
       setAnalyseSummary(hasKey && analyseImg ? 'Checked your image with the research.' : 'Checked your description with the research (free cloud).');
@@ -229,6 +236,10 @@ function BuilderTab() {
   }
 
   function openIn(tool) {
+    // Route through the shared handoffs (ChatGPT pre-fills via URL; Gemini copies
+    // synchronously so the paste actually works).
+    if (tool.id === 'chatgpt' && window.openInChatGPT) return window.openInChatGPT(prompt);
+    if (tool.id === 'gemini' && window.openInGemini) return window.openInGemini(prompt);
     try { window.copyText && window.copyText(prompt); } catch (e) {}
     if (tool.useQ) window.open(tool.url + '?q=' + encodeURIComponent(prompt.slice(0, 6000)), '_blank', 'noopener,noreferrer');
     else window.open(tool.url, '_blank', 'noopener,noreferrer');
@@ -260,13 +271,13 @@ function BuilderTab() {
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
             <img src={analyseImg.preview} alt="" style={{ width: 120, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
             <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
-              onClick={() => { setAnalyseImg(null); }}>Remove image</button>
+              onClick={() => { setAnalyseImg(null); clearForm(); setAnalyseState('idle'); }}>Remove image</button>
           </div>
         )}
         {!analyseImg && (
           <label className="ci-drop" style={{ minHeight: 72, flexDirection: 'row', gap: 8, cursor: 'pointer', padding: 12, marginBottom: 10 }}>
             <input type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { setAnalyseImg(img); })} />
+              onChange={e => e.target.files[0] && bReadImage(e.target.files[0], img => { clearForm(); setAnalyseState('idle'); setAnalyseImg(img); })} />
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
             <span style={{ fontSize: 12.5 }}>Upload your thumbnail <span style={{ color: 'var(--text-5)' }}>(optional -- only read with an API key)</span></span>
           </label>

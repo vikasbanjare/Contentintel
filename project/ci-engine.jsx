@@ -275,8 +275,20 @@ function openInChatGPT(promptText) {
 }
 function openInGemini(promptText) {
   const p = String(promptText || "");
-  try { window.copyText && window.copyText(p); } catch (e) {}
-  // Gemini's web app doesn't accept a ?q= prompt, so we just copy + open it.
+  // Gemini's web app can't be pre-filled via URL, so we copy the prompt for the
+  // user to paste. Copy SYNCHRONOUSLY (inside the click) so it lands on the
+  // clipboard before the new tab steals focus -- the async clipboard API often
+  // gets cancelled by window.open, which is why pasting was failing.
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = p; ta.setAttribute("readonly", "");
+    ta.style.position = "fixed"; ta.style.top = "-9999px"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { ta.setSelectionRange(0, p.length); } catch (e) {}
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  } catch (e) {}
+  try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(p); } catch (e) {}
   window.open("https://gemini.google.com/app", "_blank", "noopener,noreferrer");
 }
 
