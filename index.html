@@ -2363,12 +2363,35 @@ function ciCopySync(p) {
 
 function openInGemini(promptText) {
   const p = String(promptText || "");
-  // Gemini (unlike ChatGPT) has NO URL prompt-prefill, so we copy + open and the
-  // user pastes. Copy first, synchronously, then tell them clearly what to do.
-  const ok = ciCopySync(p);
-  ciToast(ok ? "Prompt copied — switch to the Gemini tab and paste it (Ctrl+V / Cmd+V)"
-             : "Couldn't auto-copy — select the prompt text and copy it manually, then paste in Gemini");
-  window.open("https://gemini.google.com/app", "_blank", "noopener,noreferrer");
+  // Copy first (sync, reliable inside click handler), then show a persistent
+  // banner with an "Open Gemini" button — avoids clipboard loss from tab switch.
+  ciCopySync(p);
+  // Also try async API for browsers that block execCommand
+  try { navigator.clipboard && navigator.clipboard.writeText(p); } catch(e) {}
+
+  // Show a sticky banner: confirmed copy + button to open Gemini
+  try {
+    let el = document.getElementById("ci-gemini-bar");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "ci-gemini-bar";
+      el.style.cssText = "position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);z-index:99999;" +
+        "background:#1a1d2a;color:#f2f4fa;border:1px solid rgba(255,255,255,0.16);box-shadow:0 12px 40px rgba(0,0,0,0.6);" +
+        "padding:14px 18px;border-radius:16px;font-size:13.5px;font-family:var(--font-ui,sans-serif);max-width:92vw;width:420px;" +
+        "text-align:center;transition:transform .25s cubic-bezier(.2,.8,.3,1),opacity .25s;opacity:0;display:flex;align-items:center;gap:12px;";
+      document.body.appendChild(el);
+    }
+    el.innerHTML =
+      '<span style="flex:1;text-align:left;line-height:1.4"><b style="color:#a8e6cf">Prompt copied!</b><br>' +
+      '<span style="font-size:12px;color:#8b93a7">Paste it in Gemini with Ctrl+V&nbsp;/&nbsp;Cmd+V</span></span>' +
+      '<button onclick="window.open(\'https://gemini.google.com/app\',\'_blank\',\'noopener\');this.closest(\'#ci-gemini-bar\').style.transform=\'translateX(-50%) translateY(80px)\';this.closest(\'#ci-gemini-bar\').style.opacity=\'0\'" ' +
+      'style="flex-shrink:0;background:linear-gradient(135deg,#4285f4,#34a853);color:#fff;border:none;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">Open Gemini →</button>' +
+      '<button onclick="this.closest(\'#ci-gemini-bar\').style.transform=\'translateX(-50%) translateY(80px)\';this.closest(\'#ci-gemini-bar\').style.opacity=\'0\'" ' +
+      'style="flex-shrink:0;background:transparent;color:#5c6478;border:none;cursor:pointer;font-size:18px;line-height:1;padding:0 2px">×</button>';
+    requestAnimationFrame(() => { el.style.opacity = "1"; el.style.transform = "translateX(-50%) translateY(0)"; });
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.style.opacity = "0"; el.style.transform = "translateX(-50%) translateY(80px)"; }, 12000);
+  } catch(e) {}
 }
 
 // Pull the grounded regen prompt out of a report (falls back to the biggest fix).
