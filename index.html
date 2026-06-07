@@ -25,7 +25,7 @@
       --font-mono: 'JetBrains Mono', monospace;
       --display-tracking: -0.025em;
       --display-case: none;
-      --ui-size: 14px;
+      --ui-size: 15px;
     }
     html, body { margin: 0; padding: 0; background: var(--bg-0, #07090E); color: var(--text-1, #f2f4fa); min-height: 100%; }
     body { font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
@@ -48,8 +48,11 @@
   --text-5: #3D4252;
   --accent: #4D7CFE;
   --nav-bg: rgba(7, 9, 14, 0.72);
-  --inset: rgba(0, 0, 0, 0.22);       /* translucent panel inside cards */
-  --inset-soft: rgba(0, 0, 0, 0.12);  /* lighter panel / divider fill */
+  --inset: rgba(0, 0, 0, 0.22);
+  --inset-soft: rgba(0, 0, 0, 0.12);
+  /* Hero scrim — always a dark overlay so hero text stays white in both themes */
+  --hero-scrim: linear-gradient(180deg, rgba(7,9,14,0.50) 0%, rgba(7,9,14,0.22) 45%, rgba(7,9,14,0.92) 100%);
+  --hero-fallback: linear-gradient(135deg, #07090E 0%, #1A0C1A 55%, #07090E 100%);
 }
 
 /* LIGHT THEME — toggled via <html data-theme="light">. Overrides the colour
@@ -57,20 +60,23 @@
 :root[data-theme="light"] {
   --bg-0: #F4F6FB;
   --bg-1: #FFFFFF;
-  --surface-1: rgba(12, 18, 38, 0.035);
-  --surface-2: rgba(12, 18, 38, 0.06);
-  --surface-3: rgba(12, 18, 38, 0.09);
-  --stroke-1: rgba(12, 18, 38, 0.10);
-  --stroke-2: rgba(12, 18, 38, 0.17);
-  --stroke-3: rgba(12, 18, 38, 0.30);
-  --text-1: #12151C;
-  --text-2: #2E3545;
-  --text-3: #586074;
-  --text-4: #888FA0;
-  --text-5: #B2B8C4;
-  --nav-bg: rgba(255, 255, 255, 0.78);
-  --inset: rgba(12, 18, 38, 0.05);
-  --inset-soft: rgba(12, 18, 38, 0.03);
+  --surface-1: rgba(12, 18, 38, 0.055);
+  --surface-2: rgba(12, 18, 38, 0.09);
+  --surface-3: rgba(12, 18, 38, 0.13);
+  --stroke-1: rgba(12, 18, 38, 0.12);
+  --stroke-2: rgba(12, 18, 38, 0.20);
+  --stroke-3: rgba(12, 18, 38, 0.35);
+  --text-1: #0E1119;
+  --text-2: #28334A;
+  --text-3: #4A5568;
+  --text-4: #7A8494;
+  --text-5: #A8B0C0;
+  --nav-bg: rgba(255, 255, 255, 0.88);
+  --inset: rgba(12, 18, 38, 0.07);
+  --inset-soft: rgba(12, 18, 38, 0.04);
+  /* Light mode hero uses a stronger dark scrim so white text stays legible over video */
+  --hero-scrim: linear-gradient(180deg, rgba(6,8,20,0.68) 0%, rgba(6,8,20,0.42) 45%, rgba(6,8,20,0.92) 100%);
+  --hero-fallback: linear-gradient(135deg, #1a1d2e 0%, #2a1428 55%, #1a1d2e 100%);
 }
 
 * { box-sizing: border-box; }
@@ -730,7 +736,11 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
 .ci-feature:hover { transform: translateY(-3px); border-color: var(--stroke-2); }
 
 /* Hero video */
-.ci-hero { position: relative; overflow: hidden; }
+.ci-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--hero-fallback, linear-gradient(135deg, #07090E 0%, #1A0C1A 55%, #07090E 100%));
+}
 .ci-hero-video {
   position: absolute;
   inset: 0;
@@ -740,9 +750,7 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
 }
 .ci-hero-scrim {
   position: absolute; inset: 0; z-index: 1;
-  background:
-    linear-gradient(180deg, rgba(7,9,14,0.4) 0%, rgba(7,9,14,0.2) 40%, rgba(7,9,14,0.85) 100%),
-    radial-gradient(ellipse at 70% 30%, rgba(255,77,141,0.18), transparent 55%);
+  background: var(--hero-scrim);
 }
 
 /* ── BYO-key, token estimate, modal, admin ─────────────────────────────────── */
@@ -2889,31 +2897,31 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
   return (
     <div className="ci-reveal">
       {/* HERO with looping video */}
-      <section className="ci-hero" style={{ minHeight: 560, display: 'flex', alignItems: 'center' }}>
+      <section className="ci-hero" style={{ minHeight: 620, display: 'flex', alignItems: 'center' }}>
         <video key={ciHeroVideo(theme)} className="ci-hero-video" src={ciHeroVideo(theme)} autoPlay muted loop playsInline />
         <div className="ci-hero-scrim" />
         <div style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}>
-          <div className="bloom-orb" style={{ width: 620, height: 620, right: '-12%', top: '-26%', background: m.orbA, opacity: 0.22, filter: 'blur(110px)' }} />
+          <div className="bloom-orb" style={{ width: 620, height: 620, right: '-12%', top: '-26%', background: m.orbA, opacity: 0.18, filter: 'blur(110px)' }} />
         </div>
 
-        <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', padding: '0 26px', width: '100%' }}>
-          <div style={{ maxWidth: 720 }}>
-            <div className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, color: 'var(--text-3)', letterSpacing: '0.18em', fontSize: 11.5, textTransform: 'uppercase' }}>
+        <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', padding: '0 32px', width: '100%' }}>
+          <div style={{ maxWidth: 740 }}>
+            <div className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.18em', fontSize: 12, textTransform: 'uppercase' }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: m.accentFrom, boxShadow: `0 0 10px ${m.accentGlow}` }} className="pulse-dot" />
               Pre-publish checker
             </div>
-            <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 88, margin: '20px 0 0', lineHeight: 1.0, letterSpacing: '-0.015em', color: 'var(--text-1)' }}>
+            <h1 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 80, margin: '18px 0 0', lineHeight: 1.05, letterSpacing: '-0.015em', color: 'rgba(255,255,255,0.96)' }}>
               Know it&rsquo;ll work<br/>before you{' '}
               <span style={{ fontStyle: 'italic', color: '#FF9CC2' }}>hit publish.</span>
             </h1>
-            <p style={{ margin: '26px 0 0', fontSize: 16.5, lineHeight: 1.6, color: 'var(--text-2)', maxWidth: 540 }}>
+            <p style={{ margin: '24px 0 0', fontSize: 17, lineHeight: 1.65, color: 'rgba(255,255,255,0.72)', maxWidth: 560 }}>
               Paste a script, drop a thumbnail, test a title or an ad. ContentIntel tells you what&rsquo;s working, what&rsquo;s not, and exactly how to fix it &mdash; in plain language, before it goes live.
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 30 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 32 }}>
               <GlowButton mood={mood} size="lg" onClick={() => onNav('script')}>Check your content →</GlowButton>
-              <button className="btn ghost" style={{ height: 48, padding: '0 20px', fontSize: 14, background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(10px)' }} onClick={() => onNav('thumbnail')}>See a sample report</button>
+              <button className="btn ghost" style={{ height: 48, padding: '0 22px', fontSize: 14.5, color: 'rgba(255,255,255,0.82)', background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.15)' }} onClick={() => onNav('thumbnail')}>See a sample report</button>
             </div>
-            <div onClick={onOpenKey} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, marginTop: 20, cursor: 'pointer', fontSize: 12.5, color: 'var(--text-2)' }}>
+            <div onClick={onOpenKey} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, marginTop: 22, cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.50)' }}>
               <span className={'ci-keydot ' + (hasKey ? 'on' : 'off')} />
               {hasKey
                 ? <span>Running on your own Anthropic key -- analyses are live.</span>
@@ -2927,51 +2935,51 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
       <div style={{ maxWidth: 1140, margin: '0 auto', padding: '0 26px' }}>
         <div className="glass" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderRadius: 16, marginTop: -28, position: 'relative', zIndex: 3, overflow: 'hidden' }}>
           {stats.map((s, i) => (
-            <div key={i} style={{ padding: '20px 24px', borderLeft: i ? '1px solid var(--stroke-1)' : 'none' }}>
-              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 32, letterSpacing: '-0.01em' }}>{s.v}</div>
-              <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>{s.l}</div>
+            <div key={i} style={{ padding: '22px 28px', borderLeft: i ? '1px solid var(--stroke-1)' : 'none' }}>
+              <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 34, letterSpacing: '-0.01em' }}>{s.v}</div>
+              <div style={{ fontSize: 13.5, color: 'var(--text-3)', marginTop: 5 }}>{s.l}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* FEATURE SHOWCASE */}
-      <section style={{ maxWidth: 1140, margin: '0 auto', padding: '64px 26px 40px', position: 'relative' }}>
+      <section style={{ maxWidth: 1140, margin: '0 auto', padding: '72px 32px 48px', position: 'relative' }}>
         <AmbientBloom mood={mood} intensity={0.4} variant="subtle" />
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 28 }}>
             <div>
               <Eyebrow mood={mood} glow>Four checks · one workflow</Eyebrow>
-              <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 46, margin: '8px 0 0', letterSpacing: '-0.01em' }}>Everything you ship, graded first.</h2>
+              <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 50, margin: '10px 0 0', letterSpacing: '-0.01em' }}>Everything you ship, graded first.</h2>
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-3)', maxWidth: 280, textAlign: 'right' }}>
+            <div style={{ fontSize: 14.5, color: 'var(--text-3)', maxWidth: 300, textAlign: 'right', lineHeight: 1.6 }}>
               Pick a format to run a check. Each report is plain-English, scored 0-100, with copy-ready fixes.
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 18 }}>
             {features.map(f => {
               const fm = MOODS[f.mood];
               return (
                 <div key={f.id} className="ci-feature" onClick={() => onNav(f.id)}
-                  style={{ padding: 22, minHeight: 230, background: 'rgba(255,255,255,0.018)', borderRadius: 20 }}>
-                  <div style={{ position: 'absolute', right: -50, top: -50, width: 150, height: 150, background: `radial-gradient(circle, ${fm.orbB}, transparent 70%)`, opacity: 0.16, filter: 'blur(34px)' }} />
+                  style={{ padding: 26, minHeight: 250, background: 'var(--surface-2)', borderRadius: 20, border: '1px solid var(--stroke-1)' }}>
+                  <div style={{ position: 'absolute', right: -50, top: -50, width: 150, height: 150, background: `radial-gradient(circle, ${fm.orbB}, transparent 70%)`, opacity: 0.18, filter: 'blur(34px)' }} />
                   <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
                     {/* icon + capability pills */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 10, border: `1px solid ${fm.accentGlow}`, background: `${fm.accentFrom}14`, display: 'grid', placeItems: 'center', color: fm.accentFrom, flexShrink: 0 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${fm.accentGlow}`, background: `${fm.accentFrom}18`, display: 'grid', placeItems: 'center', color: fm.accentFrom, flexShrink: 0 }}>
                         <CITabIcon name={f.icon} />
                       </div>
-                      <span style={{ fontSize: 16, color: fm.accentFrom, opacity: 0.8 }}>→</span>
+                      <span style={{ fontSize: 17, color: fm.accentFrom, opacity: 0.8 }}>→</span>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 16 }}>
                       {f.tags.map(t => (
-                        <span key={t} style={{ fontSize: 10.5, color: 'var(--text-3)', padding: '4px 9px', borderRadius: 999, border: '1px solid var(--stroke-1)', background: 'rgba(255,255,255,0.02)', whiteSpace: 'nowrap' }}>{t}</span>
+                        <span key={t} style={{ fontSize: 11.5, color: 'var(--text-3)', padding: '4px 10px', borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--inset-soft)', whiteSpace: 'nowrap' }}>{t}</span>
                       ))}
                     </div>
                     {/* serif heading + description */}
-                    <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 26, marginTop: 18, letterSpacing: '-0.01em', color: 'var(--text-1)' }}>{f.label}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 7, lineHeight: 1.55, flex: 1 }}>{f.line}</div>
+                    <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 28, marginTop: 18, letterSpacing: '-0.01em', color: 'var(--text-1)' }}>{f.label}</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 8, lineHeight: 1.6, flex: 1 }}>{f.line}</div>
                   </div>
                 </div>
               );
@@ -2986,8 +2994,8 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
           <div style={{ position: 'absolute', left: -80, bottom: -80, width: 320, height: 320, background: `radial-gradient(circle, ${m.orbB}, transparent 70%)`, opacity: 0.25, filter: 'blur(50px)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
             <Eyebrow mood={mood} glow>No jargon, just fixes</Eyebrow>
-            <h3 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 36, margin: '10px 0 0', lineHeight: 1.08, letterSpacing: '-0.01em' }}>It talks like a smart friend, not a dashboard.</h3>
-            <p style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 14, lineHeight: 1.6 }}>
+            <h3 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 40, margin: '10px 0 0', lineHeight: 1.08, letterSpacing: '-0.01em' }}>It talks like a smart friend, not a dashboard.</h3>
+            <p style={{ fontSize: 15.5, color: 'var(--text-2)', marginTop: 16, lineHeight: 1.65 }}>
               Every score comes with a plain explanation and the exact change to make. Green means ship it. Yellow means fix the flagged lines first. Red means rework before you post.
             </p>
             <div style={{ display: 'flex', gap: 20, marginTop: 22 }}>
