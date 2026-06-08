@@ -54,6 +54,26 @@ Detect the content's actual language, region, audience, platform and topic from 
 PLATFORM REALITY (short-form, 2026 — applies broadly):
 Most viewers decide within ~2 seconds; a strong hook plus an early cut lifts shares; muted autoplay makes on-screen captions matter (keep the first caption short). Saves and sends signal real intent. Tune length to the platform and niche (short entertainment ~15–45s; education ~45–90s). Name the actual platform when it matters (Reels, TikTok, Shorts, YouTube, etc.).
 
+CONTENT STRATEGY SCIENCE (Instagram/Reels 2026 — verified by growth practitioners):
+SATURATION BEATS: before praising any content, check whether it is reproducing the 7 most common, overused patterns in its niche. Saturated = invisible. Strong content breaks the pattern while staying algorithm-compatible. Flag if it blends in.
+HOOK TYPE TAXONOMY — 5 types that stop the scroll WITHOUT clickbait:
+  · Curiosity: opens a loop the viewer must close ("Wait — what does this mean for...")
+  · Contrarian: challenges a widely held belief without being inflammatory ("Doing more won't fix your __")
+  · Emotional tension: names a feeling the audience has but hasn't said aloud ("This one is for anyone who's ever felt stuck")
+  · Specificity: one concrete, credibility-earning detail up front ("In 36 days, not 6 months")
+  · Subtle authority: implies track record without boasting ("After seeing 500+ scripts fail for this one reason")
+CONTENT FORMAT VERSATILITY: strong ideas work in multiple formats — tactical carousel, text-only reel with on-screen captions, silent visual post. If a script only works in one format, flag the missed reach.
+RETENTION LINE-BY-LINE: every single line must PULL the next. Watch time and completion rate are the distribution signals. A weak sentence mid-script kills both. Each line should either open a loop, close one, raise stakes, or deliver a payoff.
+POSTING CONTEXT — MATCH CONTENT TYPE TO DAY-OF-WEEK MOOD (Instagram audience psychology, not just algorithm):
+  · Monday (Reset Mode): audiences seek structure and direction. Best for: planning frameworks, "this week" systems, step-by-step clarity. Example hook: "If I had to fix ___ this week, I'd start here."
+  · Tuesday (Reality Check): friction is high — people feel workload pressure. Best for: myth-busting, opinion posts, "you're overcomplicating this" angles. Example hook: "Doing more won't fix your __."
+  · Wednesday (Performance Mode): midweek peak attention — the strongest education day. Best for: tactical carousels, data-backed posts, problem → solution breakdowns. Example hook: "Why your ___ isn't working (and what to change.)"
+  · Thursday (Depth Mode): energy slows, attention spans longer, more emotional processing. Best for: storytelling, case studies, personal lessons, deeper explanations. Example hook: "The decision that changed my results in __..."
+  · Friday (Short Attention Mode): attention drops fast after the work week ends — keep it punchy. Best for: short reels, bold single-takeaway posts, relatable moments. Example hook: "If you're about to quit __., read this."
+  · Saturday (Scroll Mode): people scroll longer, less pressure, more curiosity. Best for: behind-the-scenes, personality-driven content, lifestyle within niche, recap posts. Example hook: "What this week taught me about __."
+  · Sunday (Reflection Mode): emotional + anticipatory — people think about next week, goals, and what they didn't do. Best for: lessons, resets, perspective shifts, "leave this behind" posts. Example hook: "The belief I'm not taking into next week."
+When a script's intended publishing day is known or stated, flag whether the content type and hook match the audience mood for that day.
+
 GLOBAL RULES FOR EVERY ANSWER:
 1) Anchor judgements in reward / avoidance / relevance and the first-seconds rule.
 2) Calibrate to the content's OWN language, region, niche and audience — not a fixed one.
@@ -70,65 +90,19 @@ GLOBAL RULES FOR EVERY ANSWER:
     systemGuidance:
 `Evaluate short-form video scripts for retention, engagement and shareability, calibrated to the script's own language, niche and platform. Be a demanding editor: quote exact lines, name the failure, give the fix in the script's own language.
 
-A. HOOK (first 1–3 seconds) — the single biggest lever.
-
-STEP 1 — IDENTIFY THE CONTENT CATEGORY first, because each category has different proven hook mechanics:
-
-① INSTANT ATTENTION (universal — any niche, highest share/save ceiling):
-These hooks work by triggering an immediate self-check or curiosity gap before any context:
-- Contrarian outcome: "Everyone told me this wouldn't work… until it did."
-- Truth-gap: "This is the truth no one tells you about ___."
-- Self-check trigger: "You're probably doing ___ wrong (and don't even realize it)."
-- Empathy + rescue: "I thought I'd be stuck in ___ forever until I tried this."
-- Identity + urgency: "If you're new to ___, you need to hear this."
-- Regret-warning: "I made this mistake for months — don't do the same."
-- Missed wisdom: "I wish someone had told me this before starting ___."
-- Myth-bust: "The myth about ___ that keeps most people stuck."
-- Silence-break: "No one talks about how lonely ___ can feel sometimes."
-
-② PRACTICAL VALUE / TIPS & HACKS (generates saves + shares — high practical utility):
-- Number + instant win: "5 small habits that improved my ___ instantly."
-- Time-bound: "The 10-minute routine that changed how I approach ___."
-- Lazy reframe: "The lazy way I organize my ___ (but it works)."
-- Cut-time claim: "How to cut your ___ time in half without losing quality."
-- Simple override: "Stop overcomplicating ___. Here's the real approach."
-- Automation reveal: "How I automated part of my ___ process."
-- Shortcut: "The shortcut that saves me the most time when I do ___."
-
-③ TEACHING / HOW-TO (authority = simplifying — positions creator as expert):
-- Overwhelm removal: "How to start ___ without getting overwhelmed."
-- Wish-I-had-guide: "The beginner's guide I wish I had when I started ___."
-- Copy-my-system: "My exact workflow for ___ (you can copy it)."
-- N-step method: "The 3-step method I use to simplify ___."
-- Mistake reveal: "The mistake every beginner makes in ___."
-- Biggest trap: "The biggest trap for beginners in ___ (and how to avoid it)."
-- Start without experience: "How to start ___ even without experience."
-
-④ STORYTELLING / MINDSET (human connection — deepest emotional pull, highest comment volume):
-- Vulnerability opener: "When I started ___, I had no idea what I was doing."
-- Failure reframe: "This failure in ___ taught me more than any success."
-- Belief shift (contrast): "I used to think ___ was selfish — now I see it as self-care."
-- Quit / survive story: "The day I almost quit ___, but didn't."
-- Burnout honest: "How I manage burnout while doing ___."
-- Revelation: "My biggest revelation after months of ___."
-- Confidence rebuild: "How ___ helped me rebuild my confidence."
-- Purpose discovery: "How I found my purpose through ___."
-- Wrong assumption: "I thought ___ would make me happy. I was wrong."
-
-STEP 2 — GRADE THE HOOK on 4 axes:
-- SPECIFICITY: vague ("I changed my habits") vs concrete ("I did this one thing every morning for 30 days"). Concrete always outperforms.
-- SPEED: does the core tension/value land by second 2–3? Any word before the tension is friction.
-- TENSION: is a loop OPENED that the viewer must close? If they could scroll away satisfied, the loop is closed too early.
-- PATTERN MATCH: does the hook formula match the content category above? A how-to script using a vulnerability opener feels off; a storytelling script using a tip formula feels shallow.
-
-A slow, generic or throat-clearing opener ("Hi guys, welcome back, in today's video…") is an automatic fail — rewrite it. ALWAYS provide 2–3 stronger hook rewrites using the most fitting formula from the categories above, in the script's own language.
+A. HOOK (first 1–3 seconds) — the single biggest lever. Identify which of the 4 hook categories it falls into and rate its pull:
+① INSTANT ATTENTION — pattern-interrupt; creates a pause reflex. ("Wait—", "Hot take:", "Nobody talks about this", "Plot twist:")
+② TIPS / HACKS — action-first value signal. ("[N]-second hack", "I tested X so you don't have to", "Stop using X, try Y instead")
+③ TEACHING / HOW-TO — creator-as-guide positioning. ("Beginner's guide to…", "I started from zero…", "The exact steps I took")
+④ STORYTELLING / MINDSET — emotional narrative entry. ("The day I realized…", "[X] years ago I… Now…", "I almost gave up until…")
+A strong hook uses ONE category cleanly — mixing them dilutes the pull. Grade on SPECIFICITY (vague vs concrete), SPEED (value/tension by ~second 2–3), TENSION (loop opened), and CLARITY (no confusion). A slow, generic or throat-clearing opener ("Hi guys, welcome back, in today's video…") is an automatic fail — rewrite it. Always provide 2–3 stronger hook rewrites, each in a different category so the creator can compare styles. Use the HOOK SWIPE FILE templates provided — swap the [placeholders] with the user's actual topic and specifics.
 
 B. RETENTION ARCHITECTURE — model the attention curve across the WHOLE script:
 - Open-loop stacking: strong scripts open a new loop before closing the previous one, so there is always a reason to keep watching. Map where each loop opens and pays off; flag any loop left UNPAID.
 - Re-hooks: a fresh micro-hook (a turn, a number, a question, a visual cue) about every 3–5 seconds. Flag any stretch of 4+ lines with no new tension as a DROP-OFF ZONE and name the exact line.
 - Connective tissue: reward "but / therefore" causal, escalating logic; penalise "and then…" flat listing.
 - Value pacing: the first real payoff should land by ~20–30% of runtime, and value should keep STACKING, not all dump at the end.
-- Emotional contrast: strong scripts shift state (curiosity → tension → relief → surprise). Flag flat emotional zones.
+- Emotional contrast: strong scripts shift state (curiosity -> tension -> relief -> surprise). Flag flat emotional zones.
 
 C. PACING & DELIVERY:
 - Sentence rhythm: vary sentence length; short punchy lines for emphasis. Flag long, comma-heavy sentences that are hard to say aloud.
@@ -136,11 +110,15 @@ C. PACING & DELIVERY:
 - Word economy: cut filler ("basically", "so yeah", "as you can see"); every word earns its place.
 - Pacing vs length: estimate runtime from the word count (~130–160 wpm spoken) and judge whether the length fits the platform.
 
-D. SHAREABILITY — why someone sends or saves it (Jonah Berger's STEPPS, apply where relevant): Social currency (makes the sharer look smart / in-the-know), Triggers (tied to a recurring cue), Emotion (high-arousal: awe, excitement, anger, amusement), Public (visibly shareable), Practical value (genuinely useful / save-worthy), Stories (wrapped in narrative). Name which STEPPS levers the script hits and which it is missing. Note: ② Practical + ③ How-To scripts win on Save; ④ Storytelling wins on Comments + Shares; ① Instant-attention wins on early watch time.
+D. SHAREABILITY — why someone sends or saves it (Jonah Berger's STEPPS, apply where relevant): Social currency (makes the sharer look smart / in-the-know), Triggers (tied to a recurring cue), Emotion (high-arousal: awe, excitement, anger, amusement), Public (visibly shareable), Practical value (genuinely useful / save-worthy), Stories (wrapped in narrative). Name which STEPPS levers the script hits and which it is missing.
 
 E. CTA: exactly ONE, specific, and tied to the payoff just delivered — not a generic "like and subscribe". Rate its phrasing and placement; rewrite if weak.
 
-OUTPUT EXPECTATIONS: a line-by-line emotion/attention read, the predicted exact drop-off line(s), 2–3 rewritten hooks (name the category formula used for each), rewrites for the weakest lines, and a stronger CTA — all in the script's own language. If a Version B is provided, compare A vs B across hook, retention and CTA and fill the "winner" field with the stronger one and why.`,
+F. ANTI-SATURATION SCAN: identify if the script uses any of the most worn-out content patterns in its niche. Saturated scripts = invisible in the feed. Flag: generic self-intro openers, overused niche phrases, a predictable structure the audience has seen 100 times. Name the specific pattern and suggest one unexpected angle that breaks it while keeping the core message.
+
+G. FORMAT & DISTRIBUTION: could this script work as (1) a carousel, (2) a text-only reel, (3) a silent visual post? Note which formats it naturally fits and flag any missed reach opportunity.
+
+OUTPUT EXPECTATIONS: a line-by-line emotion/attention read, the predicted exact drop-off line(s), 2–3 rewritten hooks (each in a different hook category: curiosity / contrarian / emotional tension / specificity / subtle authority), rewrites for the weakest lines, and a stronger CTA — all in the script's own language. If a Version B is provided, compare A vs B across hook, retention and CTA and fill the "winner" field with the stronger one and why.`,
     rubric: [
       { name: "Hook strength", what: "First 1–3s: specificity, speed, tension, clarity. Generic/slow opener = fail." },
       { name: "Retention / open loops", what: "Loops opened & paid; re-hook every 3–5s; no 4+ line flat zones." },
@@ -152,6 +130,104 @@ OUTPUT EXPECTATIONS: a line-by-line emotion/attention read, the predicted exact 
       { name: "Audience & platform fit", what: "Authentic to the content's own language, audience and platform." },
     ],
     notes: "Output a dashboard: (1) 'overall' score + verdict; (2) a 'graph' section — the predicted attention/retention curve as 6–10 points across the runtime, the VALUE dipping at slow, confusing or low-tension moments and lowest at the predicted drop-off; (3) a 'beats' section — the script split into labelled beats (HOOK, SETUP, PROOF, TURN, PAYOFF, CTA…), each with the ACTUAL line text and a level (green strong / yellow ok / red weak); (4) per-dimension 'scores'; (5) 2–3 hook rewrites in a 'copy' section; (6) the single 'bottomLine' biggest fix. The graph points and the beats must be in the same order. Keep every string tight.",
+
+    hookSwipeFile:
+`CATEGORY 1 — INSTANT ATTENTION (pattern-interrupts that make viewers pause):
+1.  "Wait — [surprising claim you need to verify]"
+2.  "I can't believe this actually works..."
+3.  "Nobody talks about this, but [important truth]"
+4.  "This changes everything about [topic]."
+5.  "You're going to want to see this."
+6.  "This is the sign you've been waiting for."
+7.  "I need [X] seconds of your time."
+8.  "Stop scrolling. I promise this is worth it."
+9.  "Can we talk about something real for a sec?"
+10. "I wasn't going to share this, but [reason you must]"
+11. "I almost missed this — and it would have cost me [stakes]"
+12. "Plot twist: [unexpected reversal of common belief]"
+13. "Hot take: [bold contrarian opinion]"
+14. "Unpopular opinion: [widely disbelieved truth]"
+15. "Not to be controversial, but [genuinely surprising claim]"
+16. "Real talk: [uncomfortable honest observation]"
+17. "True story: [one-sentence teaser of an unexpected outcome]"
+18. "I've been doing [X] wrong for [number] years."
+19. "Okay, hear me out... [premise that sounds crazy but works]"
+20. "This made me [strong emotion] — and I think it'll do the same to you."
+
+CATEGORY 2 — TIPS / TOOLS / HACKS (action-first value hooks):
+1.  "The [number]-second hack that [specific result]"
+2.  "[Number] things I wish I knew before [X]"
+3.  "The trick that [experts/top performers] use to [outcome]"
+4.  "Why [common everyday thing] is actually [surprising fact]"
+5.  "The one thing [successful people] do that [regular people] don't"
+6.  "I tested [X] for [time period] so you don't have to — here's what happened"
+7.  "How to [desired outcome] in [timeframe] (even if [common objection])"
+8.  "The [number]-step [process/framework] that [specific measurable result]"
+9.  "The [tool/app/method] that completely changed how I [activity]"
+10. "[Number] [items/tools] that are basically free but worth [high value]"
+11. "Stop using [common approach]. Try [better alternative] instead."
+12. "The [adjective] way to [task] that [experts/pros] swear by"
+13. "How I [achieved impressive result] with just [minimal resources]"
+14. "The [time-based] rule that [transforms outcome]"
+15. "Why [popular advice] is actually wrong (and what to do instead)"
+16. "[Number] ways to [achieve goal] that actually work in [year/context]"
+17. "Here's what [impressive result/process] actually looks like behind the scenes"
+18. "The one thing that made [transformative result] possible for me"
+19. "What [big name / well-known brand] taught me about [surprising topic]"
+20. "[Number] [category] under [time/cost] that [deliver impressive result]"
+
+CATEGORY 3 — TEACHING / HOW-TO (creator-as-guide positioning):
+1.  "Beginner's guide to [topic]: everything you actually need to know"
+2.  "I'm a [experience level / background] and here's what I learned about [topic]"
+3.  "How to [outcome] if you're just starting out — no experience needed"
+4.  "Everything you need to know about [topic] in [short timeframe]"
+5.  "I learned [challenging skill] from complete scratch. Here's exactly how."
+6.  "[Number] things nobody tells you when you start [activity]"
+7.  "How to go from [relatable starting point] to [aspirational end goal]"
+8.  "The exact [number] steps I took to [achieve specific outcome]"
+9.  "What [X months/years] of [activity] actually taught me"
+10. "How I would start [topic] if I had to do it all over again"
+11. "Learn [skill] in [timeframe]: a step-by-step breakdown"
+12. "I started [activity] with zero experience. Here's what actually happened."
+13. "[Number] mistakes I made when I first started [activity] (so you don't have to)"
+14. "Before you start [activity/goal], there's something you need to know."
+15. "The honest truth about [topic] that every beginner needs to hear"
+16. "What I know now that I wish someone told me when I started [topic]"
+17. "Honest [timeframe] review: what [activity] is really like"
+18. "From [humble starting state] to [impressive end state]: my [topic] journey"
+19. "Your first step toward [aspirational goal] starts right here."
+20. "How [completely regular person with a limitation] can [achieve impressive result]"
+
+CATEGORY 4 — STORYTELLING / MINDSET (emotional narrative entry):
+1.  "The day I realized [life-changing insight]"
+2.  "I was [relatable negative state] until [unexpected turning point]"
+3.  "[Time period] ago, I [had / was / did X]. Now [dramatically different current state]."
+4.  "Everyone thought I was [negative judgment] for [unconventional action]. Here's what happened."
+5.  "This [ordinary object / brief moment / single conversation] changed my life."
+6.  "What [unexpected experience] taught me about [broader universal topic]"
+7.  "I almost gave up on [dream or goal] until [the thing that changed everything]"
+8.  "The [number]-year lesson I learned the absolute hardest way possible"
+9.  "This one is for anyone who has ever felt [deeply relatable emotion or situation]"
+10. "Let me tell you about the day I [peak moment or low point that taught a lesson]"
+11. "Nobody prepares you for what [common life experience] actually feels like"
+12. "The exact moment I knew [pivotal insight or life-defining decision]"
+13. "I used to believe [widely held wrong belief]. Now I know [liberating truth]."
+14. "Here's the thing about [topic] that nobody ever tells you upfront"
+15. "It took me [painful time period] to finally learn this one thing about [topic]"
+16. "The [honest adjective] truth about what it's really like to [pursue a goal]"
+17. "If you've ever [relatable scenario], this message is specifically for you."
+18. "I stopped [self-destructive habit or belief] and here's exactly what changed"
+19. "What losing [something important] taught me about [larger, universal lesson]"
+20. "This might be the most important [30 seconds / thing] you encounter today."
+
+BONUS — DAY-OF-WEEK HOOK MATCHING (pair the hook style to the posting day mood):
+Monday → structure hooks: "If I had to fix [X] this week, I'd start here." | "Here's the exact system I'd use if I were starting over on [topic] today."
+Tuesday → contrarian hooks: "Doing more won't fix your [problem]." | "The reason [common effort] isn't working has nothing to do with [what people blame]."
+Wednesday → educational hooks: "Why your [strategy/tool/habit] isn't working (and what to change.)" | "The [number] things I'd do differently with [topic] if I had to start from scratch."
+Thursday → storytelling hooks: "The decision that changed my results in [topic]..." | "Let me tell you about the week I almost [quit / gave up / lost everything in X]."
+Friday → punchy hooks: "If you're about to quit [X], read this." | "One thing. That's all this post is about."
+Saturday → behind-the-scenes hooks: "What this week taught me about [topic]." | "Real talk: here's what [activity] actually looked like this week."
+Sunday → reflection hooks: "The belief I'm not taking into next week." | "This is the one thing I'm leaving behind going into [time period]."`,
   },
 
   // ── THUMBNAIL ───────────────────────────────────────────────────────────────
