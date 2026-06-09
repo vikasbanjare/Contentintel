@@ -3233,25 +3233,37 @@ function ScriptTab({ onOpenKey }) {
   const [kind, setKind] = React.useState('Education');
   const [who, setWho] = React.useState('General');
   const [where, setWhere] = React.useState('Reels');
-  const [rewrite, setRewrite] = React.useState({ open: false, dir: '', loading: false, out: null });
+  const [rewrite, setRewrite] = React.useState({ dir: '', loading: false, out: null });
   const fileRef = React.useRef(null);
 
+  // ── File upload: .txt / .md / .docx ────────────────────────────────────────
   function onFile(e) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const content = String(reader.result || '').trim();
-      if (content) { if (compare && text.trim()) setTextB(content); else setText(content); }
+    const name = (f.name || '').toLowerCase();
+    const apply = (content) => {
+      const c = String(content || '').trim();
+      if (c) { if (compare && text.trim()) setTextB(c); else setText(c); }
     };
-    reader.readAsText(f);
+    if ((name.endsWith('.docx') || name.endsWith('.doc')) && window.mammoth) {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try { const r = await window.mammoth.extractRawText({ arrayBuffer: ev.target.result }); apply(r.value || ''); }
+        catch (ex) { apply(''); }
+      };
+      reader.readAsArrayBuffer(f);
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => apply(reader.result);
+      reader.readAsText(f);
+    }
     e.target.value = '';
   }
 
   const { state, report, usage, err, run } = window.useAnalysis('script');
 
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  const seconds = Math.round(words / 2.5); // ~150 wpm
+  const seconds = Math.round(words / 2.5);
   const lengthOk = where === 'Reels' || where === 'Shorts' ? seconds <= 35 : true;
 
   const userText =
@@ -3264,34 +3276,85 @@ function ScriptTab({ onOpenKey }) {
 
   function check() { run({ userText, maxTokens: 5200 }); }
 
-  // Turn the analysis report into a short brief the rewriter can act on.
+  // ── Extract the full analysis brief for the rewriter ───────────────────────
   function feedbackBrief() {
     if (!report || typeof report !== 'object') return '';
     const parts = [];
-    if (report.verdict) parts.push(`Verdict: ${report.verdict.title || ''} — ${report.verdict.text || ''}`);
+    if (report.verdict) parts.push(`Overall verdict: ${report.verdict.title || ''} — ${report.verdict.text || ''}`);
+    if (typeof report.overall === 'number') parts.push(`Current score: ${Math.round(report.overall)}/100`);
     if (Array.isArray(report.scores) && report.scores.length)
-      parts.push('Scores: ' + report.scores.map(s => `${s.name} ${Math.round(s.score)}/100 (${s.why})`).join('; '));
+      parts.push('Dimension scores:\n' + report.scores.map(s => `  • ${s.name}: ${Math.round(s.score)}/100 — ${s.why}`).join('\n'));
     (report.sections || []).forEach(sec => {
-      if (sec && sec.type === 'issues')
-        parts.push((sec.title || 'Issues') + ': ' + (sec.items || []).map(i => i.text).join(' | '));
+      if (!sec) return;
+      if (sec.type === 'beats') {
+        const weak = (sec.items || []).filter(it => it.level === 'red' || it.level === 'yellow');
+        if (weak.length) parts.push('Weak beats (must be rewritten):\n' + weak.map(it => `  • [${it.label}] "${it.text}" — ${it.note || 'weak'}`).join('\n'));
+      }
+      if (sec.type === 'issues')
+        parts.push('Issues:\n' + (sec.items || []).map(it => `  • [${it.level}] ${it.text}`).join('\n'));
     });
-    if (report.bottomLine) parts.push('Highest-impact fix: ' + report.bottomLine);
-    return parts.filter(Boolean).join('\n');
+    if (report.bottomLine) parts.push(`Highest-impact fix: ${report.bottomLine}`);
+    return parts.filter(Boolean).join('\n\n');
   }
 
+  // ── Apply a hook rewrite to the first paragraph ────────────────────────────
+  function applyHook(hookText) {
+    setText(prev => {
+      const parts = prev.split(/\n\n+/);
+      parts[0] = hookText;
+      return parts.join('\n\n');
+    });
+    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Apply rewrite to editor and immediately re-run analysis ────────────────
+  function useAndRecheck() {
+    const newText = rewrite.out;
+    setText(newText);
+    setRewrite({ dir: '', loading: false, out: null });
+    const nw = newText.trim().split(/\s+/).length;
+    const ns = Math.round(nw / 2.5);
+    const newUserText =
+      `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${nw} (~${ns}s)\n\nSCRIPT (Version A):\n${newText}`;
+    run({ userText: newUserText, maxTokens: 5200 });
+    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
+  }
+
+  // ── Research-powered script rewriter ───────────────────────────────────────
   async function doRewrite() {
     setRewrite(r => ({ ...r, loading: true, out: null }));
     try {
       const brief = feedbackBrief();
-      const langPart = lang === 'Auto-detect' ? '(keep the script\'s original language)' : `in ${lang}`;
+      const scriptR = window.getResearch('script');
+      const coreText = (window.liveResearch().core || '').slice(0, 1400);
+      const guideText = (scriptR.systemGuidance || '').slice(0, 1200);
+      const langInstruction = lang === 'Auto-detect'
+        ? 'DETECT the language of the original script and write the ENTIRE rewrite in that EXACT language. Never switch to English for a non-English script.'
+        : `Write the ENTIRE rewrite in ${lang} only. Do not mix in any other language.`;
+
+      const rwSystem = [
+        `You are ContentIntel's aggressive script rewriter. Your job: return a version that would score 15–25 points HIGHER than the original. Minor tweaks are a failure. You must fundamentally restructure weak sections.`,
+        `LANGUAGE LAW: ${langInstruction}`,
+        coreText ? `CONTENT SCIENCE (apply these principles):\n"""\n${coreText}\n"""` : '',
+        guideText ? `SCRIPT QUALITY FRAMEWORK (your rewrite checklist):\n"""\n${guideText}\n"""` : '',
+        `MANDATORY CHANGES — do ALL of these:
+1. HOOK: Completely rewrite the opening. It must create tension or promise a payoff by second 2–3. Never start with "Hi", "Today", "So", or "I" — start with a fact, a result, a bold claim, or a direct challenge.
+2. EVERY red or yellow beat from the analysis: rewrite from scratch, not just polish.
+3. FLAT STRETCHES: Any 3+ lines with no new tension, question, or turn must be cut or restructured with a micro-hook.
+4. VALUE TIMING: The first real payoff must land by 25–30% of the script's runtime, not at 50%+.
+5. CTA: One specific, action-tied close — no "like and subscribe".
+6. Return ONLY the rewritten script — no preamble, commentary, or markdown.`,
+      ].filter(Boolean).join('\n\n');
+
       const { text: out } = await window.callClaude({
-        system: 'You are an expert short-form scriptwriter. Rewrite the script so it fixes the listed problems. Return ONLY the rewritten script — no preamble, no commentary, no markdown.',
+        system: rwSystem,
         userText:
-          `Rewrite this ${where} video script ${langPart}, keeping it natural and conversational.\n\n` +
-          (brief ? `APPLY THIS ANALYSIS FEEDBACK — fix each point:\n${brief}\n\n` : '') +
-          (rewrite.dir ? `Extra direction from the creator: ${rewrite.dir}\n\n` : 'Focus: stronger hook, tighter middle, one clear CTA.\n\n') +
+          `Platform: ${where} | Audience: ${who} | Content type: ${kind}\n` +
+          `Target word count: ~${Math.round(words * 0.85)}–${Math.round(words * 1.05)} words\n\n` +
+          (brief ? `ANALYSIS FEEDBACK — fix EVERY point below:\n\n${brief}\n\n` : '') +
+          (rewrite.dir ? `Creator direction: ${rewrite.dir}\n\n` : '') +
           `ORIGINAL SCRIPT:\n${text}`,
-        maxTokens: 1500,
+        maxTokens: 1800,
       });
       setRewrite(r => ({ ...r, loading: false, out: (out || '').trim() }));
     } catch (e) {
@@ -3302,27 +3365,26 @@ function ScriptTab({ onOpenKey }) {
     }
   }
 
-  // The "regenerate from feedback" panel — shown under BOTH the real report and the sample.
+  // ── Rewrite panel ──────────────────────────────────────────────────────────
   const rewritePanel = (
     <SB mood={mood}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 600 }}>🔄 Regenerate this script from the feedback above</div>
-      </div>
+      <div style={{ fontSize: 15, fontWeight: 600 }}>Rewrite from feedback</div>
       <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
-        We'll apply the analysis and rewrite your script. Add an optional direction:
+        ContentIntel will apply the analysis and return a meaningfully improved script. Add optional direction:
       </div>
       <input className="ci-input" value={rewrite.dir} onChange={e => setRewrite(r => ({ ...r, dir: e.target.value }))}
-        placeholder="e.g. 'Make it funnier' · 'More aggressive hook' · 'Shorten for Reels' · 'Add more numbers'" />
+        placeholder="e.g. 'More aggressive hook' · 'Shorter for Reels' · 'Add a shocking stat'" />
       <div style={{ marginTop: 12 }}>
         <SRB mood={mood} onClick={doRewrite} loading={rewrite.loading}>Rewrite my script →</SRB>
       </div>
       {rewrite.out && (
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 16 }}>
           <Eyebrow mood={mood} glow>Improved script</Eyebrow>
-          <div className="ci-copyblock" style={{ display: 'block', marginTop: 8 }}>
-            <div className="ci-copyblock-text" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{rewrite.out}</div>
-            <button className="ci-copybtn" style={{ height: 34, marginTop: 12 }}
-              onClick={() => window.copyText(rewrite.out)}>⧉ Copy script</button>
+          <div style={{ marginTop: 8 }}>
+            <SCB text={rewrite.out} label="Copy script" />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <SRB mood={mood} onClick={useAndRecheck}>Apply + Re-analyze →</SRB>
           </div>
         </div>
       )}
@@ -3338,11 +3400,11 @@ function ScriptTab({ onOpenKey }) {
       <SB mood={mood} style={{ padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <STg on={compare} onChange={setCompare} mood={mood}>Compare two versions</STg>
-          <input ref={fileRef} type="file" accept=".txt,.md,.text,text/plain" style={{ display: 'none' }} onChange={onFile} />
+          <input ref={fileRef} type="file" accept=".txt,.md,.text,.docx,.doc,text/plain" style={{ display: 'none' }} onChange={onFile} />
           <button type="button" className="ci-drop" style={{ minHeight: 40, padding: '8px 14px', width: 'auto', border: '1px solid var(--stroke-1)' }}
             onClick={() => fileRef.current && fileRef.current.click()}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 10.5V3M5 6l3-3 3 3M3 11.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
-            Upload a file (.txt, .md)
+            Upload (.txt, .md, .docx)
           </button>
         </div>
 
@@ -3386,11 +3448,11 @@ function ScriptTab({ onOpenKey }) {
       {state === 'loading' && <div style={{ marginTop: 14 }}><SLR rows={3} /></div>}
       {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
 
-      {/* Real AI report (key OR free Claude AI) */}
+      {/* Real AI report */}
       {state === 'done' && report && (
         <div className="ci-results" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <window.UsageBadge usage={usage} />
-          <window.ReportView report={report} mood={mood} />
+          <window.ReportView report={report} mood={mood} onApplyText={applyHook} />
           {rewritePanel}
         </div>
       )}
@@ -3517,7 +3579,6 @@ function ScriptTab({ onOpenKey }) {
             </div>
           </SB>
 
-          {/* Regenerate from feedback */}
           {rewritePanel}
 
         </div>
