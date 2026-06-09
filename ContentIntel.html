@@ -3236,7 +3236,7 @@ function ScriptTab({ onOpenKey }) {
   const [rewrite, setRewrite] = React.useState({ dir: '', loading: false, out: null });
   const fileRef = React.useRef(null);
 
-  // ── File upload: .txt / .md / .docx ────────────────────────────────────────
+  // File upload: supports .txt / .md / .docx
   function onFile(e) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -3276,28 +3276,7 @@ function ScriptTab({ onOpenKey }) {
 
   function check() { run({ userText, maxTokens: 5200 }); }
 
-  // ── Extract the full analysis brief for the rewriter ───────────────────────
-  function feedbackBrief() {
-    if (!report || typeof report !== 'object') return '';
-    const parts = [];
-    if (report.verdict) parts.push(`Overall verdict: ${report.verdict.title || ''} — ${report.verdict.text || ''}`);
-    if (typeof report.overall === 'number') parts.push(`Current score: ${Math.round(report.overall)}/100`);
-    if (Array.isArray(report.scores) && report.scores.length)
-      parts.push('Dimension scores:\n' + report.scores.map(s => `  • ${s.name}: ${Math.round(s.score)}/100 — ${s.why}`).join('\n'));
-    (report.sections || []).forEach(sec => {
-      if (!sec) return;
-      if (sec.type === 'beats') {
-        const weak = (sec.items || []).filter(it => it.level === 'red' || it.level === 'yellow');
-        if (weak.length) parts.push('Weak beats (must be rewritten):\n' + weak.map(it => `  • [${it.label}] "${it.text}" — ${it.note || 'weak'}`).join('\n'));
-      }
-      if (sec.type === 'issues')
-        parts.push('Issues:\n' + (sec.items || []).map(it => `  • [${it.level}] ${it.text}`).join('\n'));
-    });
-    if (report.bottomLine) parts.push(`Highest-impact fix: ${report.bottomLine}`);
-    return parts.filter(Boolean).join('\n\n');
-  }
-
-  // ── Apply a hook rewrite to the first paragraph ────────────────────────────
+  // Apply a hook rewrite to the first paragraph of the script
   function applyHook(hookText) {
     setText(prev => {
       const parts = prev.split(/\n\n+/);
@@ -3307,7 +3286,7 @@ function ScriptTab({ onOpenKey }) {
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // ── Apply rewrite to editor and immediately re-run analysis ────────────────
+  // Apply the rewrite to the editor then immediately re-run analysis
   function useAndRecheck() {
     const newText = rewrite.out;
     setText(newText);
@@ -3320,40 +3299,113 @@ function ScriptTab({ onOpenKey }) {
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
-  // ── Research-powered script rewriter ───────────────────────────────────────
+  // Research-powered prescriptive rewriter
+  // Reads the actual dimension scores from the report and maps each weak area
+  // to a specific research technique — not just generic "fix the hook" advice.
   async function doRewrite() {
     setRewrite(r => ({ ...r, loading: true, out: null }));
     try {
-      const brief = feedbackBrief();
-      const scriptR = window.getResearch('script');
-      const coreText = (window.liveResearch().core || '').slice(0, 1400);
-      const guideText = (scriptR.systemGuidance || '').slice(0, 1200);
+      const scores = (report && Array.isArray(report.scores)) ? report.scores : [];
+      const dim = (pattern) => scores.find(s => new RegExp(pattern, 'i').test(s.name)) || {};
+
+      const hookDim      = dim('hook');
+      const retDim       = dim('retention|loop|open');
+      const valueDim     = dim('value|payoff|timing');
+      const shareDim     = dim('share|stepps');
+      const ctaDim       = dim('cta');
+
+      // Collect weak beats (red or yellow) from the beats section
+      const weakBeats = [];
+      (report && report.sections || []).forEach(sec => {
+        if (sec && sec.type === 'beats') {
+          (sec.items || []).filter(it => it.level === 'red' || it.level === 'yellow')
+            .forEach(it => weakBeats.push(it));
+        }
+      });
+
+      // Build a prescriptive action plan keyed to what the analysis actually flagged
+      const fixes = [];
+
+      // HOOK fix
+      if (!hookDim.score || hookDim.score < 82) {
+        fixes.push(`HOOK — scored ${hookDim.score ? Math.round(hookDim.score) : '?'}/100 — REWRITE FROM ZERO
+Analysis said: "${hookDim.why || 'hook is weak'}"
+Choose the ONE hook type that fits this script's topic best, then APPLY it:
+  • Result/outcome-first: Open with the end state. "I [did X] → [specific measurable result]."
+  • Shock/stat: Drop a number or claim that contradicts what the viewer assumes.
+  • Curiosity-gap: Tease the payoff without revealing it. Viewer MUST watch to close the loop.
+  • Stakes/loss: What does the viewer lose RIGHT NOW if they scroll away?
+  • Mistake-frame: "Stop doing [X]" — triggers a self-check reflex.
+Hard rules: land the promise in ≤3 seconds; use ONE concrete specific (number, name, result); NEVER open with Hi / Today / In this video / So / I want to.`);
+      }
+
+      // RETENTION fix
+      if (!retDim.score || retDim.score < 78) {
+        const flatList = weakBeats.filter(b => !/hook|cta/i.test(b.label || ''));
+        fixes.push(`RETENTION — scored ${retDim.score ? Math.round(retDim.score) : '?'}/100 — RESTRUCTURE THE MIDDLE
+Analysis said: "${retDim.why || 'flat middle, loops not stacked'}"
+Apply open-loop stacking: open a NEW question or tension BEFORE closing the previous one.
+Every 3–5 seconds / lines, add a micro-hook: (a) drop a number, (b) pose a question, (c) make a bold claim, (d) shift emotional tone sharply.
+${flatList.length ? `These specific beats are red/yellow — rewrite them:\n${flatList.map(b => `  • [${b.label}] "${b.text}"${b.note ? ' — ' + b.note : ''}`).join('\n')}` : ''}
+Move the first real payoff to ~25% of the script — not halfway through.
+Use "but / therefore" causal logic. Kill every "and then … and then" chain.`);
+      }
+
+      // VALUE TIMING fix
+      if (valueDim.score && valueDim.score < 75) {
+        fixes.push(`VALUE TIMING — scored ${Math.round(valueDim.score)}/100
+Analysis said: "${valueDim.why}"
+The first genuinely useful insight must land by line 3–4, not the final third. Front-load one concrete takeaway the viewer can use immediately.`);
+      }
+
+      // SHAREABILITY fix
+      if (!shareDim.score || shareDim.score < 72) {
+        fixes.push(`SHAREABILITY — scored ${shareDim.score ? Math.round(shareDim.score) : '?'}/100
+Analysis said: "${shareDim.why || 'missing share/save triggers'}"
+Add ONE of these proven share triggers to the script:
+  • Practical value: Give a specific, actionable tip the viewer will screenshot or save.
+  • Social currency: A surprising fact or insight that makes the viewer look smart for sharing it.
+  • High-arousal emotion: One moment of genuine "wait, really?!" — back it with a specific fact.
+  • Story hook: "I [did X] → [unexpected result] → here's the lesson" — 2 sentences.`);
+      }
+
+      // CTA fix
+      if (!ctaDim.score || ctaDim.score < 72) {
+        fixes.push(`CTA — scored ${ctaDim.score ? Math.round(ctaDim.score) : '?'}/100
+Analysis said: "${ctaDim.why || 'weak or generic CTA'}"
+Write ONE specific CTA that flows from the payoff just delivered. Options:
+  • Save: "Save this for when you [specific trigger situation]."
+  • Comment: "Tell me in the comments: [a specific question they have an opinion on]."
+  • Follow: "Follow for [specific next piece of content that continues this topic]."
+NEVER write: "Like and subscribe" / "Follow for more" / "Hope this helped".`);
+      }
+
+      // If analysis has no report yet (sample mode), use generic research-based fixes
+      if (!fixes.length) {
+        fixes.push(`Apply these proven script improvements:
+1. HOOK: Rewrite the opening to lead with the end result or a shocking specific number. ≤3 seconds.
+2. MIDDLE: Every 3–5 lines, add a micro-hook (question, bold claim, surprising number).
+3. VALUE: Deliver the first actionable insight by the 25% mark.
+4. CTA: One specific save/comment prompt tied to what was just taught.`);
+      }
+
       const langInstruction = lang === 'Auto-detect'
-        ? 'DETECT the language of the original script and write the ENTIRE rewrite in that EXACT language. Never switch to English for a non-English script.'
-        : `Write the ENTIRE rewrite in ${lang} only. Do not mix in any other language.`;
+        ? 'DETECT the language of the original script and write the entire rewrite in that exact language and script. Never switch to English for a non-English original.'
+        : `Write the entire rewrite in ${lang} only — every word.`;
 
       const rwSystem = [
-        `You are ContentIntel's aggressive script rewriter. Your job: return a version that would score 15–25 points HIGHER than the original. Minor tweaks are a failure. You must fundamentally restructure weak sections.`,
+        `You are ContentIntel's script surgeon. Your one job: take the original script and rebuild it so it would score 20+ points higher on hook strength, retention, and shareability. Minor surface edits are failure — restructure what the analysis flagged as weak.`,
         `LANGUAGE LAW: ${langInstruction}`,
-        coreText ? `CONTENT SCIENCE (apply these principles):\n"""\n${coreText}\n"""` : '',
-        guideText ? `SCRIPT QUALITY FRAMEWORK (your rewrite checklist):\n"""\n${guideText}\n"""` : '',
-        `MANDATORY CHANGES — do ALL of these:
-1. HOOK: Completely rewrite the opening. It must create tension or promise a payoff by second 2–3. Never start with "Hi", "Today", "So", or "I" — start with a fact, a result, a bold claim, or a direct challenge.
-2. EVERY red or yellow beat from the analysis: rewrite from scratch, not just polish.
-3. FLAT STRETCHES: Any 3+ lines with no new tension, question, or turn must be cut or restructured with a micro-hook.
-4. VALUE TIMING: The first real payoff must land by 25–30% of the script's runtime, not at 50%+.
-5. CTA: One specific, action-tied close — no "like and subscribe".
-6. Return ONLY the rewritten script — no preamble, commentary, or markdown.`,
+        `PRESCRIPTIVE FIXES — apply ALL of the following. These are derived from the real analysis scores and proven virality science:\n\n${fixes.join('\n\n')}`,
+        report && report.bottomLine ? `SINGLE BIGGEST FIX FROM ANALYSIS: ${report.bottomLine}` : '',
+        rewrite.dir ? `Creator direction (highest priority): ${rewrite.dir}` : '',
+        `CONSTRAINTS: same topic, same audience (${who}), same platform (${where}). Target ~${Math.round(words * 0.85)}–${Math.round(words * 1.05)} words.
+Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       ].filter(Boolean).join('\n\n');
 
       const { text: out } = await window.callClaude({
         system: rwSystem,
-        userText:
-          `Platform: ${where} | Audience: ${who} | Content type: ${kind}\n` +
-          `Target word count: ~${Math.round(words * 0.85)}–${Math.round(words * 1.05)} words\n\n` +
-          (brief ? `ANALYSIS FEEDBACK — fix EVERY point below:\n\n${brief}\n\n` : '') +
-          (rewrite.dir ? `Creator direction: ${rewrite.dir}\n\n` : '') +
-          `ORIGINAL SCRIPT:\n${text}`,
+        userText: `ORIGINAL SCRIPT:\n${text}`,
         maxTokens: 1800,
       });
       setRewrite(r => ({ ...r, loading: false, out: (out || '').trim() }));
@@ -3365,12 +3417,12 @@ function ScriptTab({ onOpenKey }) {
     }
   }
 
-  // ── Rewrite panel ──────────────────────────────────────────────────────────
+  // Rewrite panel
   const rewritePanel = (
     <SB mood={mood}>
-      <div style={{ fontSize: 15, fontWeight: 600 }}>Rewrite from feedback</div>
+      <div style={{ fontSize: 15, fontWeight: 600 }}>Rewrite from analysis</div>
       <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
-        ContentIntel will apply the analysis and return a meaningfully improved script. Add optional direction:
+        Applies your analysis scores and proven virality techniques — not just the text feedback. Add optional direction:
       </div>
       <input className="ci-input" value={rewrite.dir} onChange={e => setRewrite(r => ({ ...r, dir: e.target.value }))}
         placeholder="e.g. 'More aggressive hook' · 'Shorter for Reels' · 'Add a shocking stat'" />
@@ -3468,7 +3520,6 @@ function ScriptTab({ onOpenKey }) {
           <TrafficLight level="yellow" title="Needs work"
             text="Fix the issues marked in red before posting. Your topic is strong — the opening and middle need attention." />
 
-          {/* Fix these first */}
           <SB title="Fix these first" desc="These 3 things will make the biggest difference" mood={mood}
             right={<span className="pill" style={{ height: 26 }}>🎯 Priority</span>}>
             <SSI mood={mood} name="Opening hook" score={62} why="Your first line doesn't give the viewer a reason to stay. It starts too slow — the question is good but the delivery buries it." />
@@ -3476,13 +3527,11 @@ function ScriptTab({ onOpenKey }) {
             <SSI mood={mood} name="Will they engage" score={55} why="Missing a clear call-to-action. Viewers won't know what to do next — no follow, comment, or save prompt." />
           </SB>
 
-          {/* Hook */}
           <SB title="Your hook" desc="Hook type: Question hook" mood={mood}>
             <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.5 }}>A question hook works, but yours asks then stalls. Lead with the stakes, then the question. Here's a stronger version:</div>
             <SCB text={`90% log SIP mein paisa ganwa dete hain — aur galti sirf ek hoti hai. Aaj woh galti main aapko dikhata hoon.`} label="Copy hook" />
           </SB>
 
-          {/* Curiosity loops */}
           <SB title="Curiosity loops" desc="Open questions: 3 found" mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               <SIs level="green">You asked <i>"kya aapko pata hai…"</i> at line 1 — answered at line 9 ✓</SIs>
@@ -3491,33 +3540,12 @@ function ScriptTab({ onOpenKey }) {
             </div>
           </SB>
 
-          {/* Emotion map */}
-          <SB title="How your script feels, line by line" mood={mood}>
-            <div className="ci-emotion">
-              {[
-                ['L1', 'Curiosity', '#67C6FF'], ['L3', 'Neutral', '#8B93A7'], ['L4', 'Surprise', '#A78BFA'],
-                ['L6', 'Neutral', '#8B93A7'], ['L8', 'Neutral', '#8B93A7'], ['L9', 'Relief', '#8FD86A'],
-              ].map(([l, name, c]) => (
-                <div key={l} className="ci-emotion-cell">
-                  <div className="ci-emotion-line">{l}</div>
-                  <div className="ci-emotion-name" style={{ color: c }}>{name}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)' }}>
-              <span className="ci-dot yellow" style={{ marginTop: 4 }} />
-              <span style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.5 }}>Lines 6–8 feel the same. Add a shift — a surprising number, a quick story, or a tone change — to reset attention.</span>
-            </div>
-          </SB>
-
-          {/* Issues */}
           <SB title="What we found" mood={mood}>
             <SIs level="red">No pattern interrupt for 6 lines straight. Viewer will get bored around line 5.</SIs>
             <SIs level="yellow">Your main point ("galat fund choose karte hain") doesn't land until 50% through. Move it earlier.</SIs>
             <SIs level="green">Good use of Hinglish — feels natural and relatable for working people.</SIs>
           </SB>
 
-          {/* Structure */}
           <SB title="Structure" mood={mood}>
             {[
               ['Emotional flow', 'Starts curious, goes flat in the middle, picks up at the end.'],
@@ -3532,18 +3560,15 @@ function ScriptTab({ onOpenKey }) {
             ))}
           </SB>
 
-          {/* Drop-off */}
           <SB title="Where viewers will drop off" mood={mood}>
             <SIs level="yellow">Line 3: Long explanation with no payoff yet. Viewers may leave here.</SIs>
             <SIs level="yellow">Line 7: Repetition of "consistent / patience" point. Feels like filler.</SIs>
           </SB>
 
-          {/* CTA rewrite */}
           <SB title="Your ending is weak" desc="Here's a stronger close that tells viewers what to do" mood={mood}>
             <SCB text={`Agar yeh kaam aaya, toh save kar lo — next video mein woh 3 funds bataunga jo main khud use karta hoon. Follow kar lo taaki miss na ho.`} label="Copy CTA" />
           </SB>
 
-          {/* Titles */}
           <SB title="Titles that fit this script" mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {[
@@ -3554,7 +3579,6 @@ function ScriptTab({ onOpenKey }) {
             </div>
           </SB>
 
-          {/* SEO + description */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <SB title="YouTube tags" desc="142 / 500 characters used" mood={mood}>
               <SCB mono text="SIP, mutual funds, sip investment, sip mistakes, finance hindi, paisa invest, sip kaise kare, compounding, long term investment" label="Copy tags" />
@@ -3564,7 +3588,6 @@ function ScriptTab({ onOpenKey }) {
             </SB>
           </div>
 
-          {/* Verdict */}
           <SB mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
               <div style={{ width: 30, height: 30, borderRadius: 9, background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E', fontWeight: 700 }}>✦</div>
