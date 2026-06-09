@@ -2421,7 +2421,7 @@ function Collapsible({ title, desc, children }) {
 }
 
 // ── ReportView — dashboard-style report renderer ─────────────────────────────
-function ReportView({ report, mood, onApplyText }) {
+function ReportView({ report, mood }) {
   const m = EM[mood] || EM.navy;
   if (!report || typeof report !== "object") return null;
   const v = report.verdict || {};
@@ -2500,17 +2500,12 @@ function ReportView({ report, mood, onApplyText }) {
 
       {/* Everything else — collapsible to keep it scannable */}
       {rest.map((sec, i) => {
-        if (sec.type === "copy") {
-          const isHookSection = /hook|opening|intro/i.test(sec.title || "");
+        if (sec.type === "copy")
           return <Collapsible key={"r" + i} title={sec.title || "Copy & rewrites"} desc={sec.desc}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {(sec.blocks || []).map((b, j) => (
-                <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono}
-                  onApply={onApplyText && isHookSection ? () => onApplyText(b.text) : undefined} />
-              ))}
+              {(sec.blocks || []).map((b, j) => <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono} />)}
             </div>
           </Collapsible>;
-        }
         if (sec.type === "checklist")
           return <Collapsible key={"r" + i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
         if (sec.type === "kv")
@@ -2958,7 +2953,7 @@ function downloadText(text, filename) {
   } catch (e) {}
 }
 
-function CopyBlock({ text, label = 'Copy', mono = false, onApply, applyLabel = '← Use hook' }) {
+function CopyBlock({ text, label = 'Copy', mono = false }) {
   const [done, setDone] = React.useState(false);
   function copy() {
     copyText(text).then(ok => {
@@ -2969,15 +2964,9 @@ function CopyBlock({ text, label = 'Copy', mono = false, onApply, applyLabel = '
   return (
     <div className="ci-copyblock">
       <div className="ci-copyblock-text" style={mono ? { fontFamily: 'var(--font-mono)', fontSize: 12.5 } : {}}>{text}</div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
-        {onApply && (
-          <button className="ci-copybtn" style={{ background: 'rgba(100,160,255,0.12)', borderColor: 'rgba(100,160,255,0.35)', color: '#7eb8ff' }}
-            onClick={onApply}>{applyLabel}</button>
-        )}
-        <button className={'ci-copybtn' + (done === 'done' ? ' done' : '')} onClick={copy}>
-          {done === 'done' ? '✓ Copied' : done === 'fail' ? 'Press Ctrl/⌘+C' : <>⧉ {label}</>}
-        </button>
-      </div>
+      <button className={'ci-copybtn' + (done === 'done' ? ' done' : '')} onClick={copy}>
+        {done === 'done' ? '✓ Copied' : done === 'fail' ? 'Press Ctrl/⌘+C' : <>⧉ {label}</>}
+      </button>
     </div>
   );
 }
@@ -3250,25 +3239,12 @@ function ScriptTab({ onOpenKey }) {
   function onFile(e) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    const name = f.name.toLowerCase();
-    const apply = (content) => {
-      const s = String(content || '').trim();
-      if (s) { if (compare && text.trim()) setTextB(s); else setText(s); }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = String(reader.result || '').trim();
+      if (content) { if (compare && text.trim()) setTextB(content); else setText(content); }
     };
-    if ((name.endsWith('.docx') || name.endsWith('.doc')) && window.mammoth) {
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        try {
-          const result = await window.mammoth.extractRawText({ arrayBuffer: ev.target.result });
-          apply(result.value || '');
-        } catch (err) { apply(''); }
-      };
-      reader.readAsArrayBuffer(f);
-    } else {
-      const reader = new FileReader();
-      reader.onload = () => apply(reader.result);
-      reader.readAsText(f);
-    }
+    reader.readAsText(f);
     e.target.value = '';
   }
 
@@ -3308,31 +3284,14 @@ function ScriptTab({ onOpenKey }) {
     try {
       const brief = feedbackBrief();
       const langPart = lang === 'Auto-detect' ? '(keep the script\'s original language)' : `in ${lang}`;
-      const scriptR = window.getResearch('script');
-      const core = (window.liveResearch().core || '');
-      // Take only the first 30 lines of hookSwipeFile to keep prompt lean
-      const hookSample = (scriptR.hookSwipeFile || '').split('\n').filter(Boolean).slice(0, 30).join('\n');
-      const rwSystem = [
-        `You are ContentIntel's expert script rewriter — trained on viral short-form video psychology.`,
-        core ? `CONTENT SCIENCE (apply what's relevant):\n"""\n${core}\n"""` : '',
-        scriptR.systemGuidance ? `SCRIPT QUALITY FRAMEWORK:\n"""\n${scriptR.systemGuidance}\n"""` : '',
-        hookSample ? `HOOK TEMPLATES — pick the strongest type for this content, swap [placeholders] with the actual topic:\n"""\n${hookSample}\n"""` : '',
-        `REWRITE RULES:
-- The new script MUST genuinely improve on every weak dimension in the analysis feedback.
-- The hook MUST use one of the 5 proven categories: curiosity / contrarian / emotional tension / specificity / subtle authority.
-- Every line must PULL the next — no weak connective tissue.
-- Keep it natural and conversational — never AI-generic.
-- Return ONLY the rewritten script, plain text, in the same language as the original. No preamble, no JSON, no labels.`,
-      ].filter(Boolean).join('\n\n');
-
       const { text: out } = await window.callClaude({
-        system: rwSystem,
+        system: 'You are an expert short-form scriptwriter. Rewrite the script so it fixes the listed problems. Return ONLY the rewritten script — no preamble, no commentary, no markdown.',
         userText:
-          `Rewrite this ${where} script ${langPart}.\n\n` +
-          (brief ? `ANALYSIS FEEDBACK — fix each of these:\n${brief}\n\n` : '') +
-          (rewrite.dir ? `Creator's direction: ${rewrite.dir}\n\n` : '') +
+          `Rewrite this ${where} video script ${langPart}, keeping it natural and conversational.\n\n` +
+          (brief ? `APPLY THIS ANALYSIS FEEDBACK — fix each point:\n${brief}\n\n` : '') +
+          (rewrite.dir ? `Extra direction from the creator: ${rewrite.dir}\n\n` : 'Focus: stronger hook, tighter middle, one clear CTA.\n\n') +
           `ORIGINAL SCRIPT:\n${text}`,
-        maxTokens: 1800,
+        maxTokens: 1500,
       });
       setRewrite(r => ({ ...r, loading: false, out: (out || '').trim() }));
     } catch (e) {
@@ -3341,29 +3300,6 @@ function ScriptTab({ onOpenKey }) {
         : 'Could not reach the rewriter — ' + (e.message || 'try again in a moment.');
       setRewrite(r => ({ ...r, loading: false, out: msg }));
     }
-  }
-
-  // Apply the rewritten script to the input and re-run the analysis on it.
-  function useAndRecheck() {
-    const newText = rewrite.out;
-    setText(newText);
-    setRewrite({ open: false, dir: '', loading: false, out: null });
-    const newWords = newText.trim() ? newText.trim().split(/\s+/).length : 0;
-    const newSeconds = Math.round(newWords / 2.5);
-    const newUserText =
-      `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${newWords} (~${newSeconds}s)\n\nSCRIPT (Version A):\n${newText}`;
-    run({ userText: newUserText, maxTokens: 5200 });
-    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
-  }
-
-  // Apply a hook rewrite to replace just the opening of the current script.
-  function applyHook(hookText) {
-    setText(prev => {
-      const parts = prev.split(/\n\n+/);
-      parts[0] = hookText;
-      return parts.join('\n\n');
-    });
-    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // The "regenerate from feedback" panel — shown under BOTH the real report and the sample.
@@ -3383,14 +3319,10 @@ function ScriptTab({ onOpenKey }) {
       {rewrite.out && (
         <div style={{ marginTop: 14 }}>
           <Eyebrow mood={mood} glow>Improved script</Eyebrow>
-          <div style={{ marginTop: 8 }}>
-            <SCB text={rewrite.out} label="Copy script" />
-          </div>
-          <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <SRB mood={mood} onClick={useAndRecheck}>Apply + Re-analyze →</SRB>
-          </div>
-          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)' }}>
-            "Apply + Re-analyze" replaces your script above and immediately checks it so you can see the new score.
+          <div className="ci-copyblock" style={{ display: 'block', marginTop: 8 }}>
+            <div className="ci-copyblock-text" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{rewrite.out}</div>
+            <button className="ci-copybtn" style={{ height: 34, marginTop: 12 }}
+              onClick={() => window.copyText(rewrite.out)}>⧉ Copy script</button>
           </div>
         </div>
       )}
@@ -3406,11 +3338,11 @@ function ScriptTab({ onOpenKey }) {
       <SB mood={mood} style={{ padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <STg on={compare} onChange={setCompare} mood={mood}>Compare two versions</STg>
-          <input ref={fileRef} type="file" accept=".txt,.md,.text,.docx,.doc,text/plain" style={{ display: 'none' }} onChange={onFile} />
+          <input ref={fileRef} type="file" accept=".txt,.md,.text,text/plain" style={{ display: 'none' }} onChange={onFile} />
           <button type="button" className="ci-drop" style={{ minHeight: 40, padding: '8px 14px', width: 'auto', border: '1px solid var(--stroke-1)' }}
             onClick={() => fileRef.current && fileRef.current.click()}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 10.5V3M5 6l3-3 3 3M3 11.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
-            Upload (.txt .md .docx)
+            Upload a file (.txt, .md)
           </button>
         </div>
 
@@ -3458,7 +3390,7 @@ function ScriptTab({ onOpenKey }) {
       {state === 'done' && report && (
         <div className="ci-results" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <window.UsageBadge usage={usage} />
-          <window.ReportView report={report} mood={mood} onApplyText={applyHook} />
+          <window.ReportView report={report} mood={mood} />
           {rewritePanel}
         </div>
       )}
