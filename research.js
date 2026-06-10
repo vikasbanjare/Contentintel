@@ -29,7 +29,7 @@
    ============================================================================ */
 
 window.CI_RESEARCH = {
-  meta: { version: 4, updated: "2026-06-03", owner: "you" },
+  meta: { version: 5, updated: "2026-06-10", owner: "you" },
 
   // ── SHARED CORE — applied to every check ───────────────────────────────────
   core:
@@ -53,6 +53,28 @@ Detect the content's actual language, region, audience, platform and topic from 
 
 PLATFORM REALITY (short-form, 2026 — applies broadly):
 Most viewers decide within ~2 seconds; a strong hook plus an early cut lifts shares; muted autoplay makes on-screen captions matter (keep the first caption short). Saves and sends signal real intent. Tune length to the platform and niche (short entertainment ~15–45s; education ~45–90s). Name the actual platform when it matters (Reels, TikTok, Shorts, YouTube, etc.).
+
+CONTENT STRATEGY SCIENCE (distilled from high-growth Instagram/YouTube creator playbooks):
+THE 5 VIRAL HOOK FORCES — every winning hook runs on at least one; name which one(s) a hook uses when judging it:
+1. CURIOSITY — an open loop the viewer must close ("Nobody talks about this one setting…").
+2. CONTRARIAN — challenges what the audience believes ("Posting daily is killing your growth.").
+3. EMOTIONAL TENSION — a stake, fear or desire felt in the first line ("I almost deleted my account the day before this blew up.").
+4. SPECIFICITY — an exact number/result/timeframe that reads as real ("From 412 to 38K followers in 41 days — one change.").
+5. SUBTLE AUTHORITY — earned credibility without bragging ("After editing 300+ creator reels, I see the same mistake everywhere.").
+
+SATURATION DETECTION — sameness is invisible:
+- If the opener/format matches what every creator in the niche already posts ("3 tips to…", "Stop doing this…", generic POV trends past their peak), flag it as SATURATED and push a fresh angle on the same idea.
+- Test: would a regular viewer of this niche feel they have ALREADY seen this exact video? If yes, the hook/angle must change, not just the wording.
+- An old idea is fine — the ANGLE must be new (new framing, new stake, new specificity, new persona).
+
+7-DAY AUDIENCE MOOD MAP (use when timing/platform fit matters; calibrate to the audience's own week):
+- MON — Reset: fresh-start energy. Motivation, goal-setting, productivity systems. Hooks about starting over / new week.
+- TUE — Learn: focused mode. Tutorials, how-to, deep tips. Hooks promising a concrete skill.
+- WED — Relate: midweek slump. Humour, relatable struggles, polls/questions. Hooks that say "this is so you".
+- THU — Proof: anticipation builds. Case studies, results, transformations. Hooks with numbers and outcomes.
+- FRI — Play: winding down. Entertainment, trends, behind-the-scenes. Light, fast, fun hooks.
+- SAT — Aspire: leisure browsing. Lifestyle, inspiration, vlogs. Hooks selling a feeling or a dream.
+- SUN — Reflect: quiet reset. Stories, lessons learned, week planning. Hooks opening a personal arc.
 
 GLOBAL RULES FOR EVERY ANSWER:
 1) Anchor judgements in reward / avoidance / relevance and the first-seconds rule.
@@ -96,6 +118,10 @@ D. SHAREABILITY — why someone sends or saves it (Jonah Berger's STEPPS, apply 
 
 E. CTA: exactly ONE, specific, and tied to the payoff just delivered — not a generic "like and subscribe". Rate its phrasing and placement; rewrite if weak.
 
+F. ANTI-SATURATION SCAN: compare the hook and angle against what is ALREADY everywhere in this niche. If the opener is a worn-out template ("3 tips to…", "Stop doing X…", a peaked trend), mark it SATURATED and propose a fresh angle on the same idea — new framing, new stake, new specificity or new persona. An old topic is fine; a stale ANGLE is not.
+
+G. FORMAT & DISTRIBUTION FIT: judge whether this script's format (talking-head, voiceover-broll, tutorial, story-time, skit) is the strongest vehicle for the idea, and whether the topic/mood matches when the audience will most likely see it (see the 7-day audience mood map). One line each — only when it changes the advice.
+
 OUTPUT EXPECTATIONS: a line-by-line emotion/attention read, the predicted exact drop-off line(s), 2–3 rewritten hooks, rewrites for the weakest lines, and a stronger CTA — all in the script's own language. If a Version B is provided, compare A vs B across hook, retention and CTA and fill the "winner" field with the stronger one and why.`,
     rubric: [
       { name: "Hook strength", what: "First 1–3s: specificity, speed, tension, clarity. Generic/slow opener = fail." },
@@ -108,6 +134,100 @@ OUTPUT EXPECTATIONS: a line-by-line emotion/attention read, the predicted exact 
       { name: "Audience & platform fit", what: "Authentic to the content's own language, audience and platform." },
     ],
     notes: "Output a dashboard: (1) 'overall' score + verdict; (2) a 'graph' section — the predicted attention/retention curve as 6–10 points across the runtime, the VALUE dipping at slow, confusing or low-tension moments and lowest at the predicted drop-off; (3) a 'beats' section — the script split into labelled beats (HOOK, SETUP, PROOF, TURN, PAYOFF, CTA…), each with the ACTUAL line text and a level (green strong / yellow ok / red weak); (4) per-dimension 'scores'; (5) 2–3 hook rewrites in a 'copy' section; (6) the single 'bottomLine' biggest fix. The graph points and the beats must be in the same order. Keep every string tight.",
+
+    // HOOK SWIPE FILE — 80 proven hook formulas in 4 categories. Used by the
+    // script REWRITER to give Claude concrete templates to adapt (never copied
+    // verbatim into the analysis prompt — analysis stays focused).
+    hookSwipeFile:
+`CATEGORY 1 — INSTANT ATTENTION (stop the scroll in <1s):
+1. "Stop scrolling — this will save you [specific amount/time]."
+2. "Nobody is talking about this, and it's costing you [stake]."
+3. "I wasn't going to share this, but…"
+4. "Delete [common thing] right now. Here's why."
+5. "You've been lied to about [topic]."
+6. "This took me [long time] to learn. You'll get it in [short time]."
+7. "Watch this before you [common action] again."
+8. "[Shocking number]% of people get this wrong."
+9. "The [industry] doesn't want you to know this."
+10. "I did [extreme action] so you don't have to."
+11. "POV: you finally figured out [desired outcome]."
+12. "This is your sign to stop [common mistake]."
+13. "Warning: [topic] is changing on [date/event]."
+14. "Everyone's doing [X]. Almost everyone's doing it wrong."
+15. "The fastest way to [outcome] that nobody uses."
+16. "If you only watch one video about [topic], make it this one."
+17. "Here's what [impressive result] actually looks like."
+18. "I tested [thing] for [timeframe]. The results shocked me."
+19. "Read that caption again. Now here's the proof."
+20. "You have [short time] to fix this before [consequence]."
+
+CATEGORY 2 — TIPS & HACKS (practical value, save-worthy):
+21. "[Number] [tools/tricks] that feel illegal to know."
+22. "The 10-second trick that [specific outcome]."
+23. "Steal my exact [system/template/routine]."
+24. "How I [result] without [common painful method]."
+25. "[Number] mistakes killing your [goal] (fix #3 today)."
+26. "Do this every [time period] and watch [metric] grow."
+27. "One setting that changes everything in [app/tool]."
+28. "The lazy way to [desired outcome] that actually works."
+29. "[Number] free tools that replace [expensive thing]."
+30. "Save this for the next time you [trigger situation]."
+31. "My [outcome] formula in [number] steps."
+32. "What I'd do if I had to start [goal] from zero."
+33. "[Number] things I wish I knew before [starting X]."
+34. "Try this for 7 days and tell me it doesn't work."
+35. "The [adjective] hack [group] uses to [outcome]."
+36. "Screenshot this — you'll need it when [situation]."
+37. "Replace [common habit] with this one thing."
+38. "How to [outcome] in half the time."
+39. "The 80/20 of [topic]: do these 2 things, skip the rest."
+40. "[Tool/method] is free, and it beats [paid thing]. Proof:"
+
+CATEGORY 3 — TEACHING & HOW-TO (authority + clarity):
+41. "Here's exactly how [impressive thing] works."
+42. "Let me break down [complex topic] in [short time]."
+43. "How [famous example] actually [achieved outcome]."
+44. "The real reason [common thing] happens."
+45. "[Topic] explained so simply your [relative] would get it."
+46. "Step 1 is where 90% of people quit. Here's all 5."
+47. "What [experts] know about [topic] that beginners don't."
+48. "I studied [number] [examples] — here's the pattern."
+49. "From [bad state] to [good state]: the full process."
+50. "Why [counterintuitive thing] beats [obvious thing]."
+51. "The beginner's guide to [topic] I wish I had."
+52. "How to tell if your [thing] is actually working."
+53. "[Number] levels of [skill]: which one are you?"
+54. "Every [niche] beginner asks this. Here's the answer."
+55. "The science behind [everyday phenomenon]."
+56. "Stop guessing — this is how [metric] is really measured."
+57. "What happens when you [action] every day for [period]."
+58. "[Common term] doesn't mean what you think it means."
+59. "A pro [role] reacts to [common practice]."
+60. "If I had to teach [topic] in 60 seconds, here it is."
+
+CATEGORY 4 — STORYTELLING & MINDSET (emotion + connection):
+61. "A year ago I [low point]. Today [high point]. Here's what changed."
+62. "I almost quit [pursuit] the day before it worked."
+63. "The phone call that changed how I see [topic]."
+64. "Nobody clapped when I [milestone]. Post it anyway."
+65. "I lost [stake] because I ignored this one rule."
+66. "My [mentor/parent/boss] told me one sentence I can't forget."
+67. "Everyone said [dream] was unrealistic. Here's the update."
+68. "The day I stopped [habit] everything shifted."
+69. "I asked [number] [successful people] the same question."
+70. "This is embarrassing to admit, but it might help you."
+71. "What [hard experience] taught me about [universal theme]."
+72. "You're not behind. You're [reframe]. Let me explain."
+73. "The unsexy truth about [glamorised thing]."
+74. "I get this question every day: [question]. Real answer:"
+75. "Three years of [pursuit] in three sentences."
+76. "If you're [struggling situation] right now, watch this."
+77. "I documented my worst [failure] so you can skip it."
+78. "Success looked nothing like I expected. It looked like this."
+79. "The moment I knew [decision] was right."
+80. "Read this if [audience situation] — you're who I made it for."
+
+DAY-MATCH BONUS: pick the hook category by the audience's day-mood when relevant — MON/THU favour Category 4 + numbers (reset, proof), TUE favour Category 3 (learning), WED/FRI favour Category 1 (attention, fun), SAT/SUN favour Category 4 (aspiration, reflection). Always ADAPT the template to the creator's actual topic, language and voice — never output a template with blanks.`,
   },
 
   // ── THUMBNAIL ───────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" crossorigin="anonymous"></script>
 
   <style>
     :root {
@@ -2198,14 +2199,14 @@ const REPORT_SHAPE =
   "bottomLine": "one honest paragraph: what to fix and the single highest-impact change"
 }
 Rules:
+- LANGUAGE: Every single string in this JSON — verdict text, score "why", issue text, copy blocks, and "bottomLine" — must be written in the EXACT same language and script as the user's submitted content. If the script is in Hindi, write every string in Hindi. Hinglish -> Hinglish. NEVER default to English for non-English content.
 - ALWAYS include "overall" (0-100), a single headline score for the whole piece.
 - For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats — HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. — each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
 - BE CONCISE AND SCANNABLE — this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2–3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence — only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
-- Quote the user's actual words; pair each criticism with a one-line, copy-ready fix.
-- The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.
-- Write in the same language and script as the user's content.`;
+- Quote the user's EXACT words from the submitted content; pair each criticism with a one-line, copy-ready fix written in the user's own language.
+- The JSON must be COMPLETE and valid — close every brace and bracket, escape quotes inside strings, and never stop mid-object.`;
 
 // Split provenPatterns (blocks separated by blank lines) and derive niche names.
 function splitPlaybookBlocks(text) {
@@ -2244,7 +2245,8 @@ function buildSystem(type, opts = {}) {
   const library = libParts.length ? `DESIGN LIBRARY — reference for SCORING & classification ONLY. It is NOT a source of new elements, palette, people, brands or style for the regeneration, and it must NEVER override what is actually in the user's content. Apply a niche playbook only when the content clearly belongs to that niche; otherwise ignore it entirely:\n"""\n${libParts.join("\n\n")}\n"""` : "";
   return [
     `You are ContentIntel — a blunt, specific, pre-publish ${r.label || type} reviewer for content creators of EVERY niche, language, region and platform.`,
-    `Adapt to the content you are given: detect its language, region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country, language or niche. Reply in the content's own language.`,
+    `LANGUAGE LAW — highest priority, overrides everything else: Detect the language of the submitted content and write your ENTIRE response in that language. Every verdict, score reason, hook rewrite, issue, fix, and the bottomLine must be in the same language as the content. Hindi -> Hindi. Hinglish -> Hinglish. Spanish -> Spanish. Tamil/Marathi/Bengali/any other language -> that language. Default to English ONLY when the content itself is in English.`,
+    `Adapt to the content you are given: detect its region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country or niche.`,
     core ? `RESEARCH CONTEXT (principles — apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
     `${r.label || type}-SPECIFIC METHODOLOGY — use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
@@ -2421,7 +2423,7 @@ function Collapsible({ title, desc, children }) {
 }
 
 // ── ReportView — dashboard-style report renderer ─────────────────────────────
-function ReportView({ report, mood }) {
+function ReportView({ report, mood, onApplyText }) {
   const m = EM[mood] || EM.navy;
   if (!report || typeof report !== "object") return null;
   const v = report.verdict || {};
@@ -2500,12 +2502,17 @@ function ReportView({ report, mood }) {
 
       {/* Everything else — collapsible to keep it scannable */}
       {rest.map((sec, i) => {
-        if (sec.type === "copy")
+        if (sec.type === "copy") {
+          const isHookSection = onApplyText && /hook|opening|intro/i.test(sec.title || "");
           return <Collapsible key={"r" + i} title={sec.title || "Copy & rewrites"} desc={sec.desc}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {(sec.blocks || []).map((b, j) => <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono} />)}
+              {(sec.blocks || []).map((b, j) => (
+                <CopyBlock key={j} text={b.text} label={b.label || "Copy"} mono={!!b.mono}
+                  onApply={isHookSection ? () => onApplyText(b.text) : undefined} />
+              ))}
             </div>
           </Collapsible>;
+        }
         if (sec.type === "checklist")
           return <Collapsible key={"r" + i} title={sec.title || "Checklist"}>{(sec.items || []).map((it, j) => <Check key={j} state={it.state || "mid"}>{it.text}</Check>)}</Collapsible>;
         if (sec.type === "kv")
@@ -2953,20 +2960,33 @@ function downloadText(text, filename) {
   } catch (e) {}
 }
 
-function CopyBlock({ text, label = 'Copy', mono = false }) {
+function CopyBlock({ text, label = 'Copy', mono = false, onApply, applyLabel = '← Use hook' }) {
   const [done, setDone] = React.useState(false);
+  const [applied, setApplied] = React.useState(false);
   function copy() {
     copyText(text).then(ok => {
       setDone(ok ? 'done' : 'fail');
       setTimeout(() => setDone(false), 1600);
     });
   }
+  function handleApply() {
+    onApply();
+    setApplied(true);
+    setTimeout(() => setApplied(false), 1800);
+  }
   return (
     <div className="ci-copyblock">
       <div className="ci-copyblock-text" style={mono ? { fontFamily: 'var(--font-mono)', fontSize: 12.5 } : {}}>{text}</div>
-      <button className={'ci-copybtn' + (done === 'done' ? ' done' : '')} onClick={copy}>
-        {done === 'done' ? '✓ Copied' : done === 'fail' ? 'Press Ctrl/⌘+C' : <>⧉ {label}</>}
-      </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
+        {onApply && (
+          <button className={'ci-copybtn' + (applied ? ' done' : '')}
+            style={applied ? {} : { background: 'rgba(100,160,255,0.12)', borderColor: 'rgba(100,160,255,0.35)', color: '#7eb8ff' }}
+            onClick={handleApply}>{applied ? '✓ Applied' : applyLabel}</button>
+        )}
+        <button className={'ci-copybtn' + (done === 'done' ? ' done' : '')} onClick={copy}>
+          {done === 'done' ? '✓ Copied' : done === 'fail' ? 'Press Ctrl/⌘+C' : <>⧉ {label}</>}
+        </button>
+      </div>
     </div>
   );
 }
@@ -3276,7 +3296,7 @@ function ScriptTab({ onOpenKey }) {
 
   function check() { run({ userText, maxTokens: 5200 }); }
 
-  // Apply a hook rewrite to the first paragraph of the script
+  // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
     setText(prev => {
       const parts = prev.split(/\n\n+/);
@@ -3286,7 +3306,7 @@ function ScriptTab({ onOpenKey }) {
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // Apply rewrite to editor then immediately re-run analysis
+  // Apply rewrite to the editor then immediately re-run the analysis
   function useAndRecheck() {
     const newText = rewrite.out;
     setText(newText);
@@ -3299,12 +3319,13 @@ function ScriptTab({ onOpenKey }) {
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
-  // Research-powered prescriptive rewriter.
-  // Reads actual dimension scores from the report, maps each weak area
-  // to a specific proven technique from the ContentIntel research framework.
+  // Research-powered prescriptive rewriter: reads the actual dimension scores
+  // from the report and maps each weak area to a specific proven technique
+  // (hook types, open-loop stacking, STEPPS, hook swipe-file templates).
   async function doRewrite() {
     setRewrite(r => ({ ...r, loading: true, out: null }));
     try {
+      const scriptR = window.getResearch('script');
       const scores = (report && Array.isArray(report.scores)) ? report.scores : [];
       const dim = (pattern) => scores.find(s => new RegExp(pattern, 'i').test(s.name)) || {};
 
@@ -3314,7 +3335,7 @@ function ScriptTab({ onOpenKey }) {
       const shareDim = dim('share|stepps');
       const ctaDim   = dim('cta');
 
-      // Collect weak beats (red or yellow) from the beats section
+      // Weak beats (red/yellow) from the beats section — line-level targets
       const weakBeats = [];
       (report && report.sections || []).forEach(sec => {
         if (sec && sec.type === 'beats') {
@@ -3323,19 +3344,23 @@ function ScriptTab({ onOpenKey }) {
         }
       });
 
-      // Build a prescriptive action plan keyed to what the analysis actually flagged
+      // A sample of numbered hook templates from the research swipe file
+      const hookTemplates = (scriptR.hookSwipeFile || '')
+        .split('\n').filter(l => /^\d+\./.test(l.trim())).slice(0, 24).join('\n');
+
       const fixes = [];
 
       if (!hookDim.score || hookDim.score < 82) {
         fixes.push(`HOOK — current score: ${hookDim.score ? Math.round(hookDim.score) : '?'}/100 — REWRITE FROM ZERO
 Analysis said: "${hookDim.why || 'hook is weak — generic or slow opening'}"
-Choose the ONE hook type that best fits this script's topic and APPLY it fully:
-  • Result/outcome-first: Open with the end state. "I [did X] → [specific measurable result]."
-  • Shock/stat/contrarian: A number or claim that contradicts what the viewer assumes about this topic.
-  • Curiosity-gap: Tease the payoff without revealing it — viewer MUST watch to close the loop.
-  • Stakes/loss: What does the viewer lose RIGHT NOW if they scroll away?
-  • Mistake-frame: "Stop doing [X]" — triggers a self-check reflex about something they do.
-Hard rules: (1) land the promise within 2–3 seconds, (2) use ONE concrete specific (a number, a result, a name), (3) NEVER open with Hi / Today / In this video / So / I want to / Welcome back.`);
+Pick the ONE hook force that best fits this topic and apply it fully:
+  • CURIOSITY — open a loop the viewer must close.
+  • CONTRARIAN — challenge what this audience believes.
+  • EMOTIONAL TENSION — a stake, fear or desire in the first line.
+  • SPECIFICITY — an exact number/result/timeframe.
+  • SUBTLE AUTHORITY — earned credibility without bragging.
+${hookTemplates ? 'PROVEN HOOK TEMPLATES — adapt ONE to this exact topic (translate to the script language, fill in real specifics, never leave blanks):\n' + hookTemplates : ''}
+Hard rules: (1) land the promise within 2–3 seconds, (2) ONE concrete specific, (3) NEVER open with Hi / Today / In this video / So / Welcome back.`);
       }
 
       if (!retDim.score || retDim.score < 78) {
@@ -3343,43 +3368,44 @@ Hard rules: (1) land the promise within 2–3 seconds, (2) use ONE concrete spec
         fixes.push(`RETENTION — current score: ${retDim.score ? Math.round(retDim.score) : '?'}/100 — RESTRUCTURE THE MIDDLE
 Analysis said: "${retDim.why || 'middle is flat, no open loops'}"
 Apply open-loop stacking: open a NEW question or tension BEFORE closing the previous one.
-Every 3–5 lines: add a micro-hook — (a) drop a surprising number, (b) pose a direct question, (c) make a bold claim, (d) shift emotional tone sharply.
+Every 3–5 lines add a micro-hook: a surprising number, a direct question, a bold claim, or a sharp tone shift.
 ${flatBeats.length ? 'These beats are weak — rewrite them from scratch:\n' + flatBeats.map(b => `  • [${b.label}] "${b.text}"${b.note ? ' — ' + b.note : ''}`).join('\n') : ''}
-Move the FIRST real payoff to ~25% of the script runtime. Use "but / therefore" logic. Kill every "and then…and then" chain.`);
+Move the FIRST real payoff to ~25% of the runtime. Use "but / therefore" logic; kill every "and then…and then" chain.`);
       }
 
       if (valDim.score && valDim.score < 75) {
         fixes.push(`VALUE TIMING — current score: ${Math.round(valDim.score)}/100
 Analysis said: "${valDim.why}"
-The first genuinely useful insight must land by line 3–4, not in the final third. Front-load one concrete takeaway the viewer can use immediately — then build from there.`);
+The first genuinely useful insight must land by line 3–4, not the final third. Front-load one concrete takeaway.`);
       }
 
       if (!shareDim.score || shareDim.score < 72) {
         fixes.push(`SHAREABILITY — current score: ${shareDim.score ? Math.round(shareDim.score) : '?'}/100
 Analysis said: "${shareDim.why || 'missing save/share triggers'}"
-Add ONE of these proven STEPPS levers that the script is currently missing:
-  • Practical value: Give a specific actionable tip the viewer will screenshot or save for later.
-  • Social currency: A surprising fact or insight that makes the viewer look smart/informed for sharing it.
-  • High-arousal emotion: One genuine "wait, really?!" moment — back it with a specific fact or number.
-  • Story: Wrap the core point in 2 sentences: "I [did X] → [unexpected result] → here is the lesson."`);
+Add ONE missing STEPPS lever:
+  • Practical value: a specific actionable tip the viewer will screenshot/save.
+  • Social currency: a surprising insight that makes the viewer look smart for sharing.
+  • High-arousal emotion: one genuine "wait, really?!" moment backed by a specific fact.
+  • Story: wrap the core point in "I [did X] → [unexpected result] → the lesson".`);
       }
 
       if (!ctaDim.score || ctaDim.score < 72) {
         fixes.push(`CTA — current score: ${ctaDim.score ? Math.round(ctaDim.score) : '?'}/100
 Analysis said: "${ctaDim.why || 'CTA is generic or missing'}"
-Write ONE specific CTA that flows directly from the payoff just delivered:
-  • Save CTA: "Save this for when you [specific trigger situation this content solves]."
-  • Comment CTA: "Tell me in the comments: [specific question they have a real opinion on]."
-  • Follow CTA: "Follow for [the specific next piece of content that directly continues this]."
-NEVER write: "Like and subscribe" / "Follow for more content" / "Hope this was helpful".`);
+ONE specific CTA that flows from the payoff just delivered:
+  • Save: "Save this for when you [specific trigger situation]."
+  • Comment: "Tell me in the comments: [a question they have a real opinion on]."
+  • Follow: "Follow for [the specific next piece that continues this]."
+NEVER: "Like and subscribe" / "Follow for more" / "Hope this helped".`);
       }
 
       if (!fixes.length) {
-        fixes.push(`Apply these proven script improvements:
-1. HOOK: Rewrite the opening to lead with the end result or a shocking specific number. Land it in 3 seconds.
-2. MIDDLE: Every 3–5 lines, add a micro-hook (question, bold claim, surprising number).
-3. VALUE: Deliver the first actionable insight by the 25% mark.
-4. CTA: One specific save/comment prompt tied directly to what was just taught.`);
+        fixes.push(`Apply these proven improvements:
+1. HOOK: lead with the end result or a shocking specific number; land it in 3 seconds.
+2. MIDDLE: every 3–5 lines, add a micro-hook (question, bold claim, surprising number).
+3. VALUE: first actionable insight by the 25% mark.
+4. CTA: one specific save/comment prompt tied to what was just taught.
+${hookTemplates ? 'HOOK TEMPLATES to adapt:\n' + hookTemplates : ''}`);
       }
 
       const langInstruction = lang === 'Auto-detect'
@@ -3387,9 +3413,9 @@ NEVER write: "Like and subscribe" / "Follow for more content" / "Hope this was h
         : `Write the entire rewrite in ${lang} only — every single word.`;
 
       const rwSystem = [
-        `You are ContentIntel's script surgeon. One job: take the original script and rebuild it so it would score 20+ points higher. Cosmetic edits are failure — you must restructure what the analysis flagged as weak.`,
+        `You are ContentIntel's script surgeon. One job: rebuild the original script so it would score 20+ points higher. Cosmetic edits are failure — restructure what the analysis flagged as weak.`,
         `LANGUAGE LAW: ${langInstruction}`,
-        `PRESCRIPTIVE FIXES — apply ALL of the following (derived from the real analysis scores + ContentIntel research framework):\n\n${fixes.join('\n\n')}`,
+        `PRESCRIPTIVE FIXES — apply ALL of the following (derived from the real analysis scores + ContentIntel research):\n\n${fixes.join('\n\n')}`,
         report && report.bottomLine ? `SINGLE BIGGEST FIX FROM ANALYSIS: ${report.bottomLine}` : '',
         rewrite.dir ? `Creator direction (highest priority): ${rewrite.dir}` : '',
         `CONSTRAINTS: same topic, same audience (${who}), same platform (${where}), target ~${Math.round(words * 0.85)}–${Math.round(words * 1.05)} words.
@@ -3525,7 +3551,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           </SB>
           <SB mood={mood} style={{ background: `linear-gradient(135deg, ${m.orbC}55, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <div style={{ width: 30, height: 30, borderRadius: 9, background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E', fontWeight: 700 }}>✶</div>
+              <div style={{ width: 30, height: 30, borderRadius: 9, background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E', fontWeight: 700 }}>✦</div>
               <Eyebrow mood={mood} glow>Bottom line</Eyebrow>
             </div>
             <div style={{ fontSize: 16, lineHeight: 1.55, color: 'var(--text-1)' }}>
