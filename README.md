@@ -1,34 +1,45 @@
 # ContentIntel — Pre-publish Checker
 
-AI-powered pre-publish checker for content creators. Paste your script, thumbnail, title or ad copy and get a scored analysis with specific fixes before you hit publish.
+AI-powered pre-publish checker for creators, marketers and agencies. Script, thumbnail, title, ads — graded the way the algorithm grades them, fixed before they go live. Dark + light mode. Works in any language.
 
-## What it does
+## The 9 tools
 
-- **Script check** — hook strength, retention curve, open loops, STEPPS shareability, CTA. Includes a rewriter that applies proven virality techniques to your specific weak spots, an 80-formula hook swipe file, and one-click "Apply + Re-analyze".
-- **Thumbnail check** — squint test, composition, face/emotion, text legibility, feed pop, curiosity gap. Supports A/B/C 3-way comparison.
-- **Title check** — curiosity gap, mobile truncation, 10 labelled alternatives.
-- **Ads check** — platform char limits, scroll-stopping power, 3-trigger framework, CTR benchmarks.
-- **Ask** — research-grounded Q&A: Instagram SEO, algorithm, hashtags, brand-deal pricing, posting strategy — any language.
-- **Generate handoff** — one click sends your improved-thumbnail prompt to ChatGPT (pre-filled) or Gemini (copied) — image generation runs free on your own plan.
+| Tab | What it does |
+|-----|-------------|
+| **Script** | Hook/retention/CTA scoring, attention curve, beat sheet, 3-tier hook rewrites, one-click apply + re-analyze, .docx upload |
+| **Thumbnail** | Single or A/B/C compare, vision analysis, regenerate in ChatGPT (pre-filled) or Gemini (copied) |
+| **Title** | Click chance, curiosity gap, mobile truncation, 10 labelled alternatives |
+| **Ads** | Meta/Google limits, "See More" trap, CTR benchmarks, compliance (only when needed) |
+| **Ask** | Research-grounded growth Q&A — Instagram SEO, algorithm, hashtags, pricing, any language |
+| **Studio** | Thumbnail builder |
+| **Platform IQ** | Platform-specific intelligence |
+| **Playbook** | The proven-patterns library |
+| **History** | Past checks, saved on-device |
 
-## How to use
+## Deploy (GitHub Pages)
 
-1. Open `index.html` in a browser — or host it on GitHub Pages / Netlify
-2. Add your Anthropic API key in Settings (top-right) — stored only in your browser
-3. Paste your content and hit Analyze
+Upload ALL of these files to the repo root, `main` branch:
 
-Runs entirely client-side. No server, no backend; your key goes directly to Anthropic.
+1. `index.html` — the entire app
+2. `research.js` — base research + the additive merge engine
+3. `research-2.js` — additive research
+4. `research-3.js` — additive research
+5. `research-4.js` — additive research (hook swipe file, mood map, Ask knowledge base…)
+6. `.nojekyll` — REQUIRED (empty file; stops Jekyll from breaking the build)
+7. `README.md` — this file
 
-## Files
+Then: Settings → Pages → Deploy from branch → main → / (root).
 
-| File | Purpose |
-|------|---------|
-| `index.html` | The full app (self-contained) |
-| `research.js` | Research data loaded at runtime — edit to improve analysis, no rebuild needed |
-| `.nojekyll` | Required for GitHub Pages (stops Jekyll from breaking the build) |
+## Growing the research
 
-All files must be in the same folder.
+NEVER edit research.js / -2 / -3 / -4. To add research, create `research-5.js`:
 
-## Editing the research
+```js
+window.addResearch({ script: { systemGuidance: `...new findings...` } });
+```
 
-Open `research.js` — every string you improve makes the analysis smarter. It includes the universal virality science, the 5 viral hook forces, saturation detection, the 7-day audience mood map, an 80-formula hook swipe file, and 10 thumbnail niche playbooks.
+…then add `<script src="research-5.js"></script>` after research-4 in index.html and upload both. Strings append, arrays concatenate — old research can never be lost.
+
+## Keys
+
+Your Anthropic API key lives only in your browser (localStorage) and goes directly to Anthropic. Admin research editor: open with `?admin=vikas-intel-2026`.
