@@ -1000,6 +1000,7 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
   <script src="research-2.js"></script>
   <script src="research-3.js"></script>
   <script src="research-4.js"></script>
+  <script src="research-5.js"></script>
 
 <script type="text/babel" data-presets="react">
 /* ===== tweaks-panel.jsx ===== */
@@ -2161,7 +2162,14 @@ function saveHistory(rec) {
   try {
     const arr = loadHistory();
     arr.unshift(rec);
-    localStorage.setItem(LS_HISTORY, JSON.stringify(arr.slice(0, 50)));
+    let keep = arr.slice(0, 30);
+    try {
+      localStorage.setItem(LS_HISTORY, JSON.stringify(keep));
+    } catch (qe) {
+      // Quota hit: drop stored reports from older entries, keep the summaries.
+      keep = keep.map((it, i) => i < 8 ? it : { ...it, report: undefined, input: undefined });
+      try { localStorage.setItem(LS_HISTORY, JSON.stringify(keep)); } catch (e2) {}
+    }
   } catch (e) {}
 }
 function clearHistory() { try { localStorage.removeItem(LS_HISTORY); } catch (e) {} }
@@ -2211,15 +2219,21 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
         { type: "text", text: userText },
       ]
     : userText;
+  // Prompt caching: the big research system prompt is cached server-side, so
+  // every check after the first is noticeably faster + ~90% cheaper on input.
+  const sysBlock = typeof system === "string" && system.length > 2000
+    ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
+    : system;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-api-key": key,
       "anthropic-version": "2023-06-01",
+      "anthropic-beta": "prompt-caching-2024-07-31",
       "anthropic-dangerous-direct-browser-access": "true",
     },
-    body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, system, messages: [{ role: "user", content }] }),
+    body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, system: sysBlock, messages: [{ role: "user", content }] }),
   });
   if (!res.ok) {
     let detail = "";
@@ -2677,7 +2691,9 @@ function useAnalysis(type) {
         const vd = json.verdict || {};
         saveHistory({ type, t: Date.now(), level: vd.level || "yellow",
           score: typeof json.overall === "number" ? Math.round(json.overall) : null,
-          title: vd.title || (json.winner && json.winner.label) || "Analysis" });
+          title: vd.title || (json.winner && json.winner.label) || "Analysis",
+          input: String(userText || "").slice(0, 600),
+          report: json });
       } catch (e) {}
     } catch (e) {
       if (String(e.message) === "NO_KEY") { setTimeout(() => setState("done"), 600); return; }
@@ -3786,6 +3802,7 @@ function ScriptTab({ onOpenKey }) {
   const [who, setWho] = React.useState('General');
   const [where, setWhere] = React.useState('Reels');
   const [rewrite, setRewrite] = React.useState({ dir: '', loading: false, out: null });
+  const [selectedHook, setSelectedHook] = React.useState('');
   const fileRef = React.useRef(null);
 
   // File upload: supports .txt / .md / .docx
@@ -3839,6 +3856,7 @@ function ScriptTab({ onOpenKey }) {
 
   // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
+    setSelectedHook(hookText);
     setText(prev => {
       const parts = prev.split(/\n\n+/);
       parts[0] = hookText;
@@ -3891,7 +3909,12 @@ function ScriptTab({ onOpenKey }) {
 
       const fixes = [];
 
-      if (!hookDim.score || hookDim.score < 82) {
+      if (selectedHook) {
+        fixes.push(`HOOK -- USER-SELECTED (mandatory):
+The creator chose this exact hook from the analysis. The rewritten script MUST OPEN with it -- verbatim or with only the lightest grammatical smoothing to fit the flow. Do NOT replace it with a different hook:
+"${selectedHook}"
+Build the rest of the script so it pays off the promise this hook makes.`);
+      } else if (!hookDim.score || hookDim.score < 82) {
         fixes.push(`HOOK — current score: ${hookDim.score ? Math.round(hookDim.score) : '?'}/100 — REWRITE FROM ZERO
 Analysis said: "${hookDim.why || 'hook is weak — generic or slow opening'}"
 Pick the ONE hook force that best fits this topic and apply it fully:
@@ -3983,6 +4006,13 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
         Applies your actual dimension scores and proven virality techniques — not just the text feedback.
       </div>
+      {selectedHook && (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 12px', borderRadius: 10, background: 'rgba(100,160,255,0.08)', border: '1px solid rgba(100,160,255,0.25)', marginBottom: 10 }}>
+          <span style={{ fontSize: 12, color: '#7eb8ff', fontWeight: 700, whiteSpace: 'nowrap', marginTop: 1 }}>✓ Hook locked in</span>
+          <span style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.5, flex: 1 }}>{selectedHook.slice(0, 160)}{selectedHook.length > 160 ? '…' : ''}</span>
+          <button className="ci-copybtn" style={{ height: 26, padding: '0 9px', fontSize: 11 }} onClick={() => setSelectedHook('')}>✕</button>
+        </div>
+      )}
       <input className="ci-input" value={rewrite.dir} onChange={e => setRewrite(r => ({ ...r, dir: e.target.value }))}
         placeholder="e.g. 'More aggressive hook' · 'Shorter for Reels' · 'Add a shocking stat'" />
       <div style={{ marginTop: 12 }}>
@@ -4901,6 +4931,7 @@ function HistoryTab() {
   const mood = 'burgundy';
   const m = TM[mood];
   const [filter, setFilter] = React.useState('All');
+  const [openIdx, setOpenIdx] = React.useState(-1);
   const [items, setItems] = React.useState(() => (window.loadHistory ? window.loadHistory() : []));
   const TYPE_LABEL = { script: 'Script', thumbnail: 'Thumbnail', title: 'Title', ads: 'Ads', ask: 'Ask' };
   const tmoodOf = { script: 'navy', thumbnail: 'ember', title: 'cyan', ads: 'violet', ask: 'violet' };
@@ -4934,8 +4965,12 @@ function HistoryTab() {
             {filtered.map((it, i) => {
               const im = TM[tmoodOf[it.type] || 'navy'];
               const lvl = it.level || 'yellow';
+              const hasReport = it.report && typeof it.report === 'object';
+              const isOpen = openIdx === i;
               return (
-                <div key={i} className="ci-block" style={{ padding: 16, display: 'grid', gridTemplateColumns: '120px 1fr 90px 50px', gap: 16, alignItems: 'center' }}>
+                <div key={i}>
+                <div className="ci-block" onClick={() => hasReport && setOpenIdx(isOpen ? -1 : i)}
+                  style={{ padding: 16, display: 'grid', gridTemplateColumns: '120px 1fr 90px 70px', gap: 16, alignItems: 'center', cursor: hasReport ? 'pointer' : 'default', borderColor: isOpen ? im.accentGlow : undefined }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${im.accentFrom}, ${im.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E' }}><CITabIcon name={it.type === 'script' ? 'script' : it.type === 'thumbnail' ? 'thumb' : it.type === 'title' ? 'title' : 'ads'} /></span>
                     <span style={{ fontSize: 12.5, fontWeight: 600 }}>{TYPE_LABEL[it.type] || it.type}</span>
@@ -4945,7 +4980,20 @@ function HistoryTab() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span className={'ci-dot ' + lvl} />
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: lvl === 'green' ? '#8FD86A' : lvl === 'yellow' ? '#F0C85A' : '#F06A7E' }}>{it.score != null ? it.score : '--'}</span>
+                    {hasReport && <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 2 }}>{isOpen ? '▴' : '▾'}</span>}
                   </div>
+                </div>
+                {isOpen && hasReport && (
+                  <div style={{ marginTop: 10, paddingLeft: 6, borderLeft: `2px solid ${im.accentGlow}` }}>
+                    {it.input && (
+                      <div className="ci-block" style={{ padding: '12px 16px', marginBottom: 12 }}>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-4)', marginBottom: 6 }}>What was checked</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{it.input}{it.input.length >= 600 ? '…' : ''}</div>
+                      </div>
+                    )}
+                    <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
+                  </div>
+                )}
                 </div>
               );
             })}
@@ -5146,11 +5194,13 @@ function BuilderTab() {
   // Research-grounded system prompt for the cloud check (NOT the report shape).
   function thumbSystem() {
     const r = (window.getResearch && window.getResearch('thumbnail')) || {};
+    const st = (window.getResearch && window.getResearch('studio')) || {};
     const core = (window.liveResearch && window.liveResearch().core) || '';
     return [
       'You are a world-class YouTube thumbnail strategist. You judge thumbnails purely by what earns the click, grounded in the research below. Be specific and blunt -- no generic advice.',
       core ? 'RESEARCH PRINCIPLES:\n' + core : '',
       r.systemGuidance ? 'THUMBNAIL METHODOLOGY:\n' + r.systemGuidance : '',
+      st.systemGuidance ? 'IMAGE-PROMPT QUALITY SCIENCE (every upgrade prompt MUST follow these rules):\n' + st.systemGuidance : '',
       'You will get a thumbnail as an image if one is attached, otherwise as a text description. Analyse it and return ONLY a single valid JSON object (no markdown, no text around it) in EXACTLY this shape:',
       '{ "whatsWrong": ["specific problem tied to a real click-through principle", "... up to 6"], "upgrades": [ { "tier": "Basic polish (keep the photo)", "prompt": "..." }, { "tier": "Mild redesign (same person & text, new design)", "prompt": "..." }, { "tier": "Full reimagining (change everything)", "prompt": "..." } ], "headline": "exact main text or empty", "subline": "secondary text or empty", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only from: ' + BUILDER_ELEMENTS.join(', ') + '"] }',
       TIER_SPEC,

@@ -25,20 +25,21 @@ Upload ALL of these files to the repo root, `main` branch:
 3. `research-2.js` — additive research
 4. `research-3.js` — additive research
 5. `research-4.js` — additive research (hook swipe file, mood map, Ask knowledge base…)
-6. `.nojekyll` — REQUIRED (empty file; stops Jekyll from breaking the build)
-7. `README.md` — this file
+6. `research-5.js` — recovered originals: anti-cringe hook standard, the creator-slides 80-hook swipe file + day-map, worked Hinglish examples, the full Studio design research (10 style guides)
+7. `.nojekyll` — REQUIRED (empty file; stops Jekyll from breaking the build)
+8. `README.md` — this file
 
 Then: Settings → Pages → Deploy from branch → main → / (root).
 
 ## Growing the research
 
-NEVER edit research.js / -2 / -3 / -4. To add research, create `research-5.js`:
+NEVER edit research.js / -2 / -3 / -4 / -5. To add research, create `research-6.js`:
 
 ```js
 window.addResearch({ script: { systemGuidance: `...new findings...` } });
 ```
 
-…then add `<script src="research-5.js"></script>` after research-4 in index.html and upload both. Strings append, arrays concatenate — old research can never be lost.
+…then add `<script src="research-6.js"></script>` after research-5 in index.html and upload both. Strings append, arrays concatenate — old research can never be lost.
 
 ## Keys
 
