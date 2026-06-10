@@ -245,12 +245,18 @@
       return `<div class="reel-frame be"><iframe src="https://www.behance.net/embed/project/${item.behanceProjectId}?ilo0=1" title="${item.title}" allowfullscreen allow="clipboard-write" referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe></div>`;
     }
     function renderPoster() {
+      const item = reelItems[current];
       reelStage.innerHTML =
         `<div class="reel-poster" data-cursor="play">` +
+        `<span class="poster-bg"></span>` +
         `<span class="reel-play" aria-hidden="true">▶</span>` +
-        `<span class="reel-poster-title">${reelItems[current].title}</span>` +
+        `<span class="reel-poster-title">${item.title}</span>` +
         `<span class="reel-poster-hint">CLICK TO PLAY</span>` +
         `<span class="reel-scanlines" aria-hidden="true"></span></div>`;
+      loadImg(item.cover, (url) => {
+        const bg = $(".poster-bg", reelStage);
+        if (bg) bg.style.backgroundImage = `url('${url}')`;
+      });
     }
     function play() {
       playing = true;
@@ -544,6 +550,64 @@
     );
   }
 
+  /* ---------------- flying tool icons in 3D space ---------------- */
+  const flyScene = $("#fly-scene");
+  if (flyScene && !reducedMotion) {
+    // your editing stack, floating in zero gravity
+    const TOOLS = [
+      { l: "Pr", fg: "#9999ff", bg: "#00005b", x: 74, y: 12, z: 160, s: 104 },
+      { l: "Ae", fg: "#9999ff", bg: "#00005b", x: 60, y: 60, z: -110, s: 72 },
+      { l: "Ps", fg: "#31a8ff", bg: "#001e36", x: 86, y: 40, z: 60, s: 92 },
+      { l: "Ai", fg: "#ff9a00", bg: "#330000", x: 5,  y: 48, z: 190, s: 96 },
+      { l: "Lr", fg: "#31a8ff", bg: "#001e36", x: 28, y: 8,  z: -160, s: 60 },
+      { l: "Id", fg: "#ff3366", bg: "#49021f", x: 44, y: 18, z: 90, s: 70 },
+      { l: "Fg", fg: "#0acf83", bg: "#1e1e1e", x: 14, y: 24, z: -60, s: 64 },
+    ];
+    const icons = TOOLS.map((t, i) => {
+      const el = document.createElement("div");
+      el.className = "fly-icon";
+      el.textContent = t.l;
+      el.style.cssText =
+        `left:${t.x}%;top:${t.y}%;width:${t.s}px;height:${t.s}px;` +
+        `background:${t.bg};color:${t.fg};font-size:${Math.round(t.s * 0.38)}px;`;
+      el.addEventListener("click", () => {
+        el.classList.remove("kick");
+        void el.offsetWidth;
+        el.classList.add("kick");
+        addToolToast(t.l);
+      });
+      flyScene.appendChild(el);
+      return { el, t, phase: i * 1.7, spin: (i % 2 ? 1 : -1) * (8 + i * 3) };
+    });
+
+    const toolNames = { Pr: "PREMIERE PRO", Ae: "AFTER EFFECTS", Ps: "PHOTOSHOP", Ai: "ILLUSTRATOR", Lr: "LIGHTROOM", Id: "INDESIGN", Fg: "FIGMA" };
+    function addToolToast(l) { showToast("🛠 " + (toolNames[l] || l) + " — 7 YEARS IN"); }
+
+    let fmx = 0.5, fmy = 0.5;
+    if (fine) {
+      window.addEventListener("mousemove", (e) => {
+        fmx = e.clientX / window.innerWidth;
+        fmy = e.clientY / window.innerHeight;
+      }, { passive: true });
+    }
+    (function flyLoop(now) {
+      const t = now / 1000;
+      // whole 3D scene tilts toward the cursor
+      flyScene.style.transform = `rotateX(${((fmy - 0.5) * -16).toFixed(2)}deg) rotateY(${((fmx - 0.5) * 22).toFixed(2)}deg)`;
+      icons.forEach((ic) => {
+        const { el, t: cfg, phase, spin } = ic;
+        const fx = Math.sin(t * 0.42 + phase) * 110;
+        const fy = Math.cos(t * 0.31 + phase * 1.3) * 64;
+        const rz = Math.sin(t * 0.3 + phase) * 12;
+        const ry = Math.sin(t * 0.45 + phase) * (14 + Math.abs(spin));
+        el.style.transform =
+          `translate3d(${fx.toFixed(1)}px, ${fy.toFixed(1)}px, ${cfg.z}px)` +
+          ` rotateY(${ry.toFixed(1)}deg) rotateZ(${rz.toFixed(1)}deg)`;
+      });
+      requestAnimationFrame(flyLoop);
+    })(0);
+  }
+
   /* ---------------- aurora follow + doodle parallax ---------------- */
   const auroraBlob = $("#aurora i");
   const depthEls = $$(".doodle[data-depth], .hero-face");
@@ -676,6 +740,88 @@
       });
     }, { threshold: 0.5 });
     io.observe($(".about-stats"));
+  }
+
+  /* ---------------- career shorts (resume as phone stories) ---------------- */
+  const shorts = DATA.shorts || [];
+  const phone = $("#phone");
+  if (shorts.length && phone) {
+    const DUR = 5000;
+    const bars = $("#story-bars");
+    const view = $("#short-view");
+    const reactions = $("#reactions");
+    bars.innerHTML = shorts.map(() => "<i></i>").join("");
+    const barEls = $$("i", bars);
+    let cur = -1, timer = null;
+
+    const EMOJIS = ["❤️", "🔥", "👏", "✨", "💯", "🎉"];
+    function react(burst) {
+      if (reducedMotion) return;
+      const pr = phone.getBoundingClientRect();
+      const wr = reactions.parentElement.getBoundingClientRect();
+      for (let i = 0; i < (burst ? 5 : 1); i++) {
+        const r = document.createElement("span");
+        r.className = "reaction";
+        r.textContent = EMOJIS[(Math.random() * EMOJIS.length) | 0];
+        r.style.left = pr.right - wr.left + 6 + Math.random() * 20 + "px";
+        r.style.top = pr.bottom - wr.top - 80 + "px";
+        reactions.appendChild(r);
+        r.animate(
+          [
+            { transform: "translateY(0) scale(.6) rotate(0deg)", opacity: 0 },
+            { transform: `translateY(-${90 + Math.random() * 110}px) translateX(${(Math.random() - 0.3) * 60}px) scale(1.15) rotate(${(Math.random() - 0.5) * 40}deg)`, opacity: 1, offset: 0.55 },
+            { transform: `translateY(-${220 + Math.random() * 120}px) translateX(${(Math.random() - 0.3) * 90}px) scale(.8)`, opacity: 0 },
+          ],
+          { duration: 1500 + Math.random() * 700, easing: "ease-out", delay: i * 130 }
+        ).onfinish = () => r.remove();
+      }
+    }
+
+    function showShort(i) {
+      cur = ((i % shorts.length) + shorts.length) % shorts.length;
+      const s = shorts[cur];
+      phone.dataset.mood = cur % 4;
+      view.innerHTML =
+        `<div class="sv-emoji">${s.emoji}</div>` +
+        `<div class="sv-company">${s.company}</div>` +
+        `<span class="sv-role">${s.role}</span>` +
+        `<span class="sv-period">${s.period}</span>` +
+        `<ul class="sv-points">${(s.points || []).map((pt) => `<li>${pt}</li>`).join("")}</ul>`;
+      barEls.forEach((b, j) => {
+        b.classList.toggle("done", j < cur);
+        b.classList.remove("running");
+      });
+      void barEls[cur].offsetWidth;
+      barEls[cur].style.setProperty("--dur", DUR + "ms");
+      if (!reducedMotion) barEls[cur].classList.add("running");
+      react(true);
+      clearTimeout(timer);
+      if (!reducedMotion) timer = setTimeout(() => showShort(cur + 1), DUR);
+    }
+
+    $("#tap-right").addEventListener("click", () => showShort(cur + 1));
+    $("#tap-left").addEventListener("click", () => showShort(cur - 1));
+
+    // start the stories when the phone scrolls into view
+    if ("IntersectionObserver" in window) {
+      const io = new IntersectionObserver((entries, obs) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          obs.disconnect();
+          showShort(0);
+        }
+      }, { threshold: 0.4 });
+      io.observe(phone);
+    } else {
+      showShort(0);
+    }
+
+    // ambient reactions while the section is on screen
+    if (!reducedMotion) {
+      setInterval(() => {
+        const r = phone.getBoundingClientRect();
+        if (r.top < window.innerHeight && r.bottom > 0 && cur >= 0) react(false);
+      }, 1600);
+    }
   }
 
   /* ---------------- toolbox flashlight wall ---------------- */

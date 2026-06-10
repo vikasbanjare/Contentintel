@@ -198,11 +198,34 @@ window.PORTFOLIO = {
      YouTube plays fullscreen 16:9 and looks best — paste IDs when ready.
      ------------------------------------------------------------------ */
   showreel: [
-    { title: "Wealthy YT Ads Campaign", label: "Ad Films",   youtubeId: "", behanceProjectId: "232522589" },
-    { title: "Podcast Videos",          label: "Production", youtubeId: "", behanceProjectId: "218001379" },
-    { title: "Trailer Video",           label: "Edit",       youtubeId: "", behanceProjectId: "217989345" },
-    { title: "AI Videos",               label: "AI",         youtubeId: "", behanceProjectId: "232940741" },
-    { title: "Motion Graphic",          label: "Motion",     youtubeId: "", behanceProjectId: "218106207" },
+    { title: "Wealthy YT Ads Campaign", label: "Ad Films",   cover: "cover-wealthy",   youtubeId: "", behanceProjectId: "232522589" },
+    { title: "Podcast Videos",          label: "Production", cover: "cover-podcast",   youtubeId: "", behanceProjectId: "218001379" },
+    { title: "Trailer Video",           label: "Edit",       cover: "cover-trailer",   youtubeId: "", behanceProjectId: "217989345" },
+    { title: "AI Videos",               label: "AI",         cover: "cover-ai-videos", youtubeId: "", behanceProjectId: "232940741" },
+    { title: "Motion Graphic",          label: "Motion",     cover: "cover-motion",    youtubeId: "", behanceProjectId: "218106207" },
+  ],
+
+  /* ------------------------------------------------------------------
+     CAREER SHORTS — your resume as tappable phone stories.
+     Tap right side = next chapter, left = back. Auto-advances.
+     ------------------------------------------------------------------ */
+  shorts: [
+    {
+      emoji: "🎬", company: "MIRAE ASSET", role: "Design Studio Lead", period: "OCT 2025 — NOW",
+      points: ["Lead the end-to-end creative studio", "Brand films · podcasts · landing pages", "AI-powered design & video workflows"],
+    },
+    {
+      emoji: "🚀", company: "WEALTHY", role: "Associate Creative Head", period: "2022 — 2025",
+      points: ["Cross-platform content leadership", "Launched Bulls Eye & ran Welocity", "UX/UI for the internal CRM"],
+    },
+    {
+      emoji: "📺", company: "UNACADEMY", role: "Studio Operations Specialist", period: "2019 — 2022",
+      points: ["2000+ educational videos produced", "+1M subscribers in a single month", "20+ studios built · 100+ channels"],
+    },
+    {
+      emoji: "🎓", company: "CSVTU BHILAI", role: "Bachelor of Engineering", period: "2013 — 2020",
+      points: ["Engineer turned storyteller", "Fell in love with visual storytelling", "7 years of design ever since"],
+    },
   ],
 
   // The flashlight TOOLBOX wall — your real stack (move the light to reveal)
