@@ -7,7 +7,9 @@ AI-powered pre-publish checker for content creators. Paste your script, thumbnai
 - **Script check** — hook strength, retention curve, open loops, STEPPS shareability, CTA. Includes a rewriter that applies proven virality techniques to your specific weak spots, an 80-formula hook swipe file, and one-click "Apply + Re-analyze".
 - **Thumbnail check** — squint test, composition, face/emotion, text legibility, feed pop, curiosity gap. Supports A/B/C 3-way comparison.
 - **Title check** — curiosity gap, mobile truncation, 10 labelled alternatives.
-- **Ads check** — platform char limits, scroll-stopping power, 3-trigger framework.
+- **Ads check** — platform char limits, scroll-stopping power, 3-trigger framework, CTR benchmarks.
+- **Ask** — research-grounded Q&A: Instagram SEO, algorithm, hashtags, brand-deal pricing, posting strategy — any language.
+- **Generate handoff** — one click sends your improved-thumbnail prompt to ChatGPT (pre-filled) or Gemini (copied) — image generation runs free on your own plan.
 
 ## How to use
 

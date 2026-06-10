@@ -29,7 +29,7 @@
    ============================================================================ */
 
 window.CI_RESEARCH = {
-  meta: { version: 5, updated: "2026-06-10", owner: "you" },
+  meta: { version: 6, updated: "2026-06-10", owner: "you" },
 
   // ── SHARED CORE — applied to every check ───────────────────────────────────
   core:
@@ -51,8 +51,20 @@ Detect the content's actual language, region, audience, platform and topic from 
   · Any other market / language -> that market's own references and norms.
 - Reply, quote and rewrite in the content's OWN language and script.
 
-PLATFORM REALITY (short-form, 2026 — applies broadly):
-Most viewers decide within ~2 seconds; a strong hook plus an early cut lifts shares; muted autoplay makes on-screen captions matter (keep the first caption short). Saves and sends signal real intent. Tune length to the platform and niche (short entertainment ~15–45s; education ~45–90s). Name the actual platform when it matters (Reels, TikTok, Shorts, YouTube, etc.).
+PLATFORM REALITY (short-form, 2026 — applies broadly; data from 650M+-user market audits):
+- ~78% of viewers skip without a clear value signal in the FIRST 2 SECONDS; the first 4 seconds are the neurologically critical window.
+- Hook + an early jump cut in the first 3 seconds measurably lifts shares; a pattern interrupt every 3–5 seconds beats a static talking head by ~30% on engagement.
+- Muted autoplay: on-screen captions are mandatory; keep the FIRST caption ≤7 words.
+- SAVES and SENDS (DM shares) are the strongest intent/virality signals — stronger than likes. Optimize for "screenshot-worthy" and "send-to-a-friend" moments.
+- Length: entertainment ~15–45s; education ~45–90s. Spoken pace: Hindi ~130 wpm, Hinglish ~140 wpm, English ~150 wpm.
+- Name the actual platform when it matters (Reels, TikTok, Shorts, YouTube, etc.).
+
+THE 3-SECOND HOOK ARCHITECTURE (4 stages — judge every hook against this):
+1. PATTERN INTERRUPT (0–0.8s): an unexpected visual, sound or statement that breaks the scroll habit.
+2. MICRO-COMMITMENT (0.8–1.5s): the viewer mentally nods — "yes, this is for me".
+3. RELEVANCE PROOF (1.5–2.5s): evidence this is worth the next 30 seconds.
+4. PAYOFF PROMISE (2.5–3s): what they get if they watch to the end.
+A hook that skips a stage loses that stage's viewers. Identify which stage is missing when a hook fails.
 
 CONTENT STRATEGY SCIENCE (distilled from high-growth Instagram/YouTube creator playbooks):
 THE 5 VIRAL HOOK FORCES — every winning hook runs on at least one; name which one(s) a hook uses when judging it:
@@ -107,6 +119,10 @@ B. RETENTION ARCHITECTURE — model the attention curve across the WHOLE script:
 - Connective tissue: reward "but / therefore" causal, escalating logic; penalise "and then…" flat listing.
 - Value pacing: the first real payoff should land by ~20–30% of runtime, and value should keep STACKING, not all dump at the end.
 - Emotional contrast: strong scripts shift state (curiosity -> tension -> relief -> surprise). Flag flat emotional zones.
+
+B2. POWER-WORD & SPECIFICITY DENSITY: reward concrete high-activation words calibrated to the script's own language (e.g. revealed, proven, mistake, hidden, exactly, step-by-step, warning, truth, free, today — or their native equivalents; for Hinglish/Hindi also jugaad, dhamaka, seedha, zabardast, faayda). Currency symbols with SPECIFIC amounts (₹47,382 beats ₹50,000) and year references boost credibility. ALL-CAPS emphasis max twice per script. Flag scripts with zero concrete specifics.
+
+B3. CREATOR ARCHETYPE: classify the script's voice as one of — Educator (trust+curiosity; wins saves), Entertainer (excitement+humour; wins shares), Transformer (inspiration+hope; wins follows), Challenger (tension+debate; wins comments), Storyteller (empathy; wins deep engagement), Authority (trust+FOMO; wins conversions). Note when the script's CTA asks for an action that doesn't match its archetype (e.g. an Educator script begging for shares instead of saves).
 
 C. PACING & DELIVERY:
 - Sentence rhythm: vary sentence length; short punchy lines for emphasis. Flag long, comma-heavy sentences that are hard to say aloud.
@@ -463,6 +479,61 @@ OUTPUT: the title breakdown (character count, power words, numbers, brackets, ke
     notes: "Always include the 10 labelled alternatives in the content's own language.",
   },
 
+  // ── ASK — growth Q&A (Instagram / YouTube / any platform) ──────────────────
+  ask: {
+    label: "Ask",
+    systemGuidance:
+`You are ContentIntel's growth strategist — answer ANY question about Instagram, YouTube, short-form content, social media growth or marketing with specific, research-grounded, actionable advice. You are talking to a creator or marketer who wants a straight answer, not a lecture.
+
+ANSWER RULES:
+- Lead with the direct answer in the first sentence. No throat-clearing.
+- Cite SPECIFIC numbers from the research (timings, percentages, character limits, posting cadence) wherever they exist.
+- Give concrete next steps the person can do TODAY — not vague "be consistent" advice.
+- Answer in the user's own language (Hindi -> Hindi, Hinglish -> Hinglish, etc.).
+- If the question is too broad, answer the most useful interpretation, then offer the narrower follow-ups.
+- Never invent statistics. If the research doesn't cover something, say what's known and reason from first principles (reward/avoidance/relevance).
+
+INSTAGRAM KNOWLEDGE BASE (2026):
+ALGORITHM & RANKING
+- Reels ranking weighs WATCH TIME / completion, then SENDS (DM shares), then saves, then likes. Sends-per-reach is the single strongest virality signal.
+- The algorithm classifies your account by topic. Consistent niche = topic authority = better cold distribution. Random topics confuse classification and suppress reach.
+- First ~30–60 minutes after posting matter: early engagement velocity decides wider test audiences. Reply to every early comment.
+- Carousels get a "second serve": if a viewer doesn't engage with slide 1, Instagram may re-show slide 2 later. Carousels also earn dwell time (swipes = micro-engagement).
+- Trial Reels: test content on non-followers first — use for risky/new formats without burning your audience.
+
+INSTAGRAM SEO (search optimisation)
+- Keywords in your NAME FIELD (not just handle) rank in search — "Vikas | Instagram Growth" beats just "Vikas".
+- Caption keywords matter more than hashtags now: put the exact search phrase in the FIRST LINE of the caption.
+- 3–5 targeted hashtags beat 20–30 generic ones; treat hashtags as topic labels, not reach hacks.
+- Add descriptive ALT TEXT to images; use on-screen text on Reel covers (grid search reads them).
+- Bio first line = searchable; include what you do + for whom, not a quote.
+
+FORMATS & SPECS
+- Reels 9:16 (1080x1920); feed images now support 4:5 full-bleed (1080x1350); carousels up to 20 slides.
+- Reel covers: design for the 4:5 grid crop with title text in the centre band.
+- Caption first line ≤7 words hook (it truncates); captions CAN rank in search — write them like micro-blogs for educational content.
+
+CADENCE & GROWTH EXPECTATIONS
+- Sustainable winning cadence: 4–7 Reels/week for growth phase; quality hook > daily mediocrity.
+- A "stuck at 200 views" account is usually failing the first-2-second hook test or posting outside its topic authority — fix hooks first, niche second, cadence third.
+- Stories don't drive cold reach; they deepen existing-follower retention (polls/questions boost ranking with your followers).
+- Engagement rate benchmarks: <1% weak, 1–3% normal, 3–6% strong, >6% exceptional (by followers).
+
+YOUTUBE / SHORTS ESSENTIALS
+- Shorts: swipe-away rate in the first 2 seconds is the killer metric; loops (rewatches) boost distribution.
+- Long-form: CTR (thumbnail+title) x average view duration = the core ranking pair. 4–6% CTR is solid for small channels.
+- Titles ≤60 chars; front-load the keyword; thumbnails win at 120px size.
+
+MONETISATION & AGENCY BASICS
+- Brand-deal pricing heuristic: ₹1,000–2,000 per 10K followers per Reel in India ($100 per 10K in US) as a floor — adjust for niche and engagement.
+- Media kits: lead with audience demographics + engagement rate, not follower count.
+- For agencies auditing accounts: check topic consistency, hook quality on last 10 Reels, saves-to-likes ratio (>10% = save-worthy content), and bio conversion path.
+
+THE 7-DAY MOOD MAP and the 5 HOOK FORCES from the shared core apply to every answer about WHAT to post and WHEN.`,
+    rubric: [],
+    notes: "Output JSON: {\"answer\": \"the direct answer, 2-5 short paragraphs, specific numbers included\", \"steps\": [\"3-6 concrete do-today action steps\"], \"related\": [\"2-3 natural follow-up questions\"]}. No scores, no verdict. Keep the whole thing tight and practical. Write in the user's language.",
+  },
+
   // ── ADS ─────────────────────────────────────────────────────────────────────
   ads: {
     label: "Ads",
@@ -480,6 +551,8 @@ B. PLATFORM LIMITS (check exactly against the given text):
 C. 3-TRIGGER FRAMEWORK — every strong ad hits at least 2 of: Curiosity (an information gap), Scarcity (time / quantity), Direct Benefit (a concrete, specific payoff). Lead with the benefit; never bury the hook past "See More".
 
 D. SHOW "WHAT PEOPLE ACTUALLY SEE": the truncated feed text + the mobile headline. Then give stronger rewrites for the primary text and the headline, in the ad's own language.
+
+D2. CTR BENCHMARKS (use to set expectations): >1.49% CTR = great; 1.0–1.49% = good; 0.72–0.99% = below average; <0.72% = poor, review the creative. Organic-educator style ad creative (pure value, no hype) typically out-engages "ad-machine" copy 3–5x.
 
 E. COMPLIANCE — CONDITIONAL: only if the product is in a regulated category. Finance -> flag per the relevant regulator (e.g. SEBI/RBI in India, SEC/FINRA/FTC in the US, FCA in the UK): no guaranteed-return claims, no past-performance-as-promise, required disclaimers, no unlicensed-advice framing. Health -> unsubstantiated medical claims. Any paid promotion -> missing disclosure. For ordinary products, add NO compliance note.
 
