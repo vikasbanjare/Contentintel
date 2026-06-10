@@ -1,42 +1,34 @@
-# Vikas Banjare — Portfolio
+# ContentIntel — Pre-publish Checker
 
-A single-page, award-style portfolio: smooth scrolling (Lenis), GSAP scroll
-animations, preloader counter, custom cursor, magnetic buttons, floating
-project previews, marquee, word-by-word about reveal, and a full-screen case
-view for each project.
+AI-powered pre-publish checker for content creators. Paste your script, thumbnail, title or ad copy and get a scored analysis with specific fixes before you hit publish.
 
-**Live preview locally:** run `npm run dev` in the repo root, then open
-`http://127.0.0.1:4173/portfolio/`.
+## What it does
 
-## Make it yours — edit ONE file: `data.js`
+- **Script check** — hook strength, retention curve, open loops, STEPPS shareability, CTA. Includes a rewriter that applies proven virality techniques to your specific weak spots, an 80-formula hook swipe file, and one-click "Apply + Re-analyze".
+- **Thumbnail check** — squint test, composition, face/emotion, text legibility, feed pop, curiosity gap. Supports A/B/C 3-way comparison.
+- **Title check** — curiosity gap, mobile truncation, 10 labelled alternatives.
+- **Ads check** — platform char limits, scroll-stopping power, 3-trigger framework, CTR benchmarks.
+- **Ask** — research-grounded Q&A: Instagram SEO, algorithm, hashtags, brand-deal pricing, posting strategy — any language.
+- **Generate handoff** — one click sends your improved-thumbnail prompt to ChatGPT (pre-filled) or Gemini (copied) — image generation runs free on your own plan.
 
-Everything on the page (name, bio, projects, services, links, photo) is read
-from `data.js`. Open it — instructions are at the top. The highlights:
+## How to use
 
-### 1. Add your photo
-```js
-photo: "me.jpg",          // drop me.jpg into this folder
-// or
-photo: "https://media.licdn.com/....jpg",   // a hosted image URL
-```
+1. Open `index.html` in a browser — or host it on GitHub Pages / Netlify
+2. Add your Anthropic API key in Settings (top-right) — stored only in your browser
+3. Paste your content and hit Analyze
 
-### 2. Add your Behance projects
-For each entry in `projects`:
+Runs entirely client-side. No server, no backend; your key goes directly to Anthropic.
 
-| Field | What to paste |
-|---|---|
-| `cover` | Right-click an image on Behance → *Copy image address* — shows in the hover preview |
-| `images` | More image URLs — shown in the full case view |
-| `videoEmbed` | `https://www.youtube.com/embed/VIDEO_ID` or `https://player.vimeo.com/video/VIDEO_ID` |
-| `behanceProjectId` | The number from `behance.net/gallery/123456789/Name` — embeds the **whole live project** (all real images + videos) |
-| `link` | The project's Behance URL |
+## Files
 
-### 3. Personalized share links
-Send `your-site.com/portfolio/?for=Nike` and the hero greets them:
-*“Hello Nike, this one's for you —”* (also works with `?company=`).
+| File | Purpose |
+|------|---------|
+| `index.html` | The full app (self-contained) |
+| `research.js` | Research data loaded at runtime — edit to improve analysis, no rebuild needed |
+| `.nojekyll` | Required for GitHub Pages (stops Jekyll from breaking the build) |
 
-## Notes
-- Fonts (Google Fonts), GSAP and Lenis load from CDNs; the page still renders
-  fine without them (animations simply turn off).
-- Respects `prefers-reduced-motion`.
-- No build step — plain HTML/CSS/JS, deploys anywhere (Vercel serves `public/`).
+All files must be in the same folder.
+
+## Editing the research
+
+Open `research.js` — every string you improve makes the analysis smarter. It includes the universal virality science, the 5 viral hook forces, saturation detection, the 7-day audience mood map, an 80-formula hook swipe file, and 10 thumbnail niche playbooks.
