@@ -1,15 +1,12 @@
 /* ============================================================================
-   research-5.js — ADDITIVE: recovered ORIGINAL research from earlier versions
-   (git history: v1/v2/v3 tag + studio + creator-slides hook system).
-   Contains: anti-cringe hook standard + worked Hinglish examples + 1.7s data,
-   the ORIGINAL 4-category hook taxonomy & 80-formula swipe file from the
-   creator slides, the original day-of-week mood map with example hooks, extra
-   hook formulas per category, the 4-axis hook grading, and the full STUDIO
+   research-5.js — ADDITIVE: recovered ORIGINAL research from earlier versions.
+   Anti-cringe hook standard, worked Hinglish examples, 1.7s data, the ORIGINAL
+   4-category taxonomy + 80-formula swipe file from the creator slides, original
+   day-of-week mood map, extra formulas, 4-axis grading, and the full STUDIO
    design research (prompt-quality science + 10 style guides).
-   NEVER edit research.js / -2 / -3 / -4 — next addition goes in research-6.js.
+   NEVER edit earlier research files — next addition: research-6.js.
    ============================================================================ */
 window.addResearch({
-
   core:
 `POSTING CONTEXT — MATCH CONTENT TYPE TO DAY-OF-WEEK MOOD (Instagram audience psychology, not just algorithm):
   · Monday (Reset Mode): audiences seek structure and direction. Best for: planning frameworks, "this week" systems, step-by-step clarity. Example hook: "If I had to fix ___ this week, I'd start here."
@@ -20,7 +17,6 @@ window.addResearch({
   · Saturday (Scroll Mode): people scroll longer, less pressure, more curiosity. Best for: behind-the-scenes, personality-driven content, lifestyle within niche, recap posts. Example hook: "What this week taught me about __."
   · Sunday (Reflection Mode): emotional + anticipatory — people think about next week, goals, and what they didn't do. Best for: lessons, resets, perspective shifts, "leave this behind" posts. Example hook: "The belief I'm not taking into next week."
 When a script's intended publishing day is known or stated, flag whether the content type and hook match the audience mood for that day.`,
-
   script: {
     systemGuidance:
 `A. HOOK (first 1–3 seconds) — the single biggest lever. Viewers decide in ~1.7s; an immediate hook holds ~19% more viewers than a slow start. Identify the hook type and rate its pull. Proven hook families (each rewrite MUST name which one it uses):
@@ -195,7 +191,6 @@ Friday → punchy hooks: "If you're about to quit [X], read this." | "One thing.
 Saturday → behind-the-scenes hooks: "What this week taught me about [topic]." | "Real talk: here's what [activity] actually looked like this week."
 Sunday → reflection hooks: "The belief I'm not taking into next week." | "This is the one thing I'm leaving behind going into [time period]."`,
   },
-
   studio: {
     label: "Design Studio",
 

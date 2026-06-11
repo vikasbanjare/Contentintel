@@ -1,15 +1,11 @@
 /* ============================================================================
    research-4.js — ADDITIVE research, merged ON TOP of research.js + -2 + -3.
-   Added 2026-06-10: content strategy science (5 hook forces, saturation
-   detection, 7-day audience mood map), 3-second hook architecture + platform
-   data, power-word & archetype scoring, anti-saturation + format-fit checks,
-   the 80-formula hook swipe file, ads CTR benchmarks, and the full ASK
-   knowledge base (Instagram algorithm / SEO / cadence / monetisation Q&A).
-   NEVER edit research.js / -2 / -3 — to add more later, create research-5.js.
-   Deploy: upload this file + index.html to GitHub.
+   Content strategy science, 3-second hook architecture + platform data,
+   power-word & archetype scoring, anti-saturation + format-fit checks, the
+   80-formula hook swipe file, ads CTR benchmarks, and the full ASK knowledge
+   base. NEVER edit earlier research files — next addition: research-5.js.
    ============================================================================ */
 window.addResearch({
-
   core:
 `PLATFORM REALITY (short-form, 2026 — applies broadly; data from 650M+-user market audits):
 - ~78% of viewers skip without a clear value signal in the FIRST 2 SECONDS; the first 4 seconds are the neurologically critical window.
@@ -47,7 +43,6 @@ SATURATION DETECTION — sameness is invisible:
 - FRI — Play: winding down. Entertainment, trends, behind-the-scenes. Light, fast, fun hooks.
 - SAT — Aspire: leisure browsing. Lifestyle, inspiration, vlogs. Hooks selling a feeling or a dream.
 - SUN — Reflect: quiet reset. Stories, lessons learned, week planning. Hooks opening a personal arc.`,
-
   script: {
     systemGuidance:
 `B2. POWER-WORD & SPECIFICITY DENSITY: reward concrete high-activation words calibrated to the script's own language (e.g. revealed, proven, mistake, hidden, exactly, step-by-step, warning, truth, free, today — or their native equivalents; for Hinglish/Hindi also jugaad, dhamaka, seedha, zabardast, faayda). Currency symbols with SPECIFIC amounts (₹47,382 beats ₹50,000) and year references boost credibility. ALL-CAPS emphasis max twice per script. Flag scripts with zero concrete specifics.
@@ -149,16 +144,10 @@ CATEGORY 4 — STORYTELLING & MINDSET (emotion + connection):
 DAY-MATCH BONUS: pick the hook category by the audience's day-mood when relevant — MON/THU favour Category 4 + numbers (reset, proof), TUE favour Category 3 (learning), WED/FRI favour Category 1 (attention, fun), SAT/SUN favour Category 4 (aspiration, reflection). Always ADAPT the template to the creator's actual topic, language and voice — never output a template with blanks.`,
     notes: "Output a dashboard: (1) 'overall' score + verdict; (2) a 'graph' section — the predicted attention/retention curve as 6–10 points across the runtime, the VALUE dipping at slow, confusing or low-tension moments and lowest at the predicted drop-off; (3) a 'beats' section — the script split into labelled beats (HOOK, SETUP, PROOF, TURN, PAYOFF, CTA…), each with the ACTUAL line text and a level (green strong / yellow ok / red weak); (4) per-dimension 'scores'; (5) 2–3 hook rewrites in a 'copy' section; (6) the single 'bottomLine' biggest fix. The graph points and the beats must be in the same order. Keep every string tight.",
   },
-
-  ads: {
-    systemGuidance:
-`D2. CTR BENCHMARKS (use to set expectations): >1.49% CTR = great; 1.0–1.49% = good; 0.72–0.99% = below average; <0.72% = poor, review the creative. Organic-educator style ad creative (pure value, no hype) typically out-engages "ad-machine" copy 3–5x.`,
-  },
-
+  ads: { systemGuidance: `D2. CTR BENCHMARKS (use to set expectations): >1.49% CTR = great; 1.0–1.49% = good; 0.72–0.99% = below average; <0.72% = poor, review the creative. Organic-educator style ad creative (pure value, no hype) typically out-engages "ad-machine" copy 3–5x.` },
   ask: {
     label: "Ask",
-    systemGuidance:
-`You are ContentIntel's growth strategist — answer ANY question about Instagram, YouTube, short-form content, social media growth or marketing with specific, research-grounded, actionable advice. You are talking to a creator or marketer who wants a straight answer, not a lecture.
+    systemGuidance: `You are ContentIntel's growth strategist — answer ANY question about Instagram, YouTube, short-form content, social media growth or marketing with specific, research-grounded, actionable advice. You are talking to a creator or marketer who wants a straight answer, not a lecture.
 
 ANSWER RULES:
 - Lead with the direct answer in the first sentence. No throat-clearing.

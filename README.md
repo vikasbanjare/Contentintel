@@ -1,46 +1,38 @@
 # ContentIntel — Pre-publish Checker
 
-AI-powered pre-publish checker for creators, marketers and agencies. Script, thumbnail, title, ads — graded the way the algorithm grades them, fixed before they go live. Dark + light mode. Works in any language.
+AI-powered pre-publish checker for creators, marketers and agencies. Script, thumbnail, title, ads — graded the way the algorithm grades them, fixed before they go live. Dark + light mode, animated UI, works in any language.
+
+## Deploy (GitHub Pages) — upload ALL of these to the repo root, main branch
+
+| # | File | Why it matters |
+|---|------|----------------|
+| 1 | `index.html` | The entire app |
+| 2 | `research.js` | Base research + the additive merge engine |
+| 3 | `research-2.js` | Hook patterns + CTA examples |
+| 4 | `research-3.js` | Generation-ready thumbnail prompt rules |
+| 5 | `research-4.js` | Hook swipe file, mood map, Ask knowledge base, CTR benchmarks |
+| 6 | `research-5.js` | Anti-cringe hooks, creator-slides originals, Studio design research |
+| 7 | `research-6.js` | **Thumbnail aesthetics: realistic faces, pro typography, colour science** |
+| 8 | `.nojekyll` | Empty file — REQUIRED or GitHub Pages fails to build |
+| 9 | `README.md` | This file |
+
+**⚠ If a research-N.js file is missing, the app still runs but silently loses that
+research.** Upload every one of them.
+
+Settings → Pages → Deploy from branch → main → / (root).
 
 ## The 9 tools
-
-| Tab | What it does |
-|-----|-------------|
-| **Script** | Hook/retention/CTA scoring, attention curve, beat sheet, 3-tier hook rewrites, one-click apply + re-analyze, .docx upload |
-| **Thumbnail** | Single or A/B/C compare, vision analysis, regenerate in ChatGPT (pre-filled) or Gemini (copied) |
-| **Title** | Click chance, curiosity gap, mobile truncation, 10 labelled alternatives |
-| **Ads** | Meta/Google limits, "See More" trap, CTR benchmarks, compliance (only when needed) |
-| **Ask** | Research-grounded growth Q&A — Instagram SEO, algorithm, hashtags, pricing, any language |
-| **Studio** | Thumbnail builder |
-| **Platform IQ** | Platform-specific intelligence |
-| **Playbook** | The proven-patterns library |
-| **History** | Past checks, saved on-device |
-
-## Deploy (GitHub Pages)
-
-Upload ALL of these files to the repo root, `main` branch:
-
-1. `index.html` — the entire app
-2. `research.js` — base research + the additive merge engine
-3. `research-2.js` — additive research
-4. `research-3.js` — additive research
-5. `research-4.js` — additive research (hook swipe file, mood map, Ask knowledge base…)
-6. `research-5.js` — recovered originals: anti-cringe hook standard, the creator-slides 80-hook swipe file + day-map, worked Hinglish examples, the full Studio design research (10 style guides)
-7. `.nojekyll` — REQUIRED (empty file; stops Jekyll from breaking the build)
-8. `README.md` — this file
-
-Then: Settings → Pages → Deploy from branch → main → / (root).
+Script (hook/retention/CTA + hook-locked rewrites) · Thumbnail (A/B/C + ChatGPT/Gemini regen) · Title · Ads · Ask (growth Q&A) · Studio · Platform IQ · Playbook · History (full saved reports).
 
 ## Growing the research
-
-NEVER edit research.js / -2 / -3 / -4 / -5. To add research, create `research-6.js`:
-
+NEVER edit existing research files. Create `research-7.js`:
 ```js
 window.addResearch({ script: { systemGuidance: `...new findings...` } });
 ```
+…then add `<script src="research-7.js"></script>` after research-6 in index.html and upload both. Strings append, arrays concatenate — nothing is ever lost.
 
-…then add `<script src="research-6.js"></script>` after research-5 in index.html and upload both. Strings append, arrays concatenate — old research can never be lost.
+## Rebuilding the app
+`python3 build-v2.py` regenerates index.html from `src-v2/` sources.
 
 ## Keys
-
-Your Anthropic API key lives only in your browser (localStorage) and goes directly to Anthropic. Admin research editor: open with `?admin=vikas-intel-2026`.
+Anthropic API key lives only in the visitor's browser (localStorage), sent directly to Anthropic. Admin research editor: `?admin=vikas-intel-2026`.
