@@ -2680,7 +2680,7 @@ Rules:
 - For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats -- HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. -- each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
-- BE CONCISE AND SCANNABLE -- this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2-3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence -- only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
+- BE RUTHLESSLY CONCISE -- this is quick pre-publish feedback, not an essay. HARD CAPS: at most 3 sections; at most 5 scores; at most 3 issue items; "graph" exactly 6 points; "beats" at most 6 items. Every string is ONE short sentence of at most ~18 words -- cut adjectives, never repeat a point made elsewhere, no preamble inside strings. Only a regeneration-prompt "text" body or a hook-rewrite block may run longer. "bottomLine" = ONE sentence. Score "why" = one clause quoting the exact words. Shorter reports are BETTER reports.
 - Quote the user's EXACT words from the submitted content; pair each criticism with a one-line, copy-ready fix in the user's own language.
 - The JSON must be COMPLETE and valid -- close every brace and bracket, escape quotes inside strings, and never stop mid-object.`;
 
@@ -4052,7 +4052,7 @@ function ScriptTab({ onOpenKey }) {
   const userText = baseText + hookUpgradeAsk;
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 6000 }); }
+  function check() { run({ userText, maxTokens: 4500 }); }
 
   // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
@@ -4074,7 +4074,7 @@ function ScriptTab({ onOpenKey }) {
     const ns = Math.round(nw / 2.5);
     const newUserText =
       `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${nw} (~${ns}s)\n\nSCRIPT (Version A):\n${newText}`;
-    run({ userText: newUserText, maxTokens: 5200 });
+    run({ userText: newUserText, maxTokens: 4500 });
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
@@ -4189,7 +4189,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       const { text: out } = await window.callClaude({
         system: rwSystem,
         userText: `ORIGINAL SCRIPT:\n${text}`,
-        maxTokens: 1800,
+        maxTokens: 1500,
       });
       setRewrite(r => ({ ...r, loading: false, out: (out || '').trim() }));
     } catch (e) {
@@ -4390,7 +4390,7 @@ function AskTab({ onOpenKey }) {
       const { text: raw } = await window.callClaude({
         system: buildAskSystem(),
         userText: `QUESTION: ${text}`,
-        maxTokens: 2200,
+        maxTokens: 1600,
       });
       let json = window.parseReport(raw);
       if (!json || (!json.answer && !json.steps)) {
@@ -4640,7 +4640,7 @@ function ThumbnailTab({ onOpenKey }) {
   const [genPrompt, setGenPrompt] = React.useState('');
   // Output headroom: A/B/C produces 3 full analyses + a winner, so it needs more
   // room or the JSON truncates and the report comes back broken/empty.
-  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 8000 : count === 2 ? 6500 : 4500, system }); }
+  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -4888,7 +4888,7 @@ function TitleTab({ onOpenKey }) {
       ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
       : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
-  function check() { run({ userText, maxTokens: 4000 }); }
+  function check() { run({ userText, maxTokens: 2800 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -5018,7 +5018,7 @@ function AdsTab({ onOpenKey }) {
     `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
     `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  function check() { run({ userText, maxTokens: 3000 }); }
+  function check() { run({ userText, maxTokens: 2200 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>

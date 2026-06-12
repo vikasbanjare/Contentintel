@@ -9,6 +9,9 @@
 */
 
 const PLAN_LIMITS = { free: 5, starter: 50, pro: 250, agency: 1000 };
+// Cost control: free/starter run on Haiku (3x cheaper, same structured output);
+// pro/agency get Sonnet. The browser can't override this.
+const PLAN_MODEL = { free: 'claude-haiku-4-5-20251001', starter: 'claude-haiku-4-5-20251001', pro: 'claude-sonnet-4-6', agency: 'claude-sonnet-4-6' };
 const VISION_PLANS = ['pro', 'agency'];
 
 export default {
@@ -68,7 +71,7 @@ export default {
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'prompt-caching-2024-07-31',
       },
-      body: JSON.stringify({ ...body, model: body.model || 'claude-sonnet-4-6' }),
+      body: JSON.stringify({ ...body, model: PLAN_MODEL[plan] || PLAN_MODEL.free }),
     });
     const out = await aRes.text();
 

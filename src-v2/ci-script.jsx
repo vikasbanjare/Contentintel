@@ -100,7 +100,7 @@ function ScriptTab({ onOpenKey }) {
   const userText = baseText + hookUpgradeAsk;
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 6000 }); }
+  function check() { run({ userText, maxTokens: 4500 }); }
 
   // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
@@ -122,7 +122,7 @@ function ScriptTab({ onOpenKey }) {
     const ns = Math.round(nw / 2.5);
     const newUserText =
       `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${nw} (~${ns}s)\n\nSCRIPT (Version A):\n${newText}`;
-    run({ userText: newUserText, maxTokens: 5200 });
+    run({ userText: newUserText, maxTokens: 4500 });
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
@@ -237,7 +237,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       const { text: out } = await window.callClaude({
         system: rwSystem,
         userText: `ORIGINAL SCRIPT:\n${text}`,
-        maxTokens: 1800,
+        maxTokens: 1500,
       });
       setRewrite(r => ({ ...r, loading: false, out: (out || '').trim() }));
     } catch (e) {

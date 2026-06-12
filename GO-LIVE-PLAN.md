@@ -59,7 +59,16 @@ config and switches from BYO-key to your worker automatically.
 
 ## PHASE 3 — Pricing (the real math)
 
-**Your measured API cost: ~₹2.49 per average check** (with prompt caching on).
+**Your measured API cost (after the token-diet update): ~₹1.93 per check on
+Sonnet, ~₹0.64 on Haiku** — prompt caching on, hard output caps in the report
+format, and the worker routes Free/Starter to Haiku and Pro/Agency to Sonnet
+automatically (the browser can't override it). Three optimizations did this:
+1. Tighter report format — output tokens are 5x the price of input, so hard
+   caps (3 sections, 6 graph points, one-sentence strings) cut cost ~25%
+   while making reports MORE readable.
+2. Lower max-token ceilings per check type (a cut-off safety net).
+3. Plan-based model routing in the worker — Haiku is 3x cheaper and equally
+   good at structured scoring; Sonnet stays for paying Pro/Agency users.
 
 ### Why 10% margin doesn't work
 At cost+10%, a 250-check plan would sell for ₹685/mo. Payment fees alone are
@@ -82,9 +91,10 @@ Price on VALUE (a better hook = thousands of extra views), not cost.
 | Team seats | 1 | 1 | 5 |
 | History | 7 days | Full | Full + export |
 | Support | Email | Priority | WhatsApp priority |
-| **Your API cost (worst case)** | ₹125 | ₹623 | ₹2,493 |
-| **Gross margin (worst case)** | 75% | 52% | 38% |
-| **Gross margin (typical 35% usage)** | 91% | 83% | 78% |
+| Model (auto, server-enforced) | Haiku | Sonnet | Sonnet |
+| **Your API cost (worst case)** | ₹32 | ₹481 | ₹1,925 |
+| **Gross margin (worst case)** | 94% | 63% | 52% |
+| **Gross margin (typical 35% usage)** | 98% | 87% | 83% |
 
 ### The Apple psychology (why this ladder is shaped this way)
 1. **Decoy effect**: Starter is deliberately missing the emotional features

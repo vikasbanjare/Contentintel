@@ -161,7 +161,7 @@ function ThumbnailTab({ onOpenKey }) {
   const [genPrompt, setGenPrompt] = React.useState('');
   // Output headroom: A/B/C produces 3 full analyses + a winner, so it needs more
   // room or the JSON truncates and the report comes back broken/empty.
-  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 8000 : count === 2 ? 6500 : 4500, system }); }
+  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -409,7 +409,7 @@ function TitleTab({ onOpenKey }) {
       ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
       : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
-  function check() { run({ userText, maxTokens: 4000 }); }
+  function check() { run({ userText, maxTokens: 2800 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -539,7 +539,7 @@ function AdsTab({ onOpenKey }) {
     `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
     `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  function check() { run({ userText, maxTokens: 3000 }); }
+  function check() { run({ userText, maxTokens: 2200 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>

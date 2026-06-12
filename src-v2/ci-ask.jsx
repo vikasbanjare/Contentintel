@@ -45,7 +45,7 @@ function AskTab({ onOpenKey }) {
       const { text: raw } = await window.callClaude({
         system: buildAskSystem(),
         userText: `QUESTION: ${text}`,
-        maxTokens: 2200,
+        maxTokens: 1600,
       });
       let json = window.parseReport(raw);
       if (!json || (!json.answer && !json.steps)) {
