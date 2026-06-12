@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+"""Build index.html for the v2 app from src-v2/ sources. New jsx files in
+NEW_SECTIONS are inserted automatically. Research stays external."""
+import pathlib, re
+
+ROOT = pathlib.Path(__file__).resolve().parent
+SRC = ROOT / "src-v2"
+TPL = ROOT / "index.html"
+RESEARCH_TAGS = ["research.js", "research-2.js", "research-3.js", "research-4.js", "research-5.js", "research-6.js"]
+# name -> insert before this existing section's script block
+NEW_SECTIONS = {"ci-pricing.jsx": "ci-app.jsx", "ci-account.jsx": "ci-app.jsx"}
+
+def load(name):
+    return SRC.joinpath(name).read_text(encoding="utf-8").rstrip("\n")
+
+tpl = TPL.read_text(encoding="utf-8")
+m = re.search(r"(<style>\n)([\s\S]*?)(\n\s*</style>)", tpl)
+body = m.group(2)
+head_css = body[: body.find("/* ===== styles.css ===== */")]
+tpl = tpl[: m.start(2)] + (head_css + "/* ===== styles.css ===== */\n" + load("styles.css")
+      + "\n\n/* ===== contentintel.css ===== */\n" + load("contentintel.css")) + tpl[m.end(2):]
+
+out, pos, n = [], 0, 0
+for m in re.finditer(r'(<script type="text/babel"[^>]*>)([\s\S]*?)(</script>)', tpl):
+    out.append(tpl[pos:m.start(2)])
+    nm = re.search(r"/\* ===== ([a-z-]+\.jsx) ===== \*/", m.group(2))
+    if nm and SRC.joinpath(nm.group(1)).exists():
+        out.append("\n/* ===== " + nm.group(1) + " ===== */\n" + load(nm.group(1)) + "\n"); n += 1
+    else:
+        out.append(m.group(2))
+    pos = m.start(3)
+out.append(tpl[pos:])
+tpl = "".join(out)
+
+for name, before in NEW_SECTIONS.items():
+    if f"/* ===== {name} ===== */" in tpl or not SRC.joinpath(name).exists():
+        continue
+    anchor = tpl.find(f"/* ===== {before} ===== */")
+    so = tpl.rfind('<script type="text/babel"', 0, anchor)
+    block = '<script type="text/babel" data-presets="react">\n/* ===== ' + name + ' ===== */\n' + load(name) + '\n</script>\n'
+    tpl = tpl[:so] + block + tpl[so:]
+    n += 1
+
+for i, tag in enumerate(RESEARCH_TAGS[1:], start=2):
+    if f'src="{tag}"' not in tpl:
+        prev = RESEARCH_TAGS[i - 2]
+        tpl = tpl.replace(f'<script src="{prev}"></script>',
+                          f'<script src="{prev}"></script>\n  <script src="{tag}"></script>', 1)
+
+TPL.write_text(tpl, encoding="utf-8")
+rt = sum(1 for t in RESEARCH_TAGS if ('src="' + t + '"') in tpl)
+print(f"index.html: {len(tpl):,} bytes | {n} sections | scripts {tpl.count('<script')}/{tpl.count('</script>')} | research {rt}/6")
