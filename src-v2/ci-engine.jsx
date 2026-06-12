@@ -662,7 +662,7 @@ function useAnalysis(type) {
 }
 
 // ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
-function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model }) {
+function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model, disabled, disabledHint }) {
   const inTok = estIn + 0;
   const total = inTok + CI_OUTPUT_GUESS;
   const cost = estCost(inTok, CI_OUTPUT_GUESS, model);
@@ -670,7 +670,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
   const free = !hasKey && hasSandbox(); // free Claude preview AI
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-      <GlowButton mood={mood} size="lg" onClick={onClick} style={{ justifyContent: "center" }}>
+      <GlowButton mood={mood} size="lg" onClick={disabled ? undefined : onClick}
+        style={{ justifyContent: "center", opacity: disabled ? 0.45 : 1, cursor: disabled ? "not-allowed" : "pointer", filter: disabled ? "saturate(0.4)" : "none" }}>
         {loading ? (
           <>
             <span style={{ display: "inline-block", width: 13, height: 13, border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%" }} className="spin" />
@@ -683,7 +684,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
         )}
       </GlowButton>
       <span className="ci-est">
-        est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}
+        {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · free preview AI</span>}
         {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only -- add your key</span>}
       </span>

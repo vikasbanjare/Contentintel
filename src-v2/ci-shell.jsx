@@ -92,7 +92,7 @@ function ThemeToggle() {
 }
 window.ThemeToggle = ThemeToggle;
 
-function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
+function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
   return (
     <nav className="ci-nav">
@@ -140,17 +140,6 @@ function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAd
         </button>
       )}
       <ThemeToggle />
-
-      <button className="ci-iconbtn" title="Toggle focus mode" onClick={onToggleFocus}>
-        {focusMode
-          ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4"/></svg>
-          : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 9.5A5.5 5.5 0 016.5 3a5.5 5.5 0 106.5 6.5z"/></svg>}
-      </button>
-      <div style={{
-        width: 30, height: 30, borderRadius: '50%',
-        background: `linear-gradient(135deg, #6A1F35, #FF4D8D)`,
-        display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: 12, color: '#fff',
-      }}>EM</div>
     </nav>
   );
 }

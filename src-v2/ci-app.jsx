@@ -11,7 +11,6 @@ function CIApp() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const theme = useCITheme();
   const [tab, setTab] = React.useState('home');
-  const [focusMode, setFocusMode] = React.useState(false);
   const [keyOpen, setKeyOpen] = React.useState(false);
   const [accountOpen, setAccountOpen] = React.useState(false);
   const [hasKey, setHasKey] = React.useState(!!window.getKey());
@@ -30,12 +29,6 @@ function CIApp() {
     root.style.setProperty('--bloom-mul', t.bloomIntensity);
   }, [t.typeSet, t.density, t.bloomIntensity]);
 
-  // focus mode dims ambient bloom
-  React.useEffect(() => {
-    let el = document.getElementById('ci-focus-style');
-    if (!el) { el = document.createElement('style'); el.id = 'ci-focus-style'; document.head.appendChild(el); }
-    el.textContent = focusMode ? '.bloom-orb,.ci-hero-video{opacity:0.12 !important}.ci-hero-scrim{background:#07090E !important}' : '';
-  }, [focusMode]);
 
   const activeMood = tab === 'home' ? t.homeAccent
     : (window.CI_TABS.find(x => x.id === tab) || {}).mood || 'burgundy';
@@ -101,7 +94,7 @@ function CIApp() {
 
   return (
     <div className="ci-app">
-      <TopNav active={tab} onNav={nav} mood={activeMood} focusMode={focusMode} onToggleFocus={() => setFocusMode(f => !f)}
+      <TopNav active={tab} onNav={nav} mood={activeMood}
         onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
       {window.AccountModal && <window.AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} onNav={nav} />}

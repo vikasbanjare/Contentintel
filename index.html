@@ -2836,7 +2836,7 @@ function useAnalysis(type) {
 }
 
 // ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
-function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model }) {
+function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model, disabled, disabledHint }) {
   const inTok = estIn + 0;
   const total = inTok + CI_OUTPUT_GUESS;
   const cost = estCost(inTok, CI_OUTPUT_GUESS, model);
@@ -2844,7 +2844,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
   const free = !hasKey && hasSandbox(); // free Claude preview AI
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-      <GlowButton mood={mood} size="lg" onClick={onClick} style={{ justifyContent: "center" }}>
+      <GlowButton mood={mood} size="lg" onClick={disabled ? undefined : onClick}
+        style={{ justifyContent: "center", opacity: disabled ? 0.45 : 1, cursor: disabled ? "not-allowed" : "pointer", filter: disabled ? "saturate(0.4)" : "none" }}>
         {loading ? (
           <>
             <span style={{ display: "inline-block", width: 13, height: 13, border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%" }} className="spin" />
@@ -2857,7 +2858,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
         )}
       </GlowButton>
       <span className="ci-est">
-        est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}
+        {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · free preview AI</span>}
         {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only -- add your key</span>}
       </span>
@@ -3298,7 +3299,7 @@ function ThemeToggle() {
 }
 window.ThemeToggle = ThemeToggle;
 
-function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
+function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
   return (
     <nav className="ci-nav">
@@ -3346,17 +3347,6 @@ function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAd
         </button>
       )}
       <ThemeToggle />
-
-      <button className="ci-iconbtn" title="Toggle focus mode" onClick={onToggleFocus}>
-        {focusMode
-          ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4"/></svg>
-          : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 9.5A5.5 5.5 0 016.5 3a5.5 5.5 0 106.5 6.5z"/></svg>}
-      </button>
-      <div style={{
-        width: 30, height: 30, borderRadius: '50%',
-        background: `linear-gradient(135deg, #6A1F35, #FF4D8D)`,
-        display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: 12, color: '#fff',
-      }}>EM</div>
     </nav>
   );
 }
@@ -4052,7 +4042,8 @@ function ScriptTab({ onOpenKey }) {
   const userText = baseText + hookUpgradeAsk;
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 4500 }); }
+  const ready = text.trim().split(/\s+/).filter(Boolean).length >= 10;
+  function check() { if (!ready) return; run({ userText, maxTokens: 4500 }); }
 
   // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
@@ -4082,6 +4073,7 @@ function ScriptTab({ onOpenKey }) {
   // from the report and maps each weak area to a specific proven technique
   // (hook types, open-loop stacking, STEPPS, hook swipe-file templates).
   async function doRewrite() {
+    if (!text.trim()) { setRewrite(r => ({ ...r, loading: false, out: 'Paste a script first — there is nothing to rewrite yet.' })); return; }
     setRewrite(r => ({ ...r, loading: true, out: null }));
     try {
       const scriptR = window.getResearch('script');
@@ -4280,7 +4272,8 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script" />
+          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script"
+            disabled={!ready} disabledHint={text.trim() ? 'Script is too short to analyze — paste the full script (10+ words).' : 'Paste your script first — nothing to check yet.'} />
         </div>
       </SB>
 
@@ -4640,7 +4633,10 @@ function ThumbnailTab({ onOpenKey }) {
   const [genPrompt, setGenPrompt] = React.useState('');
   // Output headroom: A/B/C produces 3 full analyses + a winner, so it needs more
   // room or the JSON truncates and the report comes back broken/empty.
-  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
+  // Every compared slot needs an image or a written description — otherwise
+  // there is literally nothing to judge and the call would waste tokens.
+  const slotsReady = Array.from({ length: count }).every((_, i) => imgsAll[i] || descsAll[i].trim().length >= 12);
+  function check() { if (!slotsReady) return; run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -4768,7 +4764,8 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         </details>
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
+          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail (or describe it) first — nothing to check yet.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -4888,7 +4885,8 @@ function TitleTab({ onOpenKey }) {
       ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
       : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
-  function check() { run({ userText, maxTokens: 2800 }); }
+  const titleReady = title.trim().length >= 4 && (!compare || titleB.trim().length >= 4);
+  function check() { if (!titleReady) return; run({ userText, maxTokens: 2800 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -4928,7 +4926,8 @@ function TitleTab({ onOpenKey }) {
             <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good -- under 60' : 'Long -- may truncate'}
           </span>
         </div>
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title" /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title"
+          disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
@@ -5018,7 +5017,8 @@ function AdsTab({ onOpenKey }) {
     `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
     `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  function check() { run({ userText, maxTokens: 2200 }); }
+  const adReady = primary.trim().length >= 12;
+  function check() { if (!adReady) return; run({ userText, maxTokens: 2200 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -5059,7 +5059,8 @@ function AdsTab({ onOpenKey }) {
           </div>
         )}
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad" /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad"
+          disabled={!adReady} disabledHint="Write your ad's main text first — nothing to check yet." /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
@@ -5136,6 +5137,7 @@ function HistoryTab() {
   const TYPE_LABEL = { script: 'Script', thumbnail: 'Thumbnail', title: 'Title', ads: 'Ads', ask: 'Ask' };
   const tmoodOf = { script: 'navy', thumbnail: 'ember', title: 'cyan', ads: 'violet', ask: 'violet' };
   const filtered = filter === 'All' ? items : items.filter(i => TYPE_LABEL[i.type] === filter.replace(/s$/, ''));
+  React.useEffect(() => { setOpenIdx(-1); }, [filter]);
   function clearAll() { window.clearHistory && window.clearHistory(); setItems([]); }
 
   return (
@@ -7277,7 +7279,6 @@ function CIApp() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const theme = useCITheme();
   const [tab, setTab] = React.useState('home');
-  const [focusMode, setFocusMode] = React.useState(false);
   const [keyOpen, setKeyOpen] = React.useState(false);
   const [accountOpen, setAccountOpen] = React.useState(false);
   const [hasKey, setHasKey] = React.useState(!!window.getKey());
@@ -7296,12 +7297,6 @@ function CIApp() {
     root.style.setProperty('--bloom-mul', t.bloomIntensity);
   }, [t.typeSet, t.density, t.bloomIntensity]);
 
-  // focus mode dims ambient bloom
-  React.useEffect(() => {
-    let el = document.getElementById('ci-focus-style');
-    if (!el) { el = document.createElement('style'); el.id = 'ci-focus-style'; document.head.appendChild(el); }
-    el.textContent = focusMode ? '.bloom-orb,.ci-hero-video{opacity:0.12 !important}.ci-hero-scrim{background:#07090E !important}' : '';
-  }, [focusMode]);
 
   const activeMood = tab === 'home' ? t.homeAccent
     : (window.CI_TABS.find(x => x.id === tab) || {}).mood || 'burgundy';
@@ -7367,7 +7362,7 @@ function CIApp() {
 
   return (
     <div className="ci-app">
-      <TopNav active={tab} onNav={nav} mood={activeMood} focusMode={focusMode} onToggleFocus={() => setFocusMode(f => !f)}
+      <TopNav active={tab} onNav={nav} mood={activeMood}
         onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
       {window.AccountModal && <window.AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} onNav={nav} />}

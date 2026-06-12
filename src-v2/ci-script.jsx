@@ -100,7 +100,8 @@ function ScriptTab({ onOpenKey }) {
   const userText = baseText + hookUpgradeAsk;
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 4500 }); }
+  const ready = text.trim().split(/\s+/).filter(Boolean).length >= 10;
+  function check() { if (!ready) return; run({ userText, maxTokens: 4500 }); }
 
   // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
@@ -130,6 +131,7 @@ function ScriptTab({ onOpenKey }) {
   // from the report and maps each weak area to a specific proven technique
   // (hook types, open-loop stacking, STEPPS, hook swipe-file templates).
   async function doRewrite() {
+    if (!text.trim()) { setRewrite(r => ({ ...r, loading: false, out: 'Paste a script first — there is nothing to rewrite yet.' })); return; }
     setRewrite(r => ({ ...r, loading: true, out: null }));
     try {
       const scriptR = window.getResearch('script');
@@ -328,7 +330,8 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script" />
+          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script"
+            disabled={!ready} disabledHint={text.trim() ? 'Script is too short to analyze — paste the full script (10+ words).' : 'Paste your script first — nothing to check yet.'} />
         </div>
       </SB>
 

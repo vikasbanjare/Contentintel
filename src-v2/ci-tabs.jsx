@@ -161,7 +161,10 @@ function ThumbnailTab({ onOpenKey }) {
   const [genPrompt, setGenPrompt] = React.useState('');
   // Output headroom: A/B/C produces 3 full analyses + a winner, so it needs more
   // room or the JSON truncates and the report comes back broken/empty.
-  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
+  // Every compared slot needs an image or a written description — otherwise
+  // there is literally nothing to judge and the call would waste tokens.
+  const slotsReady = Array.from({ length: count }).every((_, i) => imgsAll[i] || descsAll[i].trim().length >= 12);
+  function check() { if (!slotsReady) return; run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -289,7 +292,8 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         </details>
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
+          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail (or describe it) first — nothing to check yet.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -409,7 +413,8 @@ function TitleTab({ onOpenKey }) {
       ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
       : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
-  function check() { run({ userText, maxTokens: 2800 }); }
+  const titleReady = title.trim().length >= 4 && (!compare || titleB.trim().length >= 4);
+  function check() { if (!titleReady) return; run({ userText, maxTokens: 2800 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -449,7 +454,8 @@ function TitleTab({ onOpenKey }) {
             <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good -- under 60' : 'Long -- may truncate'}
           </span>
         </div>
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title" /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title"
+          disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
@@ -539,7 +545,8 @@ function AdsTab({ onOpenKey }) {
     `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
     `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  function check() { run({ userText, maxTokens: 2200 }); }
+  const adReady = primary.trim().length >= 12;
+  function check() { if (!adReady) return; run({ userText, maxTokens: 2200 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -580,7 +587,8 @@ function AdsTab({ onOpenKey }) {
           </div>
         )}
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad" /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad"
+          disabled={!adReady} disabledHint="Write your ad's main text first — nothing to check yet." /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
@@ -657,6 +665,7 @@ function HistoryTab() {
   const TYPE_LABEL = { script: 'Script', thumbnail: 'Thumbnail', title: 'Title', ads: 'Ads', ask: 'Ask' };
   const tmoodOf = { script: 'navy', thumbnail: 'ember', title: 'cyan', ads: 'violet', ask: 'violet' };
   const filtered = filter === 'All' ? items : items.filter(i => TYPE_LABEL[i.type] === filter.replace(/s$/, ''));
+  React.useEffect(() => { setOpenIdx(-1); }, [filter]);
   function clearAll() { window.clearHistory && window.clearHistory(); setItems([]); }
 
   return (
