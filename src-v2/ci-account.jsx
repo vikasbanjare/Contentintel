@@ -35,8 +35,18 @@ async function refreshSession() {
 if (saasOn) refreshSession();
 window.refreshSession = refreshSession;
 
-const PLAN_LABEL = { free: 'Free — 5 checks', starter: 'Starter — 50/mo', pro: 'Creator Pro — 250/mo', agency: 'Agency — 1,000/mo' };
-const PLAN_LIMIT = { free: 5, starter: 50, pro: 250, agency: 1000 };
+const PLAN_LABEL = { free: 'Free — 15 credits', starter: 'Starter — 150 credits/mo', pro: 'Creator Pro — 750 credits/mo', agency: 'Agency — 3,000 credits/mo' };
+const PLAN_LIMIT = { free: 15, starter: 150, pro: 750, agency: 3000 };
+// Engines: pick power vs credits. Saved locally; sent with every check.
+const ENGINES_UI = [
+  { tier: 'quick', label: 'Quick', model: 'Haiku',  credits: 1, minPlan: 'free',    desc: 'Fast checks, light edits' },
+  { tier: 'smart', label: 'Smart', model: 'Sonnet', credits: 3, minPlan: 'starter', desc: 'The standard — deep, reliable' },
+  { tier: 'max',   label: 'Max',   model: 'Opus',   credits: 5, minPlan: 'pro',     desc: 'Hardest scripts, best rewrites' },
+];
+const PLAN_RANK = { free: 0, starter: 1, pro: 2, agency: 2 };
+function getEngine() { try { return localStorage.getItem('ci_engine') || 'smart'; } catch (e) { return 'smart'; } }
+function setEngine(t) { try { localStorage.setItem('ci_engine', t); } catch (e) {} }
+window.getEngine = getEngine;
 
 function AccountModal({ open, onClose, onNav }) {
   const [mode, setMode] = React.useState('signin'); // signin | signup | profile
@@ -95,7 +105,7 @@ function AccountModal({ open, onClose, onNav }) {
   }
 
   if (!open) return null;
-  const limit = profile ? (PLAN_LIMIT[profile.plan] || 5) : 5;
+  const limit = profile ? (PLAN_LIMIT[profile.plan] || 15) : 15;
   const used = profile ? (profile.checks_used || 0) : 0;
   const pct = Math.min(100, Math.round(used / limit * 100));
 
@@ -135,10 +145,30 @@ function AccountModal({ open, onClose, onNav }) {
             </div>
             <div style={{ marginTop: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--text-3)', marginBottom: 7 }}>
-                <span>Checks used this month</span><b style={{ color: 'var(--text-1)' }}>{used} / {limit}</b>
+                <span>Credits used this month</span><b style={{ color: 'var(--text-1)' }}>{used} / {limit}</b>
               </div>
               <div style={{ height: 8, borderRadius: 5, background: 'var(--stroke-1)', overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: pct + '%', borderRadius: 5, background: pct > 85 ? '#F06A7E' : pct > 60 ? '#F0C85A' : '#8FD86A', transition: 'width 0.8s cubic-bezier(0.2,0.7,0.3,1)' }} />
+              </div>
+            </div>
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-4)', marginBottom: 8, fontFamily: 'var(--font-mono)' }}>Engine — power vs credits</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {ENGINES_UI.map(en => {
+                  const planOk = (PLAN_RANK[profile?.plan || 'free'] ?? 0) >= PLAN_RANK[en.minPlan];
+                  const active = getEngine() === en.tier;
+                  return (
+                    <button key={en.tier} disabled={!planOk}
+                      onClick={() => { setEngine(en.tier); setProfile(p2 => ({ ...p2 })); }}
+                      style={{ textAlign: 'left', padding: '10px 11px', borderRadius: 11, cursor: planOk ? 'pointer' : 'not-allowed',
+                        border: active ? '1.5px solid #FF4D8D' : '1px solid var(--stroke-2)',
+                        background: active ? 'rgba(255,77,141,0.08)' : 'var(--surface-2)', opacity: planOk ? 1 : 0.45 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>{en.label} <span style={{ fontSize: 10.5, color: 'var(--text-4)', fontWeight: 500 }}>{en.model}</span></div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 3, lineHeight: 1.4 }}>{en.desc}</div>
+                      <div style={{ fontSize: 11, color: active ? '#FF9CC2' : 'var(--text-3)', marginTop: 5, fontWeight: 700 }}>{en.credits} credit{en.credits > 1 ? 's' : ''}/check{!planOk ? ' · ' + (en.minPlan === 'pro' ? 'Pro+' : 'Starter+') : ''}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {(profile?.plan || 'free') !== 'agency' && (

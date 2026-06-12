@@ -14,9 +14,11 @@ const TIERS = [
     id: 'starter', name: 'Starter', tag: 'For getting serious',
     m: 499, y: 4990, mood: 'cyan',
     features: [
-      ['50 checks / month', true],
+      ['150 credits / month', true],
+      ['Quick + Smart engines', true],
       ['Script · Title · Ads · Ask', true],
       ['Hook rewrites', true],
+      ['Max engine (Opus)', false],
       ['Thumbnail vision (A/B/C)', false],
       ['Hook-locked script rewrites', false],
       ['Studio + Platform IQ', false],
@@ -27,7 +29,8 @@ const TIERS = [
     id: 'pro', name: 'Creator Pro', tag: 'Everything, for one channel', popular: true,
     m: 1299, y: 12990, mood: 'burgundy',
     features: [
-      ['250 checks / month', true],
+      ['750 credits / month', true],
+      ['All engines — incl. Max (Opus)', true],
       ['Script · Title · Ads · Ask', true],
       ['Thumbnail vision (A/B/C compare)', true],
       ['Hook-locked script rewrites', true],
@@ -40,7 +43,8 @@ const TIERS = [
     id: 'agency', name: 'Agency', tag: 'For teams & client work',
     m: 3999, y: 39990, mood: 'violet',
     features: [
-      ['1,000 checks / month', true],
+      ['3,000 credits / month', true],
+      ['All engines — incl. Max (Opus)', true],
       ['Everything in Creator Pro', true],
       ['5 team seats', true],
       ['Client-ready report exports', true],
@@ -66,7 +70,7 @@ function PricingTab({ onNav }) {
           One good hook pays for the year.
         </h2>
         <p style={{ fontSize: 15.5, color: 'var(--text-3)', marginTop: 14, lineHeight: 1.65 }}>
-          Start with <b style={{ color: 'var(--text-1)' }}>5 free checks</b> — no card needed. Your scripts and thumbnails are never stored; only a usage count is kept.
+          Start with <b style={{ color: 'var(--text-1)' }}>15 free credits</b> — no card needed. Pick your engine per check: Quick (1 credit), Smart (3), Max (5). Your scripts and thumbnails are never stored; only a usage count is kept.
         </p>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 22, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)' }}>
           <button className="pill" onClick={() => setAnnual(false)} style={{ height: 34, border: 'none', background: !annual ? 'var(--surface-3)' : 'transparent', fontWeight: !annual ? 700 : 500 }}>Monthly</button>

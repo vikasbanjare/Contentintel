@@ -141,7 +141,7 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
     const resS = await fetch(saas.workerUrl, {
       method: "POST",
       headers: { "content-type": "application/json", "Authorization": "Bearer " + window.CI_SESSION },
-      body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, system: sysS, messages: [{ role: "user", content: contentS }] }),
+      body: JSON.stringify({ engine: (window.getEngine && window.getEngine()) || 'smart', max_tokens: maxTokens, system: sysS, messages: [{ role: "user", content: contentS }] }),
     });
     const dataS = await resS.json().catch(() => ({}));
     if (!resS.ok) {
