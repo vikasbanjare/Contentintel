@@ -59,7 +59,16 @@ config and switches from BYO-key to your worker automatically.
 
 ## PHASE 3 — Pricing (the real math)
 
-**Your measured API cost: ~₹2.49 per average check** (with prompt caching on).
+**Your measured API cost (after the token-diet update): ~₹1.93 per check on
+Sonnet, ~₹0.64 on Haiku** — prompt caching on, hard output caps in the report
+format, and the worker routes Free/Starter to Haiku and Pro/Agency to Sonnet
+automatically (the browser can't override it). Three optimizations did this:
+1. Tighter report format — output tokens are 5x the price of input, so hard
+   caps (3 sections, 6 graph points, one-sentence strings) cut cost ~25%
+   while making reports MORE readable.
+2. Lower max-token ceilings per check type (a cut-off safety net).
+3. Plan-based model routing in the worker — Haiku is 3x cheaper and equally
+   good at structured scoring; Sonnet stays for paying Pro/Agency users.
 
 ### Why 10% margin doesn't work
 At cost+10%, a 250-check plan would sell for ₹685/mo. Payment fees alone are
@@ -74,7 +83,8 @@ Price on VALUE (a better hook = thousands of extra views), not cost.
 |---|---|---|---|
 | Monthly | ₹499 | ₹1,299 | ₹3,999 |
 | Annual (2 months free) | ₹4,990 (₹416/mo) | ₹12,990 (₹1,082/mo) | ₹39,990 (₹3,332/mo) |
-| Checks / month | 50 | 250 | 1,000 |
+| Credits / month | 150 | 750 | 3,000 |
+| Engines (user picks per check) | Quick 1cr · Smart 3cr | + Max (Opus) 5cr | + Max (Opus) 5cr |
 | Script + Title + Ads + Ask | ✓ | ✓ | ✓ |
 | Thumbnail vision (A/B/C) | — | ✓ | ✓ |
 | Hook-locked rewrites | — | ✓ | ✓ |
@@ -82,9 +92,10 @@ Price on VALUE (a better hook = thousands of extra views), not cost.
 | Team seats | 1 | 1 | 5 |
 | History | 7 days | Full | Full + export |
 | Support | Email | Priority | WhatsApp priority |
-| **Your API cost (worst case)** | ₹125 | ₹623 | ₹2,493 |
-| **Gross margin (worst case)** | 75% | 52% | 38% |
-| **Gross margin (typical 35% usage)** | 91% | 83% | 78% |
+| Engine access (server-enforced) | Quick+Smart | All | All |
+| **Your API cost (worst case)** | ₹32 | ₹481 | ₹1,925 |
+| **Gross margin (worst case)** | 94% | 63% | 52% |
+| **Gross margin (typical 35% usage)** | 98% | 87% | 83% |
 
 ### The Apple psychology (why this ladder is shaped this way)
 1. **Decoy effect**: Starter is deliberately missing the emotional features
@@ -97,8 +108,19 @@ Price on VALUE (a better hook = thousands of extra views), not cost.
    Annual = 12 months of cash up front + 12x lower churn.
 4. **Charm pricing**: ₹499/₹1,299/₹3,999 — never round numbers.
 5. **One badge**: "MOST POPULAR" on Creator Pro only. Never two badges.
-6. **Free taste, not free tier**: 5 free checks on signup (email-confirmed),
+6. **Free taste, not free tier**: 15 free credits on signup (email-confirmed),
    no card. Enough to feel the magic once — the report itself sells the plan.
+
+### The credit system (the user picks the engine)
+Plans grant CREDITS; every check burns credits by engine: **Quick (Haiku) = 1,
+Smart (Sonnet) = 3, Max (Opus 4.8) = 5** — matching the real API price ratios,
+so margins stay identical whatever users pick. Why this sells better than
+flat checks: light users feel rich (150 credits = 150 quick checks), power
+users self-upgrade to reach the Max engine, and "engine choice" is a visible
+premium feature instead of a hidden cost control. New models (e.g. Fable)
+slot in as another tier in `saas/worker.js` ENGINES once you confirm pricing
+— one line of code. The worker enforces which plans can use which engine;
+the browser cannot override it.
 
 ### Launch promo
 "Founding member: 40% off the annual plan for the first 100 accounts, locked

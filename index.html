@@ -2315,7 +2315,7 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
     const resS = await fetch(saas.workerUrl, {
       method: "POST",
       headers: { "content-type": "application/json", "Authorization": "Bearer " + window.CI_SESSION },
-      body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, system: sysS, messages: [{ role: "user", content: contentS }] }),
+      body: JSON.stringify({ engine: (window.getEngine && window.getEngine()) || 'smart', max_tokens: maxTokens, system: sysS, messages: [{ role: "user", content: contentS }] }),
     });
     const dataS = await resS.json().catch(() => ({}));
     if (!resS.ok) {
@@ -2680,7 +2680,7 @@ Rules:
 - For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats -- HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. -- each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
-- BE CONCISE AND SCANNABLE -- this is quick pre-publish feedback, not an essay. At MOST 4 sections (prefer 2-3); at most 6 scores; at most 4 issue items. Every string is ONE short sentence -- only a single regeneration-prompt "text" body may run longer. "bottomLine" ≤ 2 sentences. Never make the same point in two places.
+- BE RUTHLESSLY CONCISE -- this is quick pre-publish feedback, not an essay. HARD CAPS: at most 3 sections; at most 5 scores; at most 3 issue items; "graph" exactly 6 points; "beats" at most 6 items. Every string is ONE short sentence of at most ~18 words -- cut adjectives, never repeat a point made elsewhere, no preamble inside strings. Only a regeneration-prompt "text" body or a hook-rewrite block may run longer. "bottomLine" = ONE sentence. Score "why" = one clause quoting the exact words. Shorter reports are BETTER reports.
 - Quote the user's EXACT words from the submitted content; pair each criticism with a one-line, copy-ready fix in the user's own language.
 - The JSON must be COMPLETE and valid -- close every brace and bracket, escape quotes inside strings, and never stop mid-object.`;
 
@@ -4052,7 +4052,7 @@ function ScriptTab({ onOpenKey }) {
   const userText = baseText + hookUpgradeAsk;
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 6000 }); }
+  function check() { run({ userText, maxTokens: 4500 }); }
 
   // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
@@ -4074,7 +4074,7 @@ function ScriptTab({ onOpenKey }) {
     const ns = Math.round(nw / 2.5);
     const newUserText =
       `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${nw} (~${ns}s)\n\nSCRIPT (Version A):\n${newText}`;
-    run({ userText: newUserText, maxTokens: 5200 });
+    run({ userText: newUserText, maxTokens: 4500 });
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
@@ -4189,7 +4189,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       const { text: out } = await window.callClaude({
         system: rwSystem,
         userText: `ORIGINAL SCRIPT:\n${text}`,
-        maxTokens: 1800,
+        maxTokens: 1500,
       });
       setRewrite(r => ({ ...r, loading: false, out: (out || '').trim() }));
     } catch (e) {
@@ -4390,7 +4390,7 @@ function AskTab({ onOpenKey }) {
       const { text: raw } = await window.callClaude({
         system: buildAskSystem(),
         userText: `QUESTION: ${text}`,
-        maxTokens: 2200,
+        maxTokens: 1600,
       });
       let json = window.parseReport(raw);
       if (!json || (!json.answer && !json.steps)) {
@@ -4640,7 +4640,7 @@ function ThumbnailTab({ onOpenKey }) {
   const [genPrompt, setGenPrompt] = React.useState('');
   // Output headroom: A/B/C produces 3 full analyses + a winner, so it needs more
   // room or the JSON truncates and the report comes back broken/empty.
-  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 8000 : count === 2 ? 6500 : 4500, system }); }
+  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -4888,7 +4888,7 @@ function TitleTab({ onOpenKey }) {
       ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
       : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
-  function check() { run({ userText, maxTokens: 4000 }); }
+  function check() { run({ userText, maxTokens: 2800 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -5018,7 +5018,7 @@ function AdsTab({ onOpenKey }) {
     `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
     `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  function check() { run({ userText, maxTokens: 3000 }); }
+  function check() { run({ userText, maxTokens: 2200 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -6951,9 +6951,11 @@ const TIERS = [
     id: 'starter', name: 'Starter', tag: 'For getting serious',
     m: 499, y: 4990, mood: 'cyan',
     features: [
-      ['50 checks / month', true],
+      ['150 credits / month', true],
+      ['Quick + Smart engines', true],
       ['Script · Title · Ads · Ask', true],
       ['Hook rewrites', true],
+      ['Max engine (Opus)', false],
       ['Thumbnail vision (A/B/C)', false],
       ['Hook-locked script rewrites', false],
       ['Studio + Platform IQ', false],
@@ -6964,7 +6966,8 @@ const TIERS = [
     id: 'pro', name: 'Creator Pro', tag: 'Everything, for one channel', popular: true,
     m: 1299, y: 12990, mood: 'burgundy',
     features: [
-      ['250 checks / month', true],
+      ['750 credits / month', true],
+      ['All engines — incl. Max (Opus)', true],
       ['Script · Title · Ads · Ask', true],
       ['Thumbnail vision (A/B/C compare)', true],
       ['Hook-locked script rewrites', true],
@@ -6977,7 +6980,8 @@ const TIERS = [
     id: 'agency', name: 'Agency', tag: 'For teams & client work',
     m: 3999, y: 39990, mood: 'violet',
     features: [
-      ['1,000 checks / month', true],
+      ['3,000 credits / month', true],
+      ['All engines — incl. Max (Opus)', true],
       ['Everything in Creator Pro', true],
       ['5 team seats', true],
       ['Client-ready report exports', true],
@@ -7003,7 +7007,7 @@ function PricingTab({ onNav }) {
           One good hook pays for the year.
         </h2>
         <p style={{ fontSize: 15.5, color: 'var(--text-3)', marginTop: 14, lineHeight: 1.65 }}>
-          Start with <b style={{ color: 'var(--text-1)' }}>5 free checks</b> — no card needed. Your scripts and thumbnails are never stored; only a usage count is kept.
+          Start with <b style={{ color: 'var(--text-1)' }}>15 free credits</b> — no card needed. Pick your engine per check: Quick (1 credit), Smart (3), Max (5). Your scripts and thumbnails are never stored; only a usage count is kept.
         </p>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 22, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)' }}>
           <button className="pill" onClick={() => setAnnual(false)} style={{ height: 34, border: 'none', background: !annual ? 'var(--surface-3)' : 'transparent', fontWeight: !annual ? 700 : 500 }}>Monthly</button>
@@ -7102,8 +7106,18 @@ async function refreshSession() {
 if (saasOn) refreshSession();
 window.refreshSession = refreshSession;
 
-const PLAN_LABEL = { free: 'Free — 5 checks', starter: 'Starter — 50/mo', pro: 'Creator Pro — 250/mo', agency: 'Agency — 1,000/mo' };
-const PLAN_LIMIT = { free: 5, starter: 50, pro: 250, agency: 1000 };
+const PLAN_LABEL = { free: 'Free — 15 credits', starter: 'Starter — 150 credits/mo', pro: 'Creator Pro — 750 credits/mo', agency: 'Agency — 3,000 credits/mo' };
+const PLAN_LIMIT = { free: 15, starter: 150, pro: 750, agency: 3000 };
+// Engines: pick power vs credits. Saved locally; sent with every check.
+const ENGINES_UI = [
+  { tier: 'quick', label: 'Quick', model: 'Haiku',  credits: 1, minPlan: 'free',    desc: 'Fast checks, light edits' },
+  { tier: 'smart', label: 'Smart', model: 'Sonnet', credits: 3, minPlan: 'starter', desc: 'The standard — deep, reliable' },
+  { tier: 'max',   label: 'Max',   model: 'Opus',   credits: 5, minPlan: 'pro',     desc: 'Hardest scripts, best rewrites' },
+];
+const PLAN_RANK = { free: 0, starter: 1, pro: 2, agency: 2 };
+function getEngine() { try { return localStorage.getItem('ci_engine') || 'smart'; } catch (e) { return 'smart'; } }
+function setEngine(t) { try { localStorage.setItem('ci_engine', t); } catch (e) {} }
+window.getEngine = getEngine;
 
 function AccountModal({ open, onClose, onNav }) {
   const [mode, setMode] = React.useState('signin'); // signin | signup | profile
@@ -7162,7 +7176,7 @@ function AccountModal({ open, onClose, onNav }) {
   }
 
   if (!open) return null;
-  const limit = profile ? (PLAN_LIMIT[profile.plan] || 5) : 5;
+  const limit = profile ? (PLAN_LIMIT[profile.plan] || 15) : 15;
   const used = profile ? (profile.checks_used || 0) : 0;
   const pct = Math.min(100, Math.round(used / limit * 100));
 
@@ -7202,10 +7216,30 @@ function AccountModal({ open, onClose, onNav }) {
             </div>
             <div style={{ marginTop: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--text-3)', marginBottom: 7 }}>
-                <span>Checks used this month</span><b style={{ color: 'var(--text-1)' }}>{used} / {limit}</b>
+                <span>Credits used this month</span><b style={{ color: 'var(--text-1)' }}>{used} / {limit}</b>
               </div>
               <div style={{ height: 8, borderRadius: 5, background: 'var(--stroke-1)', overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: pct + '%', borderRadius: 5, background: pct > 85 ? '#F06A7E' : pct > 60 ? '#F0C85A' : '#8FD86A', transition: 'width 0.8s cubic-bezier(0.2,0.7,0.3,1)' }} />
+              </div>
+            </div>
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-4)', marginBottom: 8, fontFamily: 'var(--font-mono)' }}>Engine — power vs credits</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                {ENGINES_UI.map(en => {
+                  const planOk = (PLAN_RANK[profile?.plan || 'free'] ?? 0) >= PLAN_RANK[en.minPlan];
+                  const active = getEngine() === en.tier;
+                  return (
+                    <button key={en.tier} disabled={!planOk}
+                      onClick={() => { setEngine(en.tier); setProfile(p2 => ({ ...p2 })); }}
+                      style={{ textAlign: 'left', padding: '10px 11px', borderRadius: 11, cursor: planOk ? 'pointer' : 'not-allowed',
+                        border: active ? '1.5px solid #FF4D8D' : '1px solid var(--stroke-2)',
+                        background: active ? 'rgba(255,77,141,0.08)' : 'var(--surface-2)', opacity: planOk ? 1 : 0.45 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-1)' }}>{en.label} <span style={{ fontSize: 10.5, color: 'var(--text-4)', fontWeight: 500 }}>{en.model}</span></div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 3, lineHeight: 1.4 }}>{en.desc}</div>
+                      <div style={{ fontSize: 11, color: active ? '#FF9CC2' : 'var(--text-3)', marginTop: 5, fontWeight: 700 }}>{en.credits} credit{en.credits > 1 ? 's' : ''}/check{!planOk ? ' · ' + (en.minPlan === 'pro' ? 'Pro+' : 'Starter+') : ''}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {(profile?.plan || 'free') !== 'agency' && (

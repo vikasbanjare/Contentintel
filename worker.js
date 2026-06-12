@@ -8,7 +8,19 @@
    Vars: ALLOWED_ORIGIN = https://www.yourdomain.com
 */
 
-const PLAN_LIMITS = { free: 5, starter: 50, pro: 250, agency: 1000 };
+// CREDIT SYSTEM: plans grant credits; the user picks an engine; each engine
+// burns credits at its real API-cost ratio. Server-enforced.
+const PLAN_CREDITS = { free: 15, starter: 150, pro: 750, agency: 3000 };
+const ENGINES = {
+  quick: { id: 'claude-haiku-4-5-20251001', credits: 1 },
+  smart: { id: 'claude-sonnet-4-6',         credits: 3 },
+  max:   { id: 'claude-opus-4-8',           credits: 5 },
+};
+// Which engines each plan may use (Max/Opus is a Pro+ perk — sells upgrades).
+const PLAN_ENGINES = {
+  free: ['quick'], starter: ['quick', 'smart'],
+  pro: ['quick', 'smart', 'max'], agency: ['quick', 'smart', 'max'],
+};
 const VISION_PLANS = ['pro', 'agency'];
 
 export default {
@@ -46,12 +58,15 @@ export default {
       });
     }
 
-    // 3. Enforce the plan
-    const limit = PLAN_LIMITS[plan] ?? PLAN_LIMITS.free;
-    if (checks_used >= limit)
-      return json({ error: `You've used all ${limit} checks on the ${plan} plan this month. Upgrade to keep going.`, upgrade: true }, 402, cors);
-
+    // 3. Resolve the requested engine, enforce plan + credits
     const body = await req.json();
+    const wanted = String(body.engine || (String(body.model || '').includes('haiku') ? 'quick' : String(body.model || '').includes('opus') ? 'max' : 'smart'));
+    const allowed = PLAN_ENGINES[plan] || PLAN_ENGINES.free;
+    const tier = allowed.includes(wanted) ? wanted : allowed[allowed.length - 1];
+    const engine = ENGINES[tier];
+    const limit = PLAN_CREDITS[plan] ?? PLAN_CREDITS.free;
+    if (checks_used + engine.credits > limit)
+      return json({ error: `Not enough credits for the ${tier} engine (needs ${engine.credits}, you have ${Math.max(0, limit - checks_used)} of ${limit}). Upgrade or switch to a lighter engine.`, upgrade: true }, 402, cors);
     const hasImages = JSON.stringify(body.messages || '').includes('"image"');
     if (hasImages && !VISION_PLANS.includes(plan))
       return json({ error: 'Thumbnail vision needs Creator Pro. Upgrade to analyze images.', upgrade: true }, 402, cors);
@@ -68,14 +83,14 @@ export default {
         'anthropic-version': '2023-06-01',
         'anthropic-beta': 'prompt-caching-2024-07-31',
       },
-      body: JSON.stringify({ ...body, model: body.model || 'claude-sonnet-4-6' }),
+      body: JSON.stringify({ ...(({ engine: _e, ...rest }) => rest)(body), model: engine.id }),
     });
     const out = await aRes.text();
 
     // 6. Count it (only successful calls)
     if (aRes.ok) {
       await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/increment_usage`, {
-        method: 'POST', headers: svc, body: JSON.stringify({ uid: user.id }),
+        method: 'POST', headers: svc, body: JSON.stringify({ uid: user.id, amount: engine.credits }),
       });
     }
     return new Response(out, { status: aRes.status, headers: { ...cors, 'content-type': 'application/json' } });

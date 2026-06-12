@@ -33,7 +33,7 @@ create trigger on_auth_user_created
   after insert on auth.users for each row execute function public.handle_new_user();
 
 -- Atomic usage increment (called by the worker)
-create or replace function public.increment_usage(uid uuid)
+create or replace function public.increment_usage(uid uuid, amount int default 1)
 returns void language sql security definer as $$
-  update public.profiles set checks_used = checks_used + 1 where id = uid;
+  update public.profiles set checks_used = checks_used + amount where id = uid;
 $$;
