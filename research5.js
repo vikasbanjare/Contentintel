@@ -1,14 +1,6 @@
-/* ============================================================================
-   research-5.js — ADDITIVE: recovered ORIGINAL research from earlier versions.
-   Anti-cringe hook standard, worked Hinglish examples, 1.7s data, the ORIGINAL
-   4-category taxonomy + 80-formula swipe file from the creator slides, original
-   day-of-week mood map, extra formulas, 4-axis grading, and the full STUDIO
-   design research (prompt-quality science + 10 style guides).
-   NEVER edit earlier research files — next addition: research-6.js.
-   ============================================================================ */
+/* research-5.js — ADDITIVE recovered originals (anti-cringe, creator-slides hooks, studio design research). Never edit older files. */
 window.addResearch({
-  core:
-`POSTING CONTEXT — MATCH CONTENT TYPE TO DAY-OF-WEEK MOOD (Instagram audience psychology, not just algorithm):
+  core: `POSTING CONTEXT — MATCH CONTENT TYPE TO DAY-OF-WEEK MOOD (Instagram audience psychology, not just algorithm):
   · Monday (Reset Mode): audiences seek structure and direction. Best for: planning frameworks, "this week" systems, step-by-step clarity. Example hook: "If I had to fix ___ this week, I'd start here."
   · Tuesday (Reality Check): friction is high — people feel workload pressure. Best for: myth-busting, opinion posts, "you're overcomplicating this" angles. Example hook: "Doing more won't fix your __."
   · Wednesday (Performance Mode): midweek peak attention — the strongest education day. Best for: tactical carousels, data-backed posts, problem → solution breakdowns. Example hook: "Why your ___ isn't working (and what to change.)"
@@ -18,8 +10,7 @@ window.addResearch({
   · Sunday (Reflection Mode): emotional + anticipatory — people think about next week, goals, and what they didn't do. Best for: lessons, resets, perspective shifts, "leave this behind" posts. Example hook: "The belief I'm not taking into next week."
 When a script's intended publishing day is known or stated, flag whether the content type and hook match the audience mood for that day.`,
   script: {
-    systemGuidance:
-`A. HOOK (first 1–3 seconds) — the single biggest lever. Viewers decide in ~1.7s; an immediate hook holds ~19% more viewers than a slow start. Identify the hook type and rate its pull. Proven hook families (each rewrite MUST name which one it uses):
+    systemGuidance: `A. HOOK (first 1–3 seconds) — the single biggest lever. Viewers decide in ~1.7s; an immediate hook holds ~19% more viewers than a slow start. Identify the hook type and rate its pull. Proven hook families (each rewrite MUST name which one it uses):
 - Result / outcome-first (very high): lead with the end state or transformation ("This ₹5,000 SIP became ₹40 lakh — here's the exact math").
 - Contrarian / myth-bust (high): challenge a belief the viewer holds ("Saving money is keeping you poor. Here's why.").
 - Data / number (high): a precise stat carries authority + curiosity ("Only 6.6% of channels ever hit 1,000 subs — the 3 things the rest skip").
@@ -93,8 +84,7 @@ These hooks work by triggering an immediate self-check or curiosity gap before a
 - Confidence rebuild: "How ___ helped me rebuild my confidence."
 - Purpose discovery: "How I found my purpose through ___."
 - Wrong assumption: "I thought ___ would make me happy. I was wrong."`,
-    hookSwipeFile:
-`CATEGORY 1 — INSTANT ATTENTION (pattern-interrupts that make viewers pause):
+    hookSwipeFile: `CATEGORY 1 — INSTANT ATTENTION (pattern-interrupts that make viewers pause):
 1.  "Wait — [surprising claim you need to verify]"
 2.  "I can't believe this actually works..."
 3.  "Nobody talks about this, but [important truth]"

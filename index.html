@@ -7,6 +7,15 @@
   <meta name="description" content="Pre-publish checker for creators — grade your script, thumbnail, title and ads before you hit publish. Runs free inside Claude (no API key), or on your own Anthropic key when self-hosted." />
 
   <!-- Apply saved theme before paint (no flash). Default = dark. -->
+  <script>
+  /* ── SaaS CONFIG — fill these to turn on accounts + your-key billing.
+     See saas/SETUP.md. Leave empty = app runs in BYO-key mode (current). */
+  window.CI_SAAS = {
+    supabaseUrl: '',        // e.g. 'https://xxxx.supabase.co'
+    supabaseAnonKey: '',    // Supabase anon public key
+    workerUrl: '',          // e.g. 'https://contentintel-api.you.workers.dev'
+  };
+  </script>
   <script>try{var t=localStorage.getItem('ci_theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}</script>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2214,7 +2223,7 @@ const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI
 // True when running inside a Claude preview/artifact (Anthropic provides free AI there).
 const hasSandbox = () => { try { return typeof window !== "undefined" && window.claude && typeof window.claude.complete === "function"; } catch (e) { return false; } };
 // Can we run a REAL analysis right now? Either the user's own key OR the free Claude sandbox.
-const canRun = () => !!getKey() || hasSandbox();
+const canRun = () => !!getKey() || hasSandbox() || !!(typeof window !== 'undefined' && window.CI_SESSION);
 
 // ── Research access (falls back to a tiny default so nothing ever breaks) ────
 const DEFAULT_RESEARCH = {
@@ -2287,6 +2296,35 @@ function fmtCost(usd) {
 
 // ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
 async function callClaude({ system, userText, image, images, model, maxTokens = 1800 }) {
+  // SaaS mode: signed-in users run through the ContentIntel worker (owner's
+  // key, plan limits enforced server-side) — no personal key needed.
+  const saas = (typeof window !== 'undefined' && window.CI_SAAS) || {};
+  if (saas.workerUrl && window.CI_SESSION) {
+    const imgsS = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
+    const contentS = imgsS.length
+      ? [
+          ...imgsS.flatMap((im, i) => [
+            ...(imgsS.length > 1 ? [{ type: "text", text: `Image ${i + 1}:` }] : []),
+            { type: "image", source: { type: "base64", media_type: im.mime, data: im.data } },
+          ]),
+          { type: "text", text: userText },
+        ]
+      : userText;
+    const sysS = typeof system === "string" && system.length > 2000
+      ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : system;
+    const resS = await fetch(saas.workerUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json", "Authorization": "Bearer " + window.CI_SESSION },
+      body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, system: sysS, messages: [{ role: "user", content: contentS }] }),
+    });
+    const dataS = await resS.json().catch(() => ({}));
+    if (!resS.ok) {
+      if (resS.status === 401) { window.CI_SESSION = null; throw new Error(dataS.error || "Session expired — sign in again."); }
+      throw new Error(dataS.error || ("Request failed (" + resS.status + ")."));
+    }
+    const textS = (dataS.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+    return { text: textS, usage: dataS.usage || null };
+  }
   const key = getKey();
   // Normalise to an array so single- and multi-image (compare) paths share code.
   const imgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
@@ -3208,6 +3246,7 @@ const TABS = [
   { id: 'title',     label: 'Title',       mood: 'cyan',     icon: 'title'     },
   { id: 'ads',       label: 'Ads',         mood: 'violet',   icon: 'ads'       },
   { id: 'ask',       label: 'Ask',         mood: 'violet',   icon: 'ask'       },
+  { id: 'pricing',   label: 'Pricing',     mood: 'burgundy', icon: 'pricing'   },
   { id: 'builder',   label: 'Studio',      mood: 'lime',     icon: 'studio'    },
   { id: 'platform',  label: 'Platform IQ', mood: 'violet',   icon: 'platform'  },
   { id: 'playbook',  label: 'Playbook',    mood: 'ember',    icon: 'playbook'  },
@@ -3227,13 +3266,13 @@ function CITabIcon({ name }) {
     case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     case 'ask':     return <svg {...s} viewBox="0 0 16 16"><path d="M6 6a2 2 0 113.4 1.4C8.7 8.1 8 8.6 8 9.5"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/><circle cx="8" cy="8" r="6"/></svg>;
+    case 'pricing': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 8.5V3.5a1 1 0 011-1h5l5 5a1 1 0 010 1.4l-4.6 4.6a1 1 0 01-1.4 0l-5-5z"/><circle cx="6" cy="6" r="1"/></svg>;
     default: return null;
   }
 }
 window.CITabIcon = CITabIcon;
 
 // Light / dark theme toggle (persists in localStorage; applied to <html data-theme>).
-// Animated switch: sliding knob, crossfading sun/moon.
 function ThemeToggle() {
   const [light, setLight] = React.useState(() => {
     try { return localStorage.getItem('ci_theme') === 'light'; } catch (e) { return false; }
@@ -3259,7 +3298,7 @@ function ThemeToggle() {
 }
 window.ThemeToggle = ThemeToggle;
 
-function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAdmin, hasKey, admin }) {
+function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
   return (
     <nav className="ci-nav">
@@ -3300,6 +3339,12 @@ function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAd
         </button>
       )}
 
+      {window.CI_SAAS_ON && (
+        <button className="ci-keybtn" title="Account" onClick={onAccount}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 13.5a5.2 5.2 0 0110.4 0"/></svg>
+          <span>{window.CI_USER ? 'Account' : 'Sign in'}</span>
+        </button>
+      )}
       <ThemeToggle />
 
       <button className="ci-iconbtn" title="Toggle focus mode" onClick={onToggleFocus}>
@@ -3324,7 +3369,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
   const heroRef = React.useRef(null);
   const par1 = React.useRef(null), par2 = React.useRef(null), par3 = React.useRef(null), parCards = React.useRef(null);
 
-  // Mouse parallax — direct style writes, no re-render.
   React.useEffect(() => {
     const el = heroRef.current;
     if (!el) return;
@@ -3345,7 +3389,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
     return () => { el.removeEventListener('mousemove', onMove); cancelAnimationFrame(raf); };
   }, []);
 
-  // Scroll-reveal: elements with .ci-rise get .in when they enter the viewport.
   React.useEffect(() => {
     const io = new IntersectionObserver((es) => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: 0.12 });
     document.querySelectorAll('.ci-rise').forEach(el => io.observe(el));
@@ -3369,7 +3412,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
 
   return (
     <div className="ci-reveal">
-      {/* HERO — animated aurora, no video */}
       <section ref={heroRef} className="ci-hero ci-hero-aurora" style={{ minHeight: 640, display: 'flex', alignItems: 'center', overflow: 'hidden', position: 'relative' }}>
         <div className="ci-aurora-wrap" aria-hidden="true">
           <div ref={par1} style={{ position: 'absolute', inset: 0, transition: 'transform 0.4s cubic-bezier(0.2,0.7,0.3,1)' }}>
@@ -3401,7 +3443,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
             </p>
             <div className="ci-fadeup d4" style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 32 }}>
               <GlowButton mood={mood} size="lg" onClick={() => onNav('script')}>Check your content →</GlowButton>
-              <button className="btn ghost ci-ghostbtn" style={{ height: 48, padding: '0 22px', fontSize: 14.5 }} onClick={() => onNav('thumbnail')}>See a sample report</button>
+              <button className="btn ghost ci-ghostbtn" style={{ height: 48, padding: '0 22px', fontSize: 14.5 }} onClick={() => onNav('pricing')}>See pricing</button>
             </div>
             <div className="ci-fadeup d5" onClick={onOpenKey} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, marginTop: 22, cursor: 'pointer', fontSize: 13, color: 'var(--text-4)' }}>
               <span className={'ci-keydot ' + (hasKey ? 'on' : 'off')} />
@@ -3411,7 +3453,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
             </div>
           </div>
 
-          {/* Floating product preview — animated report cards */}
           <div ref={parCards} className="ci-fadeup d4" style={{ position: 'relative', minHeight: 380, transition: 'transform 0.5s cubic-bezier(0.2,0.7,0.3,1)' }} aria-hidden="true">
             <div className="ci-float-card f1 glass-strong">
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -3447,7 +3488,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
         </div>
       </section>
 
-      {/* STATS strip */}
       <div className="ci-rise" style={{ maxWidth: 1140, margin: '0 auto', padding: '0 26px', marginTop: -34, position: 'relative', zIndex: 5 }}>
         <div className="glass ci-stats-strip" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderRadius: 20, overflow: 'hidden' }}>
           {stats.map((s, i) => (
@@ -3459,7 +3499,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
         </div>
       </div>
 
-      {/* FEATURE SHOWCASE */}
       <section className="ci-section-warm" style={{ marginTop: 48, padding: '56px 32px 56px', position: 'relative' }}>
         <AmbientBloom mood={mood} intensity={0.35} variant="subtle" />
         <div style={{ maxWidth: 1140, margin: '0 auto', position: 'relative', zIndex: 1 }}>
@@ -3503,7 +3542,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
         </div>
       </section>
 
-      {/* HOW IT READS — sample teaser */}
       <section style={{ maxWidth: 1140, margin: '0 auto', padding: '20px 32px 90px' }}>
         <div className="glass-strong ci-rise" style={{ borderRadius: 22, padding: 32, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', left: -80, bottom: -80, width: 320, height: 320, background: `radial-gradient(circle, ${m.orbB}, transparent 70%)`, opacity: 0.25, filter: 'blur(50px)' }} />
@@ -3521,7 +3559,6 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
               ))}
             </div>
           </div>
-
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div className="ci-light yellow" style={{ marginBottom: 12 }}>
               <div className="ci-light-orb" />
@@ -6897,6 +6934,301 @@ function StatList({ title, items, n }) {
 Object.assign(window, { TrainTab });
 </script>
 <script type="text/babel" data-presets="react">
+/* ===== ci-pricing.jsx ===== */
+// ContentIntel — Pricing (3 tiers, annual-first anchor, decoy ladder)
+
+// PASTE YOUR PAYMENT LINKS HERE (Razorpay Payment Links / Lemon Squeezy URLs).
+// Empty string = button opens the contact mail instead.
+const PAY = {
+  starter_m: '', starter_y: '',
+  pro_m: '',     pro_y: '',
+  agency_m: '',  agency_y: '',
+  contact: 'mailto:vikasbanjare94@gmail.com?subject=ContentIntel%20plan',
+};
+
+const TIERS = [
+  {
+    id: 'starter', name: 'Starter', tag: 'For getting serious',
+    m: 499, y: 4990, mood: 'cyan',
+    features: [
+      ['50 checks / month', true],
+      ['Script · Title · Ads · Ask', true],
+      ['Hook rewrites', true],
+      ['Thumbnail vision (A/B/C)', false],
+      ['Hook-locked script rewrites', false],
+      ['Studio + Platform IQ', false],
+      ['History — 7 days', true],
+    ],
+  },
+  {
+    id: 'pro', name: 'Creator Pro', tag: 'Everything, for one channel', popular: true,
+    m: 1299, y: 12990, mood: 'burgundy',
+    features: [
+      ['250 checks / month', true],
+      ['Script · Title · Ads · Ask', true],
+      ['Thumbnail vision (A/B/C compare)', true],
+      ['Hook-locked script rewrites', true],
+      ['Studio + Platform IQ', true],
+      ['Full history, forever', true],
+      ['Priority support', true],
+    ],
+  },
+  {
+    id: 'agency', name: 'Agency', tag: 'For teams & client work',
+    m: 3999, y: 39990, mood: 'violet',
+    features: [
+      ['1,000 checks / month', true],
+      ['Everything in Creator Pro', true],
+      ['5 team seats', true],
+      ['Client-ready report exports', true],
+      ['WhatsApp priority support', true],
+    ],
+  },
+];
+
+function PricingTab({ onNav }) {
+  const [annual, setAnnual] = React.useState(true);
+  const m = MOODS.burgundy;
+
+  function buy(tier) {
+    const link = PAY[tier.id + (annual ? '_y' : '_m')];
+    window.open(link || PAY.contact, '_blank', 'noopener');
+  }
+
+  return (
+    <div className="ci-work wide" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
+      <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 14px' }}>
+        <Eyebrow mood="burgundy" glow>Pricing</Eyebrow>
+        <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 52, margin: '12px 0 0', letterSpacing: '-0.01em' }}>
+          One good hook pays for the year.
+        </h2>
+        <p style={{ fontSize: 15.5, color: 'var(--text-3)', marginTop: 14, lineHeight: 1.65 }}>
+          Start with <b style={{ color: 'var(--text-1)' }}>5 free checks</b> — no card needed. Your scripts and thumbnails are never stored; only a usage count is kept.
+        </p>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 22, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)' }}>
+          <button className="pill" onClick={() => setAnnual(false)} style={{ height: 34, border: 'none', background: !annual ? 'var(--surface-3)' : 'transparent', fontWeight: !annual ? 700 : 500 }}>Monthly</button>
+          <button className="pill" onClick={() => setAnnual(true)} style={{ height: 34, border: 'none', background: annual ? 'var(--surface-3)' : 'transparent', fontWeight: annual ? 700 : 500 }}>
+            Annual&nbsp;<span style={{ color: '#8FD86A', fontSize: 11.5 }}>2 months free</span>
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18, marginTop: 30, alignItems: 'stretch', maxWidth: 1080, margin: '30px auto 0' }}>
+        {TIERS.map(t => {
+          const tm = MOODS[t.mood];
+          const monthlyEq = annual ? Math.round(t.y / 12) : t.m;
+          return (
+            <div key={t.id} className="ci-block" style={{
+              padding: 28, position: 'relative', display: 'flex', flexDirection: 'column',
+              border: t.popular ? `1.5px solid ${tm.accentFrom}` : '1px solid var(--stroke-1)',
+              boxShadow: t.popular ? `0 18px 60px ${tm.accentGlow}` : undefined,
+              transform: t.popular ? 'scale(1.03)' : 'none', zIndex: t.popular ? 1 : 0,
+            }}>
+              {t.popular && (
+                <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)', padding: '4px 14px', borderRadius: 999, fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', background: `linear-gradient(135deg, ${tm.accentFrom}, ${tm.accentTo})`, color: '#fff', whiteSpace: 'nowrap' }}>MOST POPULAR</div>
+              )}
+              <div style={{ fontSize: 13, color: tm.accentFrom, fontWeight: 700, letterSpacing: '0.04em' }}>{t.name}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-4)', marginTop: 3 }}>{t.tag}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 16 }}>
+                <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 46, color: 'var(--text-1)', letterSpacing: '-0.02em' }}>₹{monthlyEq.toLocaleString('en-IN')}</span>
+                <span style={{ fontSize: 13, color: 'var(--text-4)' }}>/month</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 4, minHeight: 16 }}>
+                {annual ? `₹${t.y.toLocaleString('en-IN')} billed yearly` : `save ₹${(t.m * 12 - t.y).toLocaleString('en-IN')}/yr on annual`}
+              </div>
+              <div style={{ marginTop: 18, display: 'flex', flexDirection: 'column', gap: 9, flex: 1 }}>
+                {t.features.map(([f, on]) => (
+                  <div key={f} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13.5, color: on ? 'var(--text-2)' : 'var(--text-5)' }}>
+                    <span style={{ color: on ? '#8FD86A' : 'var(--text-5)', fontWeight: 700, marginTop: 1 }}>{on ? '✓' : '—'}</span>
+                    <span>{f}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 22 }}>
+                {t.popular
+                  ? <GlowButton mood={t.mood} size="lg" style={{ width: '100%', justifyContent: 'center' }} onClick={() => buy(t)}>Get Creator Pro →</GlowButton>
+                  : <button className="ci-copybtn" style={{ width: '100%', height: 46, fontSize: 14 }} onClick={() => buy(t)}>Choose {t.name}</button>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: 28, fontSize: 13, color: 'var(--text-4)', lineHeight: 1.7 }}>
+        Founding-member launch: <b style={{ color: '#F0C85A' }}>40% off annual, locked for life</b> — first 100 accounts.<br/>
+        Cancel anytime · GST invoice available · <a href={PAY.contact} style={{ color: 'var(--text-3)' }}>Questions? Talk to us</a>
+      </div>
+    </div>
+  );
+}
+window.PricingTab = PricingTab;
+</script>
+<script type="text/babel" data-presets="react">
+/* ===== ci-account.jsx ===== */
+// ContentIntel — Accounts (Supabase): sign up w/ email confirmation, sign in,
+// profile + plan + usage bar, sign out. Activates ONLY when window.CI_SAAS is
+// configured (see saas/SETUP.md) — otherwise the app stays BYO-key, unchanged.
+
+const SAAS = (typeof window !== 'undefined' && window.CI_SAAS) || {};
+const saasOn = !!(SAAS.supabaseUrl && SAAS.supabaseAnonKey);
+
+// Lazy-load supabase-js only when configured (zero weight otherwise).
+let __sb = null;
+function getSupabase() {
+  return new Promise((resolve, reject) => {
+    if (__sb) return resolve(__sb);
+    if (!saasOn) return reject(new Error('SaaS not configured'));
+    const make = () => { __sb = window.supabase.createClient(SAAS.supabaseUrl, SAAS.supabaseAnonKey); resolve(__sb); };
+    if (window.supabase) return make();
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+    sc.onload = make;
+    sc.onerror = () => reject(new Error('Could not load the sign-in library.'));
+    document.head.appendChild(sc);
+  });
+}
+
+// Keep the session token globally so the engine can route through the worker.
+async function refreshSession() {
+  try {
+    const sb = await getSupabase();
+    const { data } = await sb.auth.getSession();
+    window.CI_SESSION = data.session ? data.session.access_token : null;
+    window.CI_USER = data.session ? data.session.user : null;
+    window.dispatchEvent(new Event('ci-auth'));
+    return data.session;
+  } catch (e) { return null; }
+}
+if (saasOn) refreshSession();
+window.refreshSession = refreshSession;
+
+const PLAN_LABEL = { free: 'Free — 5 checks', starter: 'Starter — 50/mo', pro: 'Creator Pro — 250/mo', agency: 'Agency — 1,000/mo' };
+const PLAN_LIMIT = { free: 5, starter: 50, pro: 250, agency: 1000 };
+
+function AccountModal({ open, onClose, onNav }) {
+  const [mode, setMode] = React.useState('signin'); // signin | signup | profile
+  const [email, setEmail] = React.useState('');
+  const [pass, setPass] = React.useState('');
+  const [msg, setMsg] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [profile, setProfile] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setMsg('');
+    refreshSession().then(sess => {
+      if (sess) { setMode('profile'); loadProfile(); }
+      else setMode('signin');
+    });
+  }, [open]);
+
+  async function loadProfile() {
+    try {
+      const sb = await getSupabase();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) return;
+      const { data } = await sb.from('profiles').select('plan, checks_used, email, full_name').eq('id', user.id).single();
+      setProfile({ ...(data || { plan: 'free', checks_used: 0 }), email: user.email });
+    } catch (e) {}
+  }
+
+  async function submit() {
+    if (!email.trim() || pass.length < 8) { setMsg('Enter your email and a password of 8+ characters.'); return; }
+    setBusy(true); setMsg('');
+    try {
+      const sb = await getSupabase();
+      if (mode === 'signup') {
+        const { error } = await sb.auth.signUp({ email: email.trim(), password: pass });
+        if (error) throw error;
+        setMsg('✓ Account created — check your inbox and click the confirmation link, then sign in.');
+        setMode('signin');
+      } else {
+        const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
+        if (error) throw error;
+        await refreshSession();
+        setMode('profile'); loadProfile();
+      }
+    } catch (e) {
+      setMsg(e.message === 'Email not confirmed' ? 'Confirm your email first — check your inbox (and spam).' : (e.message || 'Something went wrong.'));
+    }
+    setBusy(false);
+  }
+
+  async function signOut() {
+    try { const sb = await getSupabase(); await sb.auth.signOut(); } catch (e) {}
+    window.CI_SESSION = null; window.CI_USER = null;
+    window.dispatchEvent(new Event('ci-auth'));
+    onClose();
+  }
+
+  if (!open) return null;
+  const limit = profile ? (PLAN_LIMIT[profile.plan] || 5) : 5;
+  const used = profile ? (profile.checks_used || 0) : 0;
+  const pct = Math.min(100, Math.round(used / limit * 100));
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'grid', placeItems: 'center', background: 'rgba(4,6,12,0.6)', backdropFilter: 'blur(6px)' }} onClick={onClose}>
+      <div className="ci-block" style={{ width: 420, maxWidth: '92vw', padding: 28 }} onClick={e => e.stopPropagation()}>
+        {mode !== 'profile' ? (
+          <>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 28 }}>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>
+              {mode === 'signup' ? '5 free checks on us. We confirm your email — no card needed.' : 'Sign in to run checks on your plan.'}
+            </div>
+            <input className="ci-input" style={{ marginTop: 18 }} type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} />
+            <input className="ci-input" style={{ marginTop: 10 }} type="password" placeholder="Password (8+ characters)" value={pass} onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
+            {msg && <div style={{ fontSize: 12.5, marginTop: 12, lineHeight: 1.5, color: msg.startsWith('✓') ? '#8FD86A' : '#f5788c' }}>{msg}</div>}
+            <div style={{ marginTop: 16 }}>
+              <GlowButton mood="burgundy" size="lg" style={{ width: '100%', justifyContent: 'center' }} onClick={submit}>
+                {busy ? 'One moment…' : mode === 'signup' ? 'Create account →' : 'Sign in →'}
+              </GlowButton>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-4)', marginTop: 14, textAlign: 'center' }}>
+              {mode === 'signup'
+                ? <span>Already have an account? <a onClick={() => { setMode('signin'); setMsg(''); }} style={{ color: 'var(--text-2)', cursor: 'pointer', textDecoration: 'underline' }}>Sign in</a></span>
+                : <span>New here? <a onClick={() => { setMode('signup'); setMsg(''); }} style={{ color: 'var(--text-2)', cursor: 'pointer', textDecoration: 'underline' }}>Create an account — 5 free checks</a></span>}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'linear-gradient(135deg, #6A1F35, #FF4D8D)', display: 'grid', placeItems: 'center', fontWeight: 700, color: '#fff', fontSize: 16 }}>
+                {(profile?.email || 'U')[0].toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{profile?.email || '…'}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-3)' }}>{PLAN_LABEL[profile?.plan] || PLAN_LABEL.free}</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--text-3)', marginBottom: 7 }}>
+                <span>Checks used this month</span><b style={{ color: 'var(--text-1)' }}>{used} / {limit}</b>
+              </div>
+              <div style={{ height: 8, borderRadius: 5, background: 'var(--stroke-1)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: pct + '%', borderRadius: 5, background: pct > 85 ? '#F06A7E' : pct > 60 ? '#F0C85A' : '#8FD86A', transition: 'width 0.8s cubic-bezier(0.2,0.7,0.3,1)' }} />
+              </div>
+            </div>
+            {(profile?.plan || 'free') !== 'agency' && (
+              <div style={{ marginTop: 18 }}>
+                <GlowButton mood="burgundy" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { onClose(); onNav && onNav('pricing'); }}>
+                  {profile?.plan === 'free' ? 'Upgrade — from ₹499/mo →' : 'Upgrade your plan →'}
+                </GlowButton>
+              </div>
+            )}
+            <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11.5, color: 'var(--text-5)' }}>Your content is never stored — only this counter.</span>
+              <button className="ci-copybtn" style={{ height: 32 }} onClick={signOut}>Sign out</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+window.AccountModal = AccountModal;
+window.CI_SAAS_ON = saasOn;
+</script>
+<script type="text/babel" data-presets="react">
 /* ===== ci-app.jsx ===== */
 // ContentIntel -- main app
 
@@ -6913,6 +7245,7 @@ function CIApp() {
   const [tab, setTab] = React.useState('home');
   const [focusMode, setFocusMode] = React.useState(false);
   const [keyOpen, setKeyOpen] = React.useState(false);
+  const [accountOpen, setAccountOpen] = React.useState(false);
   const [hasKey, setHasKey] = React.useState(!!window.getKey());
   const [admin, setAdmin] = React.useState(window.isAdmin());
 
@@ -6963,6 +7296,7 @@ function CIApp() {
   else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
   else if (tab === 'ask') View = <AskTab onOpenKey={openKey} />;
+  else if (tab === 'pricing') View = <PricingTab onNav={nav} />;
   else if (tab === 'builder') View = <BuilderTab />;
   else if (tab === 'platform') View = <PlatformTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
@@ -7000,8 +7334,9 @@ function CIApp() {
   return (
     <div className="ci-app">
       <TopNav active={tab} onNav={nav} mood={activeMood} focusMode={focusMode} onToggleFocus={() => setFocusMode(f => !f)}
-        onOpenKey={openKey} onAdmin={onAdmin} hasKey={hasKey} admin={admin} />
+        onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
+      {window.AccountModal && <window.AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} onNav={nav} />}
 
       {/* Ambient videos: ALWAYS mounted so the browser never reloads them on tab switch.
           Visibility is controlled by opacity + CSS transition only. */}

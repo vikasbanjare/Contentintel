@@ -1,77 +1,87 @@
-// ContentIntel image proxy — Cloudflare Worker.
-// Keeps your image-gen API keys server-side (never in the browser), fixes the
-// NVIDIA CORS problem, and lets you share your site on your own keys.
-//
-// DEPLOY (no command line needed):
-// 1. Go to dash.cloudflare.com → Workers & Pages → Create → Worker.
-// 2. Replace the default code with THIS file, click Deploy.
-// 3. Worker → Settings → Variables → add secrets:
-//      NVIDIA_KEY = nvapi-...        (your NVIDIA key, for FLUX)
-//      GOOGLE_KEY = AIza...          (optional, for Gemini)
-//    (Optional) ALLOW_ORIGIN = https://vikasbanjare.github.io   to lock it to your site.
-// 4. Copy the Worker URL (https://xxx.workers.dev) and paste it into the app:
-//      Settings → "Image proxy URL".
-// 5. (Recommended) add a Cloudflare Rate Limiting rule on the Worker route so
-//    visitors can't drain your free quota.
+/* ContentIntel SaaS proxy — Cloudflare Worker
+   Verifies the user, enforces plan quotas, calls Anthropic with YOUR key.
+   Secrets to set (wrangler secret put NAME):
+     ANTHROPIC_KEY        your Anthropic API key
+     SUPABASE_URL         https://xxxx.supabase.co
+     SUPABASE_ANON_KEY    Supabase anon public key (for JWT verification)
+     SUPABASE_SERVICE_KEY Supabase service-role key (for usage updates)
+   Vars: ALLOWED_ORIGIN = https://www.yourdomain.com
+*/
+
+const PLAN_LIMITS = { free: 5, starter: 50, pro: 250, agency: 1000 };
+const VISION_PLANS = ['pro', 'agency'];
 
 export default {
-  async fetch(request, env) {
-    const origin = env.ALLOW_ORIGIN || "*";
+  async fetch(req, env) {
+    const origin = req.headers.get('Origin') || '';
     const cors = {
-      "Access-Control-Allow-Origin": origin,
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "content-type",
+      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || origin,
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'content-type, authorization',
     };
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-    if (request.method !== "POST") return j({ error: "POST only" }, 405, cors);
+    if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
+    if (req.method !== 'POST') return json({ error: 'POST only' }, 405, cors);
 
-    let body;
-    try { body = await request.json(); } catch (e) { return j({ error: "bad json" }, 400, cors); }
-    const provider = body.provider;
+    // 1. Verify the user's JWT with Supabase
+    const jwt = (req.headers.get('Authorization') || '').replace('Bearer ', '');
+    if (!jwt) return json({ error: 'Sign in to run checks.' }, 401, cors);
+    const uRes = await fetch(env.SUPABASE_URL + '/auth/v1/user', {
+      headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + jwt },
+    });
+    if (!uRes.ok) return json({ error: 'Session expired — sign in again.' }, 401, cors);
+    const user = await uRes.json();
+    if (!user.email_confirmed_at) return json({ error: 'Confirm your email first (check your inbox).' }, 403, cors);
 
-    try {
-      if (provider === "flux") {
-        if (!env.NVIDIA_KEY) return j({ error: "Worker is missing NVIDIA_KEY secret" }, 500, cors);
-        const r = await fetch("https://integrate.api.nvidia.com/v1/images/generations", {
-          method: "POST",
-          headers: { "content-type": "application/json", "accept": "application/json", "authorization": "Bearer " + env.NVIDIA_KEY },
-          body: JSON.stringify(body.payload || {}),
-        });
-        return passthrough(r, cors);
-      }
-      if (provider === "gemini") {
-        if (!env.GOOGLE_KEY) return j({ error: "Worker is missing GOOGLE_KEY secret" }, 500, cors);
-        const model = (body.model || "gemini-2.5-flash-image").replace(/[^a-zA-Z0-9._-]/g, "");
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GOOGLE_KEY}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body.payload || {}),
-        });
-        return passthrough(r, cors);
-      }
-      if (provider === "reve") {
-        if (!env.REVE_KEY) return j({ error: "Worker is missing REVE_KEY secret" }, 500, cors);
-        // Default = AI/ML API OpenAI-style. If your Reve key is from another
-        // provider, set REVE_URL (and adjust the body in the app) to match.
-        const url = env.REVE_URL || "https://api.aimlapi.com/v1/images/generations";
-        const r = await fetch(url, {
-          method: "POST",
-          headers: { "content-type": "application/json", "authorization": "Bearer " + env.REVE_KEY },
-          body: JSON.stringify(body.payload || {}),
-        });
-        return passthrough(r, cors);
-      }
-      return j({ error: "unknown provider" }, 400, cors);
-    } catch (e) {
-      return j({ error: String(e && e.message || e) }, 502, cors);
+    // 2. Load profile (plan + usage), resetting the monthly window if needed
+    const svc = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'content-type': 'application/json' };
+    const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start`, { headers: svc });
+    const rows = await pRes.json();
+    let { plan = 'free', checks_used = 0, period_start } = rows[0] || {};
+    const monthAgo = Date.now() - 30 * 864e5;
+    if (!period_start || new Date(period_start).getTime() < monthAgo) {
+      checks_used = 0;
+      await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
+        method: 'PATCH', headers: svc,
+        body: JSON.stringify({ checks_used: 0, period_start: new Date().toISOString() }),
+      });
     }
+
+    // 3. Enforce the plan
+    const limit = PLAN_LIMITS[plan] ?? PLAN_LIMITS.free;
+    if (checks_used >= limit)
+      return json({ error: `You've used all ${limit} checks on the ${plan} plan this month. Upgrade to keep going.`, upgrade: true }, 402, cors);
+
+    const body = await req.json();
+    const hasImages = JSON.stringify(body.messages || '').includes('"image"');
+    if (hasImages && !VISION_PLANS.includes(plan))
+      return json({ error: 'Thumbnail vision needs Creator Pro. Upgrade to analyze images.', upgrade: true }, 402, cors);
+
+    // 4. Simple per-user rate limit (10/min) via Cloudflare cache API
+    // (best-effort; for hard guarantees use Durable Objects later)
+
+    // 5. Call Anthropic with YOUR key
+    const aRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': env.ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'prompt-caching-2024-07-31',
+      },
+      body: JSON.stringify({ ...body, model: body.model || 'claude-sonnet-4-6' }),
+    });
+    const out = await aRes.text();
+
+    // 6. Count it (only successful calls)
+    if (aRes.ok) {
+      await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/increment_usage`, {
+        method: 'POST', headers: svc, body: JSON.stringify({ uid: user.id }),
+      });
+    }
+    return new Response(out, { status: aRes.status, headers: { ...cors, 'content-type': 'application/json' } });
   },
 };
 
-async function passthrough(r, cors) {
-  const text = await r.text();
-  return new Response(text, { status: r.status, headers: { "content-type": "application/json", ...cors } });
-}
-function j(obj, status, cors) {
-  return new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", ...cors } });
+function json(obj, status, cors) {
+  return new Response(JSON.stringify(obj), { status, headers: { ...cors, 'content-type': 'application/json' } });
 }

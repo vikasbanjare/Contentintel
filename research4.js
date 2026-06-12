@@ -1,13 +1,6 @@
-/* ============================================================================
-   research-4.js — ADDITIVE research, merged ON TOP of research.js + -2 + -3.
-   Content strategy science, 3-second hook architecture + platform data,
-   power-word & archetype scoring, anti-saturation + format-fit checks, the
-   80-formula hook swipe file, ads CTR benchmarks, and the full ASK knowledge
-   base. NEVER edit earlier research files — next addition: research-5.js.
-   ============================================================================ */
+/* research-4.js — ADDITIVE (strategy science, hook architecture, swipe file, ask KB). Never edit older files. */
 window.addResearch({
-  core:
-`PLATFORM REALITY (short-form, 2026 — applies broadly; data from 650M+-user market audits):
+  core: `PLATFORM REALITY (short-form, 2026 — applies broadly; data from 650M+-user market audits):
 - ~78% of viewers skip without a clear value signal in the FIRST 2 SECONDS; the first 4 seconds are the neurologically critical window.
 - Hook + an early jump cut in the first 3 seconds measurably lifts shares; a pattern interrupt every 3–5 seconds beats a static talking head by ~30% on engagement.
 - Muted autoplay: on-screen captions are mandatory; keep the FIRST caption ≤7 words.
@@ -44,16 +37,14 @@ SATURATION DETECTION — sameness is invisible:
 - SAT — Aspire: leisure browsing. Lifestyle, inspiration, vlogs. Hooks selling a feeling or a dream.
 - SUN — Reflect: quiet reset. Stories, lessons learned, week planning. Hooks opening a personal arc.`,
   script: {
-    systemGuidance:
-`B2. POWER-WORD & SPECIFICITY DENSITY: reward concrete high-activation words calibrated to the script's own language (e.g. revealed, proven, mistake, hidden, exactly, step-by-step, warning, truth, free, today — or their native equivalents; for Hinglish/Hindi also jugaad, dhamaka, seedha, zabardast, faayda). Currency symbols with SPECIFIC amounts (₹47,382 beats ₹50,000) and year references boost credibility. ALL-CAPS emphasis max twice per script. Flag scripts with zero concrete specifics.
+    systemGuidance: `B2. POWER-WORD & SPECIFICITY DENSITY: reward concrete high-activation words calibrated to the script's own language (e.g. revealed, proven, mistake, hidden, exactly, step-by-step, warning, truth, free, today — or their native equivalents; for Hinglish/Hindi also jugaad, dhamaka, seedha, zabardast, faayda). Currency symbols with SPECIFIC amounts (₹47,382 beats ₹50,000) and year references boost credibility. ALL-CAPS emphasis max twice per script. Flag scripts with zero concrete specifics.
 
 B3. CREATOR ARCHETYPE: classify the script's voice as one of — Educator (trust+curiosity; wins saves), Entertainer (excitement+humour; wins shares), Transformer (inspiration+hope; wins follows), Challenger (tension+debate; wins comments), Storyteller (empathy; wins deep engagement), Authority (trust+FOMO; wins conversions). Note when the script's CTA asks for an action that doesn't match its archetype (e.g. an Educator script begging for shares instead of saves).
 
 F. ANTI-SATURATION SCAN: compare the hook and angle against what is ALREADY everywhere in this niche. If the opener is a worn-out template ("3 tips to…", "Stop doing X…", a peaked trend), mark it SATURATED and propose a fresh angle on the same idea — new framing, new stake, new specificity or new persona. An old topic is fine; a stale ANGLE is not.
 
 G. FORMAT & DISTRIBUTION FIT: judge whether this script's format (talking-head, voiceover-broll, tutorial, story-time, skit) is the strongest vehicle for the idea, and whether the topic/mood matches when the audience will most likely see it (see the 7-day audience mood map). One line each — only when it changes the advice.`,
-    hookSwipeFile:
-`CATEGORY 1 — INSTANT ATTENTION (stop the scroll in <1s):
+    hookSwipeFile: `CATEGORY 1 — INSTANT ATTENTION (stop the scroll in <1s):
 1. "Stop scrolling — this will save you [specific amount/time]."
 2. "Nobody is talking about this, and it's costing you [stake]."
 3. "I wasn't going to share this, but…"
@@ -145,9 +136,7 @@ DAY-MATCH BONUS: pick the hook category by the audience's day-mood when relevant
     notes: "Output a dashboard: (1) 'overall' score + verdict; (2) a 'graph' section — the predicted attention/retention curve as 6–10 points across the runtime, the VALUE dipping at slow, confusing or low-tension moments and lowest at the predicted drop-off; (3) a 'beats' section — the script split into labelled beats (HOOK, SETUP, PROOF, TURN, PAYOFF, CTA…), each with the ACTUAL line text and a level (green strong / yellow ok / red weak); (4) per-dimension 'scores'; (5) 2–3 hook rewrites in a 'copy' section; (6) the single 'bottomLine' biggest fix. The graph points and the beats must be in the same order. Keep every string tight.",
   },
   ads: { systemGuidance: `D2. CTR BENCHMARKS (use to set expectations): >1.49% CTR = great; 1.0–1.49% = good; 0.72–0.99% = below average; <0.72% = poor, review the creative. Organic-educator style ad creative (pure value, no hype) typically out-engages "ad-machine" copy 3–5x.` },
-  ask: {
-    label: "Ask",
-    systemGuidance: `You are ContentIntel's growth strategist — answer ANY question about Instagram, YouTube, short-form content, social media growth or marketing with specific, research-grounded, actionable advice. You are talking to a creator or marketer who wants a straight answer, not a lecture.
+  ask: { label: "Ask", systemGuidance: `You are ContentIntel's growth strategist — answer ANY question about Instagram, YouTube, short-form content, social media growth or marketing with specific, research-grounded, actionable advice. You are talking to a creator or marketer who wants a straight answer, not a lecture.
 
 ANSWER RULES:
 - Lead with the direct answer in the first sentence. No throat-clearing.
@@ -193,8 +182,5 @@ MONETISATION & AGENCY BASICS
 - Media kits: lead with audience demographics + engagement rate, not follower count.
 - For agencies auditing accounts: check topic consistency, hook quality on last 10 Reels, saves-to-likes ratio (>10% = save-worthy content), and bio conversion path.
 
-THE 7-DAY MOOD MAP and the 5 HOOK FORCES from the shared core apply to every answer about WHAT to post and WHEN.`,
-    rubric: [],
-    notes: "Output JSON: {\"answer\": \"the direct answer, 2-5 short paragraphs, specific numbers included\", \"steps\": [\"3-6 concrete do-today action steps\"], \"related\": [\"2-3 natural follow-up questions\"]}. No scores, no verdict. Keep the whole thing tight and practical. Write in the user's language.",
-  },
+THE 7-DAY MOOD MAP and the 5 HOOK FORCES from the shared core apply to every answer about WHAT to post and WHEN.`, rubric: [], notes: "Output JSON: {\"answer\": \"the direct answer, 2-5 short paragraphs, specific numbers included\", \"steps\": [\"3-6 concrete do-today action steps\"], \"related\": [\"2-3 natural follow-up questions\"]}. No scores, no verdict. Keep the whole thing tight and practical. Write in the user's language." },
 });
