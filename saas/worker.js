@@ -1,15 +1,3 @@
-/* ContentIntel SaaS proxy — Cloudflare Worker
-   Verifies the user, enforces plan quotas, calls Anthropic with YOUR key.
-   Secrets to set (wrangler secret put NAME):
-     ANTHROPIC_KEY        your Anthropic API key
-     SUPABASE_URL         https://xxxx.supabase.co
-     SUPABASE_ANON_KEY    Supabase anon public key (for JWT verification)
-     SUPABASE_SERVICE_KEY Supabase service-role key (for usage updates)
-   Vars: ALLOWED_ORIGIN = https://www.yourdomain.com
-*/
-
-// CREDIT SYSTEM: plans grant credits; the user picks an engine; each engine
-// burns credits at its real API-cost ratio. Server-enforced.
 const PLAN_CREDITS = { free: 15, starter: 150, pro: 750, agency: 3000 };
 const ENGINES = {
   quick: { id: 'claude-haiku-4-5-20251001', credits: 1 },
