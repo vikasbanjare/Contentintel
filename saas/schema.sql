@@ -4,6 +4,9 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   full_name text,
+  phone text,
+  persona text,
+  platform text,
   plan text not null default 'free',          -- free | starter | pro | agency
   checks_used int not null default 0,
   period_start timestamptz default now(),
@@ -25,7 +28,15 @@ create policy "update own name" on public.profiles
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer as $$
 begin
-  insert into public.profiles (id, email) values (new.id, new.email);
+  insert into public.profiles (id, email, full_name, phone, persona, platform)
+  values (
+    new.id,
+    new.email,
+    new.raw_user_meta_data->>'full_name',
+    new.raw_user_meta_data->>'phone',
+    new.raw_user_meta_data->>'persona',
+    new.raw_user_meta_data->>'platform'
+  );
   return new;
 end $$;
 drop trigger if exists on_auth_user_created on auth.users;
