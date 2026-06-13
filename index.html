@@ -4695,7 +4695,8 @@ function ThumbnailTab({ onOpenKey }) {
   const schemeOpts = ['Auto-detect', ...((TLib.colorSchemes || []).map(x => x.name))];
   const nicheOpts = ['Auto-detect', ...((window.nicheNames && window.nicheNames('thumbnail')) || []), 'None (universal)'];
 
-  const hasVision = !!window.getKey(); // image vision only works with an API key; the free Claude AI is text-only
+  // Vision works with a personal key OR when signed in through the Worker (owner key).
+  const hasVision = !!window.getKey() || !!(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS || {}).workerUrl);
   const targetLine =
     (layout !== 'Auto-detect' ? `Target layout archetype: ${layout}\n` : '') +
     (scheme !== 'Auto-detect' ? `Target colour scheme: ${scheme}\n` : '') +
