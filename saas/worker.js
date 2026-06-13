@@ -37,10 +37,21 @@ export default {
     const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start`, { headers: svc });
     const rows = await pRes.json();
     let { plan = 'free', checks_used = 0, period_start } = rows[0] || {};
-    // Closed-alpha approval gate: 'pending' (the default for new signups) is
-    // blocked until the owner sets their plan to beta/pro/etc in Supabase.
-    if ((PLAN_CREDITS[plan] ?? 0) === 0)
-      return json({ error: "Your account is pending approval. You'll get access as soon as the team lets you in.", pending: true }, 403, cors);
+    // Closed-alpha approval gate. 'pending' (default for new signups) is locked.
+    // AUTO-APPROVE: if the user signed up with a valid invite code (set in the
+    // Worker variable INVITE_CODES, comma-separated), promote them to 'beta'.
+    if ((PLAN_CREDITS[plan] ?? 0) === 0) {
+      const codes = String(env.INVITE_CODES || '').split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
+      const userCode = String((user.user_metadata && user.user_metadata.invite_code) || '').trim().toLowerCase();
+      if (userCode && codes.includes(userCode)) {
+        plan = 'beta';
+        await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
+          method: 'PATCH', headers: svc, body: JSON.stringify({ plan: 'beta' }),
+        });
+      } else {
+        return json({ error: "Your account is pending approval. Enter a valid invite code, or the team will let you in shortly.", pending: true }, 403, cors);
+      }
+    }
     const monthAgo = Date.now() - 30 * 864e5;
     if (!period_start || new Date(period_start).getTime() < monthAgo) {
       checks_used = 0;

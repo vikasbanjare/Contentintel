@@ -7458,6 +7458,7 @@ function AuthGate({ onAuthed }) {
   const [phone, setPhone] = React.useState('');
   const [persona, setPersona] = React.useState('');
   const [platform, setPlatform] = React.useState('');
+  const [invite, setInvite] = React.useState('');
   const [msg, setMsg] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
@@ -7472,7 +7473,7 @@ function AuthGate({ onAuthed }) {
     if (mode === 'signup' && !name.trim()) { setMsg('Please enter your name.'); return; }
     if (!em || !/.+@.+\..+/.test(em)) { setMsg('Enter a valid email address.'); return; }
     if (saasOn && pass.length < 8) { setMsg('Password must be at least 8 characters.'); return; }
-    const meta = { full_name: name.trim(), phone: phone.trim(), persona, platform };
+    const meta = { full_name: name.trim(), phone: phone.trim(), persona, platform, invite_code: invite.trim() };
     setBusy(true); setMsg('');
     try {
       if (saasOn && window.ciGetSupabase) {
@@ -7568,6 +7569,8 @@ function AuthGate({ onAuthed }) {
                 <option>TikTok</option>
                 <option>Other</option>
               </select>
+              <input className="ci-input" style={{ marginTop: 10 }} type="text" placeholder="Invite code (if you have one)" value={invite}
+                onChange={e => setInvite(e.target.value)} />
             </>
           )}
           {msg && <div style={{ fontSize: 12.5, marginTop: 12, lineHeight: 1.5, color: msg.startsWith('✓') ? '#8FD86A' : '#f5788c' }}>{msg}</div>}
