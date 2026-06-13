@@ -2836,7 +2836,7 @@ function useAnalysis(type) {
 }
 
 // ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
-function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model }) {
+function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model, disabled, disabledHint }) {
   const inTok = estIn + 0;
   const total = inTok + CI_OUTPUT_GUESS;
   const cost = estCost(inTok, CI_OUTPUT_GUESS, model);
@@ -2844,7 +2844,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
   const free = !hasKey && hasSandbox(); // free Claude preview AI
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-      <GlowButton mood={mood} size="lg" onClick={onClick} style={{ justifyContent: "center" }}>
+      <GlowButton mood={mood} size="lg" onClick={disabled ? undefined : onClick}
+        style={{ justifyContent: "center", opacity: disabled ? 0.45 : 1, cursor: disabled ? "not-allowed" : "pointer", filter: disabled ? "saturate(0.4)" : "none" }}>
         {loading ? (
           <>
             <span style={{ display: "inline-block", width: 13, height: 13, border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "50%" }} className="spin" />
@@ -2857,7 +2858,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
         )}
       </GlowButton>
       <span className="ci-est">
-        est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}
+        {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · free preview AI</span>}
         {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only -- add your key</span>}
       </span>
@@ -3298,7 +3299,7 @@ function ThemeToggle() {
 }
 window.ThemeToggle = ThemeToggle;
 
-function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
+function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
   return (
     <nav className="ci-nav">
@@ -3346,17 +3347,6 @@ function TopNav({ active, onNav, mood, focusMode, onToggleFocus, onOpenKey, onAd
         </button>
       )}
       <ThemeToggle />
-
-      <button className="ci-iconbtn" title="Toggle focus mode" onClick={onToggleFocus}>
-        {focusMode
-          ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4"/></svg>
-          : <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M13 9.5A5.5 5.5 0 016.5 3a5.5 5.5 0 106.5 6.5z"/></svg>}
-      </button>
-      <div style={{
-        width: 30, height: 30, borderRadius: '50%',
-        background: `linear-gradient(135deg, #6A1F35, #FF4D8D)`,
-        display: 'grid', placeItems: 'center', fontWeight: 600, fontSize: 12, color: '#fff',
-      }}>EM</div>
     </nav>
   );
 }
@@ -4052,7 +4042,8 @@ function ScriptTab({ onOpenKey }) {
   const userText = baseText + hookUpgradeAsk;
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
-  function check() { run({ userText, maxTokens: 4500 }); }
+  const ready = text.trim().split(/\s+/).filter(Boolean).length >= 10;
+  function check() { if (!ready) return; run({ userText, maxTokens: 4500 }); }
 
   // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
@@ -4082,6 +4073,7 @@ function ScriptTab({ onOpenKey }) {
   // from the report and maps each weak area to a specific proven technique
   // (hook types, open-loop stacking, STEPPS, hook swipe-file templates).
   async function doRewrite() {
+    if (!text.trim()) { setRewrite(r => ({ ...r, loading: false, out: 'Paste a script first — there is nothing to rewrite yet.' })); return; }
     setRewrite(r => ({ ...r, loading: true, out: null }));
     try {
       const scriptR = window.getResearch('script');
@@ -4280,7 +4272,8 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script" />
+          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script"
+            disabled={!ready} disabledHint={text.trim() ? 'Script is too short to analyze — paste the full script (10+ words).' : 'Paste your script first — nothing to check yet.'} />
         </div>
       </SB>
 
@@ -4640,7 +4633,10 @@ function ThumbnailTab({ onOpenKey }) {
   const [genPrompt, setGenPrompt] = React.useState('');
   // Output headroom: A/B/C produces 3 full analyses + a winner, so it needs more
   // room or the JSON truncates and the report comes back broken/empty.
-  function check() { run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
+  // Every compared slot needs an image or a written description — otherwise
+  // there is literally nothing to judge and the call would waste tokens.
+  const slotsReady = Array.from({ length: count }).every((_, i) => imgsAll[i] || descsAll[i].trim().length >= 12);
+  function check() { if (!slotsReady) return; run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -4768,7 +4764,8 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         </details>
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'} /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
+          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail (or describe it) first — nothing to check yet.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -4888,7 +4885,8 @@ function TitleTab({ onOpenKey }) {
       ? `\nTITLE B: ${titleB}\n\nCompare title A and title B and declare the winner (fill the "winner" field). Then provide 10 alternative titles, each labelled with its angle.`
       : `\n\nEvaluate this title and provide 10 alternative titles, each labelled with its angle.`);
   const estIn = window.estTokens(window.buildSystem('title'), userText);
-  function check() { run({ userText, maxTokens: 2800 }); }
+  const titleReady = title.trim().length >= 4 && (!compare || titleB.trim().length >= 4);
+  function check() { if (!titleReady) return; run({ userText, maxTokens: 2800 }); }
 
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
@@ -4928,7 +4926,8 @@ function TitleTab({ onOpenKey }) {
             <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good -- under 60' : 'Long -- may truncate'}
           </span>
         </div>
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title" /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title"
+          disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
@@ -5018,7 +5017,8 @@ function AdsTab({ onOpenKey }) {
     `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
     `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  function check() { run({ userText, maxTokens: 2200 }); }
+  const adReady = primary.trim().length >= 12;
+  function check() { if (!adReady) return; run({ userText, maxTokens: 2200 }); }
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -5059,7 +5059,8 @@ function AdsTab({ onOpenKey }) {
           </div>
         )}
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad" /></div>
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad"
+          disabled={!adReady} disabledHint="Write your ad's main text first — nothing to check yet." /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
@@ -5136,6 +5137,7 @@ function HistoryTab() {
   const TYPE_LABEL = { script: 'Script', thumbnail: 'Thumbnail', title: 'Title', ads: 'Ads', ask: 'Ask' };
   const tmoodOf = { script: 'navy', thumbnail: 'ember', title: 'cyan', ads: 'violet', ask: 'violet' };
   const filtered = filter === 'All' ? items : items.filter(i => TYPE_LABEL[i.type] === filter.replace(/s$/, ''));
+  React.useEffect(() => { setOpenIdx(-1); }, [filter]);
   function clearAll() { window.clearHistory && window.clearHistory(); setItems([]); }
 
   return (
@@ -6990,11 +6992,12 @@ const TIERS = [
   },
 ];
 
-function PricingTab({ onNav }) {
+function PricingTab({ onNav, gate, onSkip }) {
   const [annual, setAnnual] = React.useState(true);
   const m = MOODS.burgundy;
 
   function buy(tier) {
+    if (gate) { onSkip && onSkip(); return; }  // payment not wired yet -- let them in
     const link = PAY[tier.id + (annual ? '_y' : '_m')];
     window.open(link || PAY.contact, '_blank', 'noopener');
   }
@@ -7009,6 +7012,14 @@ function PricingTab({ onNav }) {
         <p style={{ fontSize: 15.5, color: 'var(--text-3)', marginTop: 14, lineHeight: 1.65 }}>
           Start with <b style={{ color: 'var(--text-1)' }}>15 free credits</b> — no card needed. Pick your engine per check: Quick (1 credit), Smart (3), Max (5). Your scripts and thumbnails are never stored; only a usage count is kept.
         </p>
+        {gate && (
+          <div style={{ marginTop: 18 }}>
+            <button className="ci-ghostbtn" style={{ height: 44, padding: '0 22px', fontSize: 14.5 }} onClick={onSkip}>
+              Skip for now — start with free credits →
+            </button>
+            <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 9 }}>You can upgrade anytime from your account.</div>
+          </div>
+        )}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 22, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)' }}>
           <button className="pill" onClick={() => setAnnual(false)} style={{ height: 34, border: 'none', background: !annual ? 'var(--surface-3)' : 'transparent', fontWeight: !annual ? 700 : 500 }}>Monthly</button>
           <button className="pill" onClick={() => setAnnual(true)} style={{ height: 34, border: 'none', background: annual ? 'var(--surface-3)' : 'transparent', fontWeight: annual ? 700 : 500 }}>
@@ -7105,6 +7116,7 @@ async function refreshSession() {
 }
 if (saasOn) refreshSession();
 window.refreshSession = refreshSession;
+window.ciGetSupabase = getSupabase;  // let the onboarding gate reuse the client
 
 const PLAN_LABEL = { free: 'Free — 15 credits', starter: 'Starter — 150 credits/mo', pro: 'Creator Pro — 750 credits/mo', agency: 'Agency — 3,000 credits/mo' };
 const PLAN_LIMIT = { free: 15, starter: 150, pro: 750, agency: 3000 };
@@ -7263,6 +7275,136 @@ window.AccountModal = AccountModal;
 window.CI_SAAS_ON = saasOn;
 </script>
 <script type="text/babel" data-presets="react">
+/* ===== ci-gate.jsx ===== */
+// ContentIntel -- onboarding gate. First-time visitors land here:
+//   welcome / sign-in  ->  pricing (skippable)  ->  the app.
+// Works TODAY in "early access" mode (email capture, no backend) and upgrades
+// to real Supabase accounts + email confirmation the moment CI_SAAS is set.
+
+const GATE_KEY = 'ci_onboarded';
+const EMAIL_KEY = 'ci_user_email';
+function gateDone()  { try { return localStorage.getItem(GATE_KEY) === '1'; } catch (e) { return false; } }
+function markOnboarded(email) {
+  try { localStorage.setItem(GATE_KEY, '1'); if (email) localStorage.setItem(EMAIL_KEY, email); } catch (e) {}
+}
+function gateReset() { try { localStorage.removeItem(GATE_KEY); } catch (e) {} }
+window.ciGateDone = gateDone;
+window.ciGateReset = gateReset;
+
+function AuthGate({ onAuthed }) {
+  const m = MOODS.burgundy;
+  const saasOn = !!window.CI_SAAS_ON;
+  const [mode, setMode] = React.useState('signup'); // signup | signin
+  const [email, setEmail] = React.useState('');
+  const [pass, setPass] = React.useState('');
+  const [msg, setMsg] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => {
+    const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && e.target.classList.add('in')), { threshold: 0.1 });
+    document.querySelectorAll('.ci-gate .ci-rise').forEach(el => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  async function submit() {
+    const em = email.trim();
+    if (!em || !/.+@.+\..+/.test(em)) { setMsg('Enter a valid email address.'); return; }
+    if (saasOn && pass.length < 8) { setMsg('Password must be at least 8 characters.'); return; }
+    setBusy(true); setMsg('');
+    try {
+      if (saasOn && window.ciGetSupabase) {
+        const sb = await window.ciGetSupabase();
+        if (mode === 'signup') {
+          const { error } = await sb.auth.signUp({ email: em, password: pass });
+          if (error) throw error;
+          setMsg('✓ Account created — check your inbox, click the confirmation link, then sign in.');
+          setMode('signin'); setBusy(false); return;
+        }
+        const { error } = await sb.auth.signInWithPassword({ email: em, password: pass });
+        if (error) throw error;
+        await window.refreshSession();
+      }
+      markOnboarded(em);
+      onAuthed();
+    } catch (e) {
+      setMsg(e.message === 'Email not confirmed' ? 'Confirm your email first — check your inbox (and spam).' : (e.message || 'Something went wrong.'));
+      setBusy(false);
+    }
+  }
+
+  const bullets = [
+    ['Script', 'Hook, retention & a stronger rewrite — line by line'],
+    ['Thumbnail', 'Will it earn the click? A/B/C compare + redesign prompts'],
+    ['Title · Ads · Ask', 'Angles, limits, and straight answers on growth'],
+  ];
+
+  return (
+    <div className="ci-gate ci-hero-aurora" style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1.05fr 0.95fr', position: 'relative', overflow: 'hidden' }}>
+      <div className="ci-aurora-wrap" aria-hidden="true">
+        <div className="ci-aurora-orb a" /><div className="ci-aurora-orb b" /><div className="ci-aurora-orb c" /><div className="ci-aurora-sweep" /><div className="ci-hero-grid" />
+      </div>
+
+      {/* Left: the pitch */}
+      <div className="ci-gate-pitch" style={{ position: 'relative', zIndex: 2, padding: '56px 56px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div className="ci-rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 11, marginBottom: 26 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800 }}>◈</div>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 18 }}>ContentIntel</span>
+        </div>
+        <h1 className="ci-rise" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 62, lineHeight: 1.05, letterSpacing: '-0.02em', margin: 0, color: 'var(--text-1)' }}>
+          Know it&rsquo;ll work<br/><span className="ci-grad-text" style={{ fontStyle: 'italic' }}>before you post.</span>
+        </h1>
+        <p className="ci-rise" style={{ fontSize: 16.5, color: 'var(--text-2)', marginTop: 20, maxWidth: 440, lineHeight: 1.6 }}>
+          The pre-publish checker for creators. Grade your script, thumbnail, title and ads the way the algorithm does — fixed before they go live.
+        </p>
+        <div className="ci-rise" style={{ marginTop: 30, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {bullets.map(([h, d]) => (
+            <div key={h} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <span style={{ color: '#8FD86A', fontWeight: 800, marginTop: 1 }}>✓</span>
+              <span style={{ fontSize: 14.5, color: 'var(--text-2)' }}><b style={{ color: 'var(--text-1)' }}>{h}</b> — {d}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: the auth card */}
+      <div style={{ position: 'relative', zIndex: 2, display: 'grid', placeItems: 'center', padding: '40px 48px' }}>
+        <div className="ci-block ci-rise" style={{ width: '100%', maxWidth: 380, padding: 30 }}>
+          <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 29 }}>{mode === 'signup' ? 'Get started free' : 'Welcome back'}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>
+            {mode === 'signup'
+              ? (saasOn ? '5 free checks on us — we just confirm your email. No card.' : 'Enter your email to get early access. No card needed.')
+              : 'Sign in to pick up where you left off.'}
+          </div>
+          <input className="ci-input" style={{ marginTop: 18 }} type="email" placeholder="you@email.com" value={email}
+            onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
+          {saasOn && (
+            <input className="ci-input" style={{ marginTop: 10 }} type="password" placeholder="Password (8+ characters)" value={pass}
+              onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
+          )}
+          {msg && <div style={{ fontSize: 12.5, marginTop: 12, lineHeight: 1.5, color: msg.startsWith('✓') ? '#8FD86A' : '#f5788c' }}>{msg}</div>}
+          <div style={{ marginTop: 16 }}>
+            <GlowButton mood="burgundy" size="lg" style={{ width: '100%', justifyContent: 'center' }} onClick={submit}>
+              {busy ? 'One moment…' : mode === 'signup' ? (saasOn ? 'Create account →' : 'Get started →') : 'Sign in →'}
+            </GlowButton>
+          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-4)', marginTop: 14, textAlign: 'center' }}>
+            {mode === 'signup'
+              ? <span>Already with us? <a onClick={() => { setMode('signin'); setMsg(''); }} style={{ color: 'var(--text-2)', cursor: 'pointer', textDecoration: 'underline' }}>Sign in</a></span>
+              : <span>New here? <a onClick={() => { setMode('signup'); setMsg(''); }} style={{ color: 'var(--text-2)', cursor: 'pointer', textDecoration: 'underline' }}>Create an account</a></span>}
+          </div>
+          {!saasOn && (
+            <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 14, textAlign: 'center', lineHeight: 1.5 }}>
+              Early access — your email is stored only on this device for now.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+window.AuthGate = AuthGate;
+</script>
+<script type="text/babel" data-presets="react">
 /* ===== ci-app.jsx ===== */
 // ContentIntel -- main app
 
@@ -7277,11 +7419,14 @@ function CIApp() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const theme = useCITheme();
   const [tab, setTab] = React.useState('home');
-  const [focusMode, setFocusMode] = React.useState(false);
   const [keyOpen, setKeyOpen] = React.useState(false);
   const [accountOpen, setAccountOpen] = React.useState(false);
   const [hasKey, setHasKey] = React.useState(!!window.getKey());
   const [admin, setAdmin] = React.useState(window.isAdmin());
+  const [gateStep, setGateStep] = React.useState(() => {
+    try { if (new URLSearchParams(location.search).get('admin')) return null; } catch (e) {}
+    return (window.ciGateDone && window.ciGateDone()) ? null : 'welcome';
+  });
 
   React.useEffect(() => {
     const root = document.documentElement;
@@ -7296,12 +7441,6 @@ function CIApp() {
     root.style.setProperty('--bloom-mul', t.bloomIntensity);
   }, [t.typeSet, t.density, t.bloomIntensity]);
 
-  // focus mode dims ambient bloom
-  React.useEffect(() => {
-    let el = document.getElementById('ci-focus-style');
-    if (!el) { el = document.createElement('style'); el.id = 'ci-focus-style'; document.head.appendChild(el); }
-    el.textContent = focusMode ? '.bloom-orb,.ci-hero-video{opacity:0.12 !important}.ci-hero-scrim{background:#07090E !important}' : '';
-  }, [focusMode]);
 
   const activeMood = tab === 'home' ? t.homeAccent
     : (window.CI_TABS.find(x => x.id === tab) || {}).mood || 'burgundy';
@@ -7365,9 +7504,22 @@ function CIApp() {
   const ambientLight = V.ambientLight || V.ambientDark || '';
   const onTool = tab !== 'home';
 
+  if (gateStep === 'welcome') {
+    return <AuthGate onAuthed={() => setGateStep('pricing')} />;
+  }
+  if (gateStep === 'pricing') {
+    return (
+      <div className="ci-app">
+        <div className="ci-scroll" style={{ minHeight: '100vh', paddingTop: 40 }}>
+          <PricingTab gate onSkip={() => setGateStep(null)} onNav={nav} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="ci-app">
-      <TopNav active={tab} onNav={nav} mood={activeMood} focusMode={focusMode} onToggleFocus={() => setFocusMode(f => !f)}
+      <TopNav active={tab} onNav={nav} mood={activeMood}
         onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
       {window.AccountModal && <window.AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} onNav={nav} />}
