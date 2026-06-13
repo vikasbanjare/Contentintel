@@ -1,4 +1,4 @@
-const PLAN_CREDITS = { free: 15, starter: 150, pro: 750, agency: 3000 };
+const PLAN_CREDITS = { pending: 0, free: 15, beta: 120, starter: 150, pro: 750, agency: 3000 };
 const ENGINES = {
   quick: { id: 'claude-haiku-4-5-20251001', credits: 1 },
   smart: { id: 'claude-sonnet-4-6',         credits: 3 },
@@ -6,10 +6,10 @@ const ENGINES = {
 };
 // Which engines each plan may use (Max/Opus is a Pro+ perk - sells upgrades).
 const PLAN_ENGINES = {
-  free: ['quick'], starter: ['quick', 'smart'],
-  pro: ['quick', 'smart', 'max'], agency: ['quick', 'smart', 'max'],
+  pending: [], free: ['quick'], beta: ['quick', 'smart', 'max'],
+  starter: ['quick', 'smart'], pro: ['quick', 'smart', 'max'], agency: ['quick', 'smart', 'max'],
 };
-const VISION_PLANS = ['pro', 'agency'];
+const VISION_PLANS = ['beta', 'pro', 'agency'];
 
 export default {
   async fetch(req, env) {
@@ -37,6 +37,10 @@ export default {
     const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start`, { headers: svc });
     const rows = await pRes.json();
     let { plan = 'free', checks_used = 0, period_start } = rows[0] || {};
+    // Closed-alpha approval gate: 'pending' (the default for new signups) is
+    // blocked until the owner sets their plan to beta/pro/etc in Supabase.
+    if ((PLAN_CREDITS[plan] ?? 0) === 0)
+      return json({ error: "Your account is pending approval. You'll get access as soon as the team lets you in.", pending: true }, 403, cors);
     const monthAgo = Date.now() - 30 * 864e5;
     if (!period_start || new Date(period_start).getTime() < monthAgo) {
       checks_used = 0;
