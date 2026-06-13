@@ -34,6 +34,7 @@ async function refreshSession() {
 }
 if (saasOn) refreshSession();
 window.refreshSession = refreshSession;
+window.ciGetSupabase = getSupabase;  // let the onboarding gate reuse the client
 
 const PLAN_LABEL = { free: 'Free — 15 credits', starter: 'Starter — 150 credits/mo', pro: 'Creator Pro — 750 credits/mo', agency: 'Agency — 3,000 credits/mo' };
 const PLAN_LIMIT = { free: 15, starter: 150, pro: 750, agency: 3000 };

@@ -15,6 +15,10 @@ function CIApp() {
   const [accountOpen, setAccountOpen] = React.useState(false);
   const [hasKey, setHasKey] = React.useState(!!window.getKey());
   const [admin, setAdmin] = React.useState(window.isAdmin());
+  const [gateStep, setGateStep] = React.useState(() => {
+    try { if (new URLSearchParams(location.search).get('admin')) return null; } catch (e) {}
+    return (window.ciGateDone && window.ciGateDone()) ? null : 'welcome';
+  });
 
   React.useEffect(() => {
     const root = document.documentElement;
@@ -91,6 +95,19 @@ function CIApp() {
   const ambientDark  = V.ambientDark  || '';
   const ambientLight = V.ambientLight || V.ambientDark || '';
   const onTool = tab !== 'home';
+
+  if (gateStep === 'welcome') {
+    return <AuthGate onAuthed={() => setGateStep('pricing')} />;
+  }
+  if (gateStep === 'pricing') {
+    return (
+      <div className="ci-app">
+        <div className="ci-scroll" style={{ minHeight: '100vh', paddingTop: 40 }}>
+          <PricingTab gate onSkip={() => setGateStep(null)} onNav={nav} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ci-app">

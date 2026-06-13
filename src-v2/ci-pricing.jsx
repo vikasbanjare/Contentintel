@@ -53,11 +53,12 @@ const TIERS = [
   },
 ];
 
-function PricingTab({ onNav }) {
+function PricingTab({ onNav, gate, onSkip }) {
   const [annual, setAnnual] = React.useState(true);
   const m = MOODS.burgundy;
 
   function buy(tier) {
+    if (gate) { onSkip && onSkip(); return; }  // payment not wired yet -- let them in
     const link = PAY[tier.id + (annual ? '_y' : '_m')];
     window.open(link || PAY.contact, '_blank', 'noopener');
   }
@@ -72,6 +73,14 @@ function PricingTab({ onNav }) {
         <p style={{ fontSize: 15.5, color: 'var(--text-3)', marginTop: 14, lineHeight: 1.65 }}>
           Start with <b style={{ color: 'var(--text-1)' }}>15 free credits</b> — no card needed. Pick your engine per check: Quick (1 credit), Smart (3), Max (5). Your scripts and thumbnails are never stored; only a usage count is kept.
         </p>
+        {gate && (
+          <div style={{ marginTop: 18 }}>
+            <button className="ci-ghostbtn" style={{ height: 44, padding: '0 22px', fontSize: 14.5 }} onClick={onSkip}>
+              Skip for now — start with free credits →
+            </button>
+            <div style={{ fontSize: 12, color: 'var(--text-5)', marginTop: 9 }}>You can upgrade anytime from your account.</div>
+          </div>
+        )}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 22, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)' }}>
           <button className="pill" onClick={() => setAnnual(false)} style={{ height: 34, border: 'none', background: !annual ? 'var(--surface-3)' : 'transparent', fontWeight: !annual ? 700 : 500 }}>Monthly</button>
           <button className="pill" onClick={() => setAnnual(true)} style={{ height: 34, border: 'none', background: annual ? 'var(--surface-3)' : 'transparent', fontWeight: annual ? 700 : 500 }}>
