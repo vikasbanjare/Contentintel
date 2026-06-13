@@ -4,7 +4,7 @@ const ENGINES = {
   smart: { id: 'claude-sonnet-4-6',         credits: 3 },
   max:   { id: 'claude-opus-4-8',           credits: 5 },
 };
-// Which engines each plan may use (Max/Opus is a Pro+ perk — sells upgrades).
+// Which engines each plan may use (Max/Opus is a Pro+ perk - sells upgrades).
 const PLAN_ENGINES = {
   free: ['quick'], starter: ['quick', 'smart'],
   pro: ['quick', 'smart', 'max'], agency: ['quick', 'smart', 'max'],
@@ -28,7 +28,7 @@ export default {
     const uRes = await fetch(env.SUPABASE_URL + '/auth/v1/user', {
       headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + jwt },
     });
-    if (!uRes.ok) return json({ error: 'Session expired — sign in again.' }, 401, cors);
+    if (!uRes.ok) return json({ error: 'Session expired - sign in again.' }, 401, cors);
     const user = await uRes.json();
     if (!user.email_confirmed_at) return json({ error: 'Confirm your email first (check your inbox).' }, 403, cors);
 
