@@ -12,6 +12,7 @@ function markOnboarded(email) {
 function gateReset() { try { localStorage.removeItem(GATE_KEY); } catch (e) {} }
 window.ciGateDone = gateDone;
 window.ciGateReset = gateReset;
+window.ciMarkOnboarded = markOnboarded;
 
 function AuthGate({ onAuthed }) {
   const m = MOODS.burgundy;
@@ -32,6 +33,14 @@ function AuthGate({ onAuthed }) {
     document.querySelectorAll('.ci-gate .ci-rise').forEach(el => io.observe(el));
     return () => io.disconnect();
   }, []);
+
+  async function google() {
+    try {
+      const sb = await window.ciGetSupabase();
+      if (invite.trim()) { try { localStorage.setItem('ci_pending_invite', invite.trim()); } catch (e) {} }
+      await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+    } catch (e) { setMsg('Could not start Google sign-in — try email instead.'); }
+  }
 
   async function submit() {
     const em = email.trim();
@@ -104,8 +113,19 @@ function AuthGate({ onAuthed }) {
               ? (saasOn ? '5 free checks on us — we just confirm your email. No card.' : 'Enter your email to get early access. No card needed.')
               : 'Sign in to pick up where you left off.'}
           </div>
+          {saasOn && (
+            <>
+              <button type="button" onClick={google} style={{ width: '100%', height: 46, marginTop: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 12, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)', color: 'var(--text-1)', fontSize: 14.5, fontWeight: 600, cursor: 'pointer' }}>
+                <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.6 9.2c0-.6-.05-1.18-.16-1.74H9v3.34h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.9c1.7-1.57 2.68-3.88 2.68-6.58z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.93v2.33A9 9 0 009 18z"/><path fill="#FBBC05" d="M3.95 10.7a5.4 5.4 0 010-3.4V4.97H.93a9 9 0 000 8.06l3.02-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A9 9 0 00.93 4.97L3.95 7.3C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+                Continue with Google
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0 2px', color: 'var(--text-5)', fontSize: 11.5 }}>
+                <span style={{ flex: 1, height: 1, background: 'var(--stroke-1)' }} /> or use email <span style={{ flex: 1, height: 1, background: 'var(--stroke-1)' }} />
+              </div>
+            </>
+          )}
           {mode === 'signup' && (
-            <input className="ci-input" style={{ marginTop: 18 }} type="text" placeholder="Your name" value={name}
+            <input className="ci-input" style={{ marginTop: 12 }} type="text" placeholder="Your name" value={name}
               onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
           )}
           <input className="ci-input" style={{ marginTop: mode === 'signup' ? 10 : 18 }} type="email" placeholder="you@email.com" value={email}

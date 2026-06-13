@@ -17,8 +17,20 @@ function CIApp() {
   const [admin, setAdmin] = React.useState(window.isAdmin());
   const [gateStep, setGateStep] = React.useState(() => {
     try { if (new URLSearchParams(location.search).get('admin')) return null; } catch (e) {}
+    if (typeof window !== 'undefined' && window.CI_SESSION) return null;
     return (window.ciGateDone && window.ciGateDone()) ? null : 'welcome';
   });
+  // A signed-in session (incl. after a Google redirect) sends the user straight in.
+  React.useEffect(() => {
+    const f = () => {
+      if (typeof window !== 'undefined' && window.CI_SESSION) {
+        try { window.ciMarkOnboarded && window.ciMarkOnboarded(window.CI_USER && window.CI_USER.email); } catch (e) {}
+        setGateStep(g => (g ? null : g));
+      }
+    };
+    window.addEventListener('ci-auth', f); f();
+    return () => window.removeEventListener('ci-auth', f);
+  }, []);
 
   React.useEffect(() => {
     const root = document.documentElement;

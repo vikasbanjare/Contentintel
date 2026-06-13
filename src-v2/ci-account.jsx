@@ -32,7 +32,29 @@ async function refreshSession() {
     return data.session;
   } catch (e) { return null; }
 }
-if (saasOn) refreshSession();
+// After an OAuth (Google) redirect, apply the invite code the user typed
+// before they were sent to Google, so the Worker can auto-approve them.
+async function applyPendingInvite(sb, session) {
+  try {
+    if (!session || !session.user) return;
+    const code = localStorage.getItem('ci_pending_invite');
+    if (!code) return;
+    const existing = session.user.user_metadata && session.user.user_metadata.invite_code;
+    if (!existing) await sb.auth.updateUser({ data: { invite_code: code } });
+    localStorage.removeItem('ci_pending_invite');
+  } catch (e) {}
+}
+if (saasOn) {
+  getSupabase().then(sb => {
+    sb.auth.onAuthStateChange((_evt, session) => {
+      window.CI_SESSION = session ? session.access_token : null;
+      window.CI_USER = session ? session.user : null;
+      applyPendingInvite(sb, session);
+      try { window.dispatchEvent(new Event('ci-auth')); } catch (e) {}
+    });
+  }).catch(() => {});
+  refreshSession();
+}
 window.refreshSession = refreshSession;
 window.ciGetSupabase = getSupabase;  // let the onboarding gate reuse the client
 
