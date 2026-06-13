@@ -2276,6 +2276,14 @@ function saveHistory(rec) {
   } catch (e) {}
 }
 function clearHistory() { try { localStorage.removeItem(LS_HISTORY); } catch (e) {} }
+// Merge a patch into one saved history entry (matched by its timestamp).
+function updateHistory(t, patch) {
+  try {
+    const arr = loadHistory().map(it => it.t === t ? { ...it, ...patch } : it);
+    localStorage.setItem(LS_HISTORY, JSON.stringify(arr));
+    return arr;
+  } catch (e) { return loadHistory(); }
+}
 
 // ── Token estimate (rough: ~4 chars/token) ───────────────────────────────────
 function estTokens(...strings) {
@@ -2859,8 +2867,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
       </GlowButton>
       <span className="ci-est">
         {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}</>}
-        {free && <span style={{ color: "var(--text-4)" }}> · free preview AI</span>}
-        {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only -- add your key</span>}
+        {free && <span style={{ color: "var(--text-4)" }}> · live</span>}
+        {!hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
       </span>
     </div>
   );
@@ -3092,6 +3100,24 @@ function ReportView({ report, mood, onApplyText }) {
           return <Collapsible key={"r" + i} title={sec.title || "More"}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Collapsible>;
         return null;
       })}
+
+      {/* Shareable, branded summary -- every share markets the tool */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
+        <button className="ci-copybtn" style={{ height: 34 }} onClick={() => {
+          const sc = typeof report.overall === "number" ? Math.round(report.overall) + "/100" : "";
+          const v = report.verdict || {};
+          const lines = [
+            "ContentIntel report" + (sc ? " — " + sc : ""),
+            v.title ? "Verdict: " + v.title + (v.text ? " — " + v.text : "") : "",
+            ...(Array.isArray(report.scores) ? report.scores.map(x => "• " + x.name + ": " + Math.round(x.score)) : []),
+            report.bottomLine ? "Biggest fix: " + report.bottomLine : "",
+            "",
+            "Checked with ContentIntel · https://contentintel.in",
+          ].filter(Boolean);
+          window.copyText(lines.join("\n"));
+        }}>⧉ Copy shareable summary</button>
+        <span style={{ fontSize: 11.5, color: "var(--text-5)" }}>Includes a contentintel.in credit — share your wins.</span>
+      </div>
     </div>
   );
 }
@@ -3194,7 +3220,7 @@ Object.assign(window, {
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
-  nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
+  nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
@@ -3242,17 +3268,18 @@ window.useCITheme = useCITheme;
 
 // Tab definitions -- each has a mood chosen for its content
 const TABS = [
-  { id: 'script',    label: 'Script',      mood: 'navy',     icon: 'script'    },
-  { id: 'thumbnail', label: 'Thumbnail',   mood: 'ember',    icon: 'thumb'     },
-  { id: 'title',     label: 'Title',       mood: 'cyan',     icon: 'title'     },
-  { id: 'ads',       label: 'Ads',         mood: 'violet',   icon: 'ads'       },
-  { id: 'ask',       label: 'Ask',         mood: 'violet',   icon: 'ask'       },
-  { id: 'pricing',   label: 'Pricing',     mood: 'burgundy', icon: 'pricing'   },
-  { id: 'builder',   label: 'Studio',      mood: 'lime',     icon: 'studio'    },
-  { id: 'platform',  label: 'Platform IQ', mood: 'violet',   icon: 'platform'  },
-  { id: 'playbook',  label: 'Playbook',    mood: 'ember',    icon: 'playbook'  },
-  { id: 'history',   label: 'History',     mood: 'burgundy', icon: 'history'   },
+  { id: 'script',    label: 'Script',    mood: 'navy',     icon: 'script'  },
+  { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb'   },
+  { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title'   },
+  { id: 'ads',       label: 'Ads',       mood: 'violet',   icon: 'ads'     },
+  { id: 'ask',       label: 'Ask',       mood: 'violet',   icon: 'ask'     },
+  { id: 'more',      label: 'More',      mood: 'lime',     icon: 'more'    },
+  { id: 'pricing',   label: 'Pricing',   mood: 'burgundy', icon: 'pricing' },
+  { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
+// Tools that live inside the "More" hub (kept, just not in the top bar).
+const MORE_TABS = ['builder', 'platform', 'playbook'];
+window.CI_MORE_TABS = MORE_TABS;
 
 function CITabIcon({ name }) {
   const s = { width: 15, height: 15, stroke: 'currentColor', strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -3267,6 +3294,7 @@ function CITabIcon({ name }) {
     case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     case 'ask':     return <svg {...s} viewBox="0 0 16 16"><path d="M6 6a2 2 0 113.4 1.4C8.7 8.1 8 8.6 8 9.5"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/><circle cx="8" cy="8" r="6"/></svg>;
+    case 'more':    return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>;
     case 'pricing': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 8.5V3.5a1 1 0 011-1h5l5 5a1 1 0 010 1.4l-4.6 4.6a1 1 0 01-1.4 0l-5-5z"/><circle cx="6" cy="6" r="1"/></svg>;
     default: return null;
   }
@@ -3314,7 +3342,7 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
       <div className="ci-tabs">
         {TABS.map(t => {
           const tm = MOODS[t.mood];
-          const isActive = active === t.id;
+          const isActive = active === t.id || (t.id === 'more' && MORE_TABS.includes(active));
           return (
             <button key={t.id} className={'ci-tab' + (isActive ? ' active' : '')} onClick={() => onNav(t.id)}>
               <span className="ci-tab-glow" style={{ boxShadow: isActive ? `inset 0 0 0 1px ${tm.accentGlow}, 0 0 18px ${tm.accentGlow}` : 'none' }} />
@@ -3576,10 +3604,89 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
           </div>
         </div>
       </section>
+
+      {/* TESTIMONIALS */}
+      <TestimonialsSection mood={mood} />
     </div>
   );
 }
 window.HomeView = HomeView;
+
+// Placeholder testimonials -- swap the text/handles for real ones later.
+const CI_TESTIMONIALS = [
+  { q: "I stopped guessing which hook to use. My last three Reels all crossed 100K — the script tool called the weak opener every time.", n: "Aarav Mehta", r: "Finance creator · 240K", a: "AM" },
+  { q: "We run thumbnails for 12 clients. The A/B/C check settles arguments in seconds and the redesign prompts are genuinely good.", n: "Studio Nine", r: "Content agency · Mumbai", a: "S9" },
+  { q: "The Hinglish hook rewrites actually sound like me. First tool that didn't feel built only for English creators.", n: "Priya Sharma", r: "Lifestyle · 88K", a: "PS" },
+];
+function TestimonialsSection({ mood }) {
+  const m = MOODS[mood];
+  return (
+    <section style={{ maxWidth: 1140, margin: '0 auto', padding: '10px 32px 96px' }}>
+      <div className="ci-rise" style={{ textAlign: 'center', marginBottom: 30 }}>
+        <Eyebrow mood={mood} glow>Loved by creators & agencies</Eyebrow>
+        <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 42, margin: '10px 0 0', letterSpacing: '-0.01em' }}>People ship with more confidence.</h2>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
+        {CI_TESTIMONIALS.map((t, i) => (
+          <div key={i} className={'ci-block ci-rise rd' + (i % 3)} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ color: m.accentFrom, fontSize: 26, lineHeight: 1, fontFamily: "'Instrument Serif', Georgia, serif" }}>&ldquo;</div>
+            <div style={{ fontSize: 14.5, color: 'var(--text-1)', lineHeight: 1.6, flex: 1 }}>{t.q}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 12.5 }}>{t.a}</div>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)' }}>{t.n}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-4)' }}>{t.r}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11.5, color: 'var(--text-5)' }}>Example results — real creator stories coming as we launch.</div>
+    </section>
+  );
+}
+window.TestimonialsSection = TestimonialsSection;
+
+// ── MORE HUB ─────────────────────────────────────────────────────────────────
+// One home for the deeper tools so the top nav stays focused.
+function MoreHub({ onNav }) {
+  const mood = 'lime';
+  const m = MOODS[mood] || MOODS.burgundy;
+  const tools = [
+    { id: 'builder',  label: 'Studio',      icon: 'studio',   mood: 'lime',   line: 'Build a thumbnail from scratch — research-grade prompts for ChatGPT or Gemini.' },
+    { id: 'platform', label: 'Platform IQ', icon: 'platform', mood: 'violet', line: 'Ask anything platform-specific: best length, posting cadence, format calls.' },
+    { id: 'playbook', label: 'Playbook',    icon: 'playbook', mood: 'ember',  line: 'The library of proven layouts, hooks and niche patterns behind every score.' },
+  ];
+  return (
+    <div className="ci-work wide" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
+      <div className="ci-section-head">
+        <Eyebrow mood={mood} glow>More tools</Eyebrow>
+        <h2 className="ci-h2">Your full toolkit</h2>
+        <p className="ci-sub">Everything beyond the core checks — in one place.</p>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18 }}>
+        {tools.map(t => {
+          const fm = MOODS[t.mood];
+          return (
+            <div key={t.id} className="ci-feature" onClick={() => onNav(t.id)}
+              style={{ padding: 26, minHeight: 190, background: 'var(--surface-2)', borderRadius: 20, border: '1px solid var(--stroke-1)', borderTop: `2px solid ${fm.accentFrom}55`, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', right: -30, top: -40, width: 150, height: 150, background: `radial-gradient(circle, ${fm.orbB}, transparent 70%)`, opacity: 0.22, filter: 'blur(40px)' }} />
+              <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div className="ci-feature-icon" style={{ width: 38, height: 38, borderRadius: 11, border: `1px solid ${fm.accentFrom}40`, background: `${fm.accentFrom}15`, display: 'grid', placeItems: 'center', color: fm.accentFrom }}><CITabIcon name={t.icon} /></div>
+                  <span className="ci-feature-arrow" style={{ fontSize: 16, color: fm.accentFrom }}>→</span>
+                </div>
+                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 26, marginTop: 16, color: 'var(--text-1)' }}>{t.label}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 8, lineHeight: 1.6, flex: 1 }}>{t.line}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+window.MoreHub = MoreHub;
 window.CI_TABS = TABS;
 window.CI_VIDEO = VIDEO_SRC;
 </script>
@@ -5128,6 +5235,53 @@ function timeAgo(t) {
   const h = Math.floor(mn / 60); if (h < 24) return h + 'h ago';
   const d = Math.floor(h / 24); return d === 1 ? 'Yesterday' : d + 'd ago';
 }
+// Real-world results logger -- the credibility + come-back-weekly loop.
+function HistoryResults({ it, mood, onSaved }) {
+  const a = it.actual || null;
+  const [open, setOpen] = React.useState(false);
+  const [views, setViews] = React.useState(a ? a.views : '');
+  const [ctr, setCtr]     = React.useState(a ? a.ctr : '');
+  const [note, setNote]   = React.useState(a ? a.note : '');
+  const m = TM[mood] || TM.navy;
+  function save() {
+    window.updateHistory(it.t, { actual: { views: String(views).trim(), ctr: String(ctr).trim(), note: String(note).trim(), loggedAt: Date.now() } });
+    setOpen(false); onSaved && onSaved();
+  }
+  if (a && !open) {
+    return (
+      <div className="ci-block" style={{ padding: '14px 16px', marginTop: 12, background: 'rgba(143,216,106,0.06)', border: '1px solid rgba(143,216,106,0.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: '#8FD86A', marginBottom: 6 }}>📈 Real results</div>
+            <div style={{ fontSize: 14, color: 'var(--text-1)' }}>
+              Predicted <b>{it.score != null ? it.score : '--'}</b>
+              {a.views ? <span> → <b>{a.views}</b> views</span> : null}
+              {a.ctr ? <span> · <b>{a.ctr}</b> CTR</span> : null}
+            </div>
+            {a.note && <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>{a.note}</div>}
+          </div>
+          <button className="ci-copybtn" style={{ height: 30 }} onClick={() => setOpen(true)}>Edit</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="ci-block" style={{ padding: 16, marginTop: 12 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>Posted it? Add your real numbers</div>
+      <div style={{ fontSize: 12, color: 'var(--text-4)', margin: '4px 0 12px' }}>See how the prediction held up — and build your own track record.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <input className="ci-input" placeholder="Views (e.g. 142K)" value={views} onChange={e => setViews(e.target.value)} />
+        <input className="ci-input" placeholder="CTR / ER (e.g. 6.2%)" value={ctr} onChange={e => setCtr(e.target.value)} />
+      </div>
+      <input className="ci-input" style={{ marginTop: 10 }} placeholder="Note (optional) — what you changed, what happened" value={note} onChange={e => setNote(e.target.value)} />
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <GlowButton mood={mood} onClick={save}>Save results</GlowButton>
+        {it.actual && <button className="ci-copybtn" style={{ height: 38 }} onClick={() => setOpen(false)}>Cancel</button>}
+      </div>
+    </div>
+  );
+}
+
 function HistoryTab() {
   const mood = 'burgundy';
   const m = TM[mood];
@@ -5146,6 +5300,7 @@ function HistoryTab() {
         <div>
           <Eyebrow mood={mood} glow>History</Eyebrow>
           <h2 className="ci-h2">Past checks</h2>
+          <p className="ci-sub" style={{ marginTop: 6 }}>Open any check, then log the real views after you post — see how the prediction held up.</p>
         </div>
         {items.length > 0 && <button className="ci-copybtn" style={{ height: 34 }} onClick={clearAll}>Clear all</button>}
       </div>
@@ -5177,7 +5332,7 @@ function HistoryTab() {
                     <span style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${im.accentFrom}, ${im.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E' }}><CITabIcon name={it.type === 'script' ? 'script' : it.type === 'thumbnail' ? 'thumb' : it.type === 'title' ? 'title' : 'ads'} /></span>
                     <span style={{ fontSize: 12.5, fontWeight: 600 }}>{TYPE_LABEL[it.type] || it.type}</span>
                   </div>
-                  <div style={{ fontSize: 13.5, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
+                  <div style={{ fontSize: 13.5, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.actual ? '📈 ' : ''}{it.title}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>{timeAgo(it.t)}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span className={'ci-dot ' + lvl} />
@@ -5194,6 +5349,7 @@ function HistoryTab() {
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
+                    <HistoryResults it={it} mood={tmoodOf[it.type] || 'navy'} onSaved={() => setItems(window.loadHistory())} />
                   </div>
                 )}
                 </div>
@@ -7475,7 +7631,8 @@ function CIApp() {
 
 
   const activeMood = tab === 'home' ? t.homeAccent
-    : (window.CI_TABS.find(x => x.id === tab) || {}).mood || 'burgundy';
+    : (window.CI_TABS.find(x => x.id === tab) || {}).mood
+    || ((window.CI_MORE_TABS || []).includes(tab) ? 'lime' : 'burgundy');
 
   function nav(id) {
     setTab(id);
@@ -7502,6 +7659,7 @@ function CIApp() {
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
   else if (tab === 'ask') View = <AskTab onOpenKey={openKey} />;
   else if (tab === 'pricing') View = <PricingTab onNav={nav} />;
+  else if (tab === 'more') View = <MoreHub onNav={nav} />;
   else if (tab === 'builder') View = <BuilderTab />;
   else if (tab === 'platform') View = <PlatformTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
@@ -7582,6 +7740,7 @@ function CIApp() {
         {View}
       </div>
 
+      {admin && (
       <TweaksPanel title="Tweaks">
         <TweakSection label="Home accent" />
         <TweakColor
@@ -7608,6 +7767,7 @@ function CIApp() {
         <TweakSlider label="Bloom intensity" value={t.bloomIntensity} min={0.2} max={1.4} step={0.05}
           onChange={v => setTweak('bloomIntensity', v)} />
       </TweaksPanel>
+      )}
     </div>
   );
 }
