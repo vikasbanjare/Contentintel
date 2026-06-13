@@ -102,6 +102,14 @@ function saveHistory(rec) {
   } catch (e) {}
 }
 function clearHistory() { try { localStorage.removeItem(LS_HISTORY); } catch (e) {} }
+// Merge a patch into one saved history entry (matched by its timestamp).
+function updateHistory(t, patch) {
+  try {
+    const arr = loadHistory().map(it => it.t === t ? { ...it, ...patch } : it);
+    localStorage.setItem(LS_HISTORY, JSON.stringify(arr));
+    return arr;
+  } catch (e) { return loadHistory(); }
+}
 
 // ── Token estimate (rough: ~4 chars/token) ───────────────────────────────────
 function estTokens(...strings) {
@@ -685,8 +693,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
       </GlowButton>
       <span className="ci-est">
         {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}</>}
-        {free && <span style={{ color: "var(--text-4)" }}> · free preview AI</span>}
-        {!hasKey && !free && <span style={{ color: "var(--text-4)" }}> · sample only -- add your key</span>}
+        {free && <span style={{ color: "var(--text-4)" }}> · live</span>}
+        {!hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
       </span>
     </div>
   );
@@ -918,6 +926,24 @@ function ReportView({ report, mood, onApplyText }) {
           return <Collapsible key={"r" + i} title={sec.title || "More"}><div style={{ fontSize: 13.5, color: "var(--text-2)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{sec.body}</div></Collapsible>;
         return null;
       })}
+
+      {/* Shareable, branded summary -- every share markets the tool */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
+        <button className="ci-copybtn" style={{ height: 34 }} onClick={() => {
+          const sc = typeof report.overall === "number" ? Math.round(report.overall) + "/100" : "";
+          const v = report.verdict || {};
+          const lines = [
+            "ContentIntel report" + (sc ? " — " + sc : ""),
+            v.title ? "Verdict: " + v.title + (v.text ? " — " + v.text : "") : "",
+            ...(Array.isArray(report.scores) ? report.scores.map(x => "• " + x.name + ": " + Math.round(x.score)) : []),
+            report.bottomLine ? "Biggest fix: " + report.bottomLine : "",
+            "",
+            "Checked with ContentIntel · https://contentintel.in",
+          ].filter(Boolean);
+          window.copyText(lines.join("\n"));
+        }}>⧉ Copy shareable summary</button>
+        <span style={{ fontSize: 11.5, color: "var(--text-5)" }}>Includes a contentintel.in credit — share your wins.</span>
+      </div>
     </div>
   );
 }
@@ -1020,7 +1046,7 @@ Object.assign(window, {
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
-  nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory,
+  nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,

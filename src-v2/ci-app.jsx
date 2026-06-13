@@ -35,7 +35,8 @@ function CIApp() {
 
 
   const activeMood = tab === 'home' ? t.homeAccent
-    : (window.CI_TABS.find(x => x.id === tab) || {}).mood || 'burgundy';
+    : (window.CI_TABS.find(x => x.id === tab) || {}).mood
+    || ((window.CI_MORE_TABS || []).includes(tab) ? 'lime' : 'burgundy');
 
   function nav(id) {
     setTab(id);
@@ -62,6 +63,7 @@ function CIApp() {
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
   else if (tab === 'ask') View = <AskTab onOpenKey={openKey} />;
   else if (tab === 'pricing') View = <PricingTab onNav={nav} />;
+  else if (tab === 'more') View = <MoreHub onNav={nav} />;
   else if (tab === 'builder') View = <BuilderTab />;
   else if (tab === 'platform') View = <PlatformTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
@@ -142,6 +144,7 @@ function CIApp() {
         {View}
       </div>
 
+      {admin && (
       <TweaksPanel title="Tweaks">
         <TweakSection label="Home accent" />
         <TweakColor
@@ -168,6 +171,7 @@ function CIApp() {
         <TweakSlider label="Bloom intensity" value={t.bloomIntensity} min={0.2} max={1.4} step={0.05}
           onChange={v => setTweak('bloomIntensity', v)} />
       </TweaksPanel>
+      )}
     </div>
   );
 }

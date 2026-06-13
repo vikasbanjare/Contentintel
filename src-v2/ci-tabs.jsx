@@ -656,6 +656,53 @@ function timeAgo(t) {
   const h = Math.floor(mn / 60); if (h < 24) return h + 'h ago';
   const d = Math.floor(h / 24); return d === 1 ? 'Yesterday' : d + 'd ago';
 }
+// Real-world results logger -- the credibility + come-back-weekly loop.
+function HistoryResults({ it, mood, onSaved }) {
+  const a = it.actual || null;
+  const [open, setOpen] = React.useState(false);
+  const [views, setViews] = React.useState(a ? a.views : '');
+  const [ctr, setCtr]     = React.useState(a ? a.ctr : '');
+  const [note, setNote]   = React.useState(a ? a.note : '');
+  const m = TM[mood] || TM.navy;
+  function save() {
+    window.updateHistory(it.t, { actual: { views: String(views).trim(), ctr: String(ctr).trim(), note: String(note).trim(), loggedAt: Date.now() } });
+    setOpen(false); onSaved && onSaved();
+  }
+  if (a && !open) {
+    return (
+      <div className="ci-block" style={{ padding: '14px 16px', marginTop: 12, background: 'rgba(143,216,106,0.06)', border: '1px solid rgba(143,216,106,0.25)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: '#8FD86A', marginBottom: 6 }}>📈 Real results</div>
+            <div style={{ fontSize: 14, color: 'var(--text-1)' }}>
+              Predicted <b>{it.score != null ? it.score : '--'}</b>
+              {a.views ? <span> → <b>{a.views}</b> views</span> : null}
+              {a.ctr ? <span> · <b>{a.ctr}</b> CTR</span> : null}
+            </div>
+            {a.note && <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>{a.note}</div>}
+          </div>
+          <button className="ci-copybtn" style={{ height: 30 }} onClick={() => setOpen(true)}>Edit</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="ci-block" style={{ padding: 16, marginTop: 12 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>Posted it? Add your real numbers</div>
+      <div style={{ fontSize: 12, color: 'var(--text-4)', margin: '4px 0 12px' }}>See how the prediction held up — and build your own track record.</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <input className="ci-input" placeholder="Views (e.g. 142K)" value={views} onChange={e => setViews(e.target.value)} />
+        <input className="ci-input" placeholder="CTR / ER (e.g. 6.2%)" value={ctr} onChange={e => setCtr(e.target.value)} />
+      </div>
+      <input className="ci-input" style={{ marginTop: 10 }} placeholder="Note (optional) — what you changed, what happened" value={note} onChange={e => setNote(e.target.value)} />
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <GlowButton mood={mood} onClick={save}>Save results</GlowButton>
+        {it.actual && <button className="ci-copybtn" style={{ height: 38 }} onClick={() => setOpen(false)}>Cancel</button>}
+      </div>
+    </div>
+  );
+}
+
 function HistoryTab() {
   const mood = 'burgundy';
   const m = TM[mood];
@@ -674,6 +721,7 @@ function HistoryTab() {
         <div>
           <Eyebrow mood={mood} glow>History</Eyebrow>
           <h2 className="ci-h2">Past checks</h2>
+          <p className="ci-sub" style={{ marginTop: 6 }}>Open any check, then log the real views after you post — see how the prediction held up.</p>
         </div>
         {items.length > 0 && <button className="ci-copybtn" style={{ height: 34 }} onClick={clearAll}>Clear all</button>}
       </div>
@@ -705,7 +753,7 @@ function HistoryTab() {
                     <span style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${im.accentFrom}, ${im.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E' }}><CITabIcon name={it.type === 'script' ? 'script' : it.type === 'thumbnail' ? 'thumb' : it.type === 'title' ? 'title' : 'ads'} /></span>
                     <span style={{ fontSize: 12.5, fontWeight: 600 }}>{TYPE_LABEL[it.type] || it.type}</span>
                   </div>
-                  <div style={{ fontSize: 13.5, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</div>
+                  <div style={{ fontSize: 13.5, color: 'var(--text-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.actual ? '📈 ' : ''}{it.title}</div>
                   <div style={{ fontSize: 12, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>{timeAgo(it.t)}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span className={'ci-dot ' + lvl} />
@@ -722,6 +770,7 @@ function HistoryTab() {
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
+                    <HistoryResults it={it} mood={tmoodOf[it.type] || 'navy'} onSaved={() => setItems(window.loadHistory())} />
                   </div>
                 )}
                 </div>

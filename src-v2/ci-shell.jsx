@@ -35,17 +35,18 @@ window.useCITheme = useCITheme;
 
 // Tab definitions -- each has a mood chosen for its content
 const TABS = [
-  { id: 'script',    label: 'Script',      mood: 'navy',     icon: 'script'    },
-  { id: 'thumbnail', label: 'Thumbnail',   mood: 'ember',    icon: 'thumb'     },
-  { id: 'title',     label: 'Title',       mood: 'cyan',     icon: 'title'     },
-  { id: 'ads',       label: 'Ads',         mood: 'violet',   icon: 'ads'       },
-  { id: 'ask',       label: 'Ask',         mood: 'violet',   icon: 'ask'       },
-  { id: 'pricing',   label: 'Pricing',     mood: 'burgundy', icon: 'pricing'   },
-  { id: 'builder',   label: 'Studio',      mood: 'lime',     icon: 'studio'    },
-  { id: 'platform',  label: 'Platform IQ', mood: 'violet',   icon: 'platform'  },
-  { id: 'playbook',  label: 'Playbook',    mood: 'ember',    icon: 'playbook'  },
-  { id: 'history',   label: 'History',     mood: 'burgundy', icon: 'history'   },
+  { id: 'script',    label: 'Script',    mood: 'navy',     icon: 'script'  },
+  { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb'   },
+  { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title'   },
+  { id: 'ads',       label: 'Ads',       mood: 'violet',   icon: 'ads'     },
+  { id: 'ask',       label: 'Ask',       mood: 'violet',   icon: 'ask'     },
+  { id: 'more',      label: 'More',      mood: 'lime',     icon: 'more'    },
+  { id: 'pricing',   label: 'Pricing',   mood: 'burgundy', icon: 'pricing' },
+  { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
+// Tools that live inside the "More" hub (kept, just not in the top bar).
+const MORE_TABS = ['builder', 'platform', 'playbook'];
+window.CI_MORE_TABS = MORE_TABS;
 
 function CITabIcon({ name }) {
   const s = { width: 15, height: 15, stroke: 'currentColor', strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' };
@@ -60,6 +61,7 @@ function CITabIcon({ name }) {
     case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     case 'ask':     return <svg {...s} viewBox="0 0 16 16"><path d="M6 6a2 2 0 113.4 1.4C8.7 8.1 8 8.6 8 9.5"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/><circle cx="8" cy="8" r="6"/></svg>;
+    case 'more':    return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>;
     case 'pricing': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 8.5V3.5a1 1 0 011-1h5l5 5a1 1 0 010 1.4l-4.6 4.6a1 1 0 01-1.4 0l-5-5z"/><circle cx="6" cy="6" r="1"/></svg>;
     default: return null;
   }
@@ -107,7 +109,7 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
       <div className="ci-tabs">
         {TABS.map(t => {
           const tm = MOODS[t.mood];
-          const isActive = active === t.id;
+          const isActive = active === t.id || (t.id === 'more' && MORE_TABS.includes(active));
           return (
             <button key={t.id} className={'ci-tab' + (isActive ? ' active' : '')} onClick={() => onNav(t.id)}>
               <span className="ci-tab-glow" style={{ boxShadow: isActive ? `inset 0 0 0 1px ${tm.accentGlow}, 0 0 18px ${tm.accentGlow}` : 'none' }} />
@@ -369,9 +371,88 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
           </div>
         </div>
       </section>
+
+      {/* TESTIMONIALS */}
+      <TestimonialsSection mood={mood} />
     </div>
   );
 }
 window.HomeView = HomeView;
+
+// Placeholder testimonials -- swap the text/handles for real ones later.
+const CI_TESTIMONIALS = [
+  { q: "I stopped guessing which hook to use. My last three Reels all crossed 100K — the script tool called the weak opener every time.", n: "Aarav Mehta", r: "Finance creator · 240K", a: "AM" },
+  { q: "We run thumbnails for 12 clients. The A/B/C check settles arguments in seconds and the redesign prompts are genuinely good.", n: "Studio Nine", r: "Content agency · Mumbai", a: "S9" },
+  { q: "The Hinglish hook rewrites actually sound like me. First tool that didn't feel built only for English creators.", n: "Priya Sharma", r: "Lifestyle · 88K", a: "PS" },
+];
+function TestimonialsSection({ mood }) {
+  const m = MOODS[mood];
+  return (
+    <section style={{ maxWidth: 1140, margin: '0 auto', padding: '10px 32px 96px' }}>
+      <div className="ci-rise" style={{ textAlign: 'center', marginBottom: 30 }}>
+        <Eyebrow mood={mood} glow>Loved by creators & agencies</Eyebrow>
+        <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 42, margin: '10px 0 0', letterSpacing: '-0.01em' }}>People ship with more confidence.</h2>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
+        {CI_TESTIMONIALS.map((t, i) => (
+          <div key={i} className={'ci-block ci-rise rd' + (i % 3)} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ color: m.accentFrom, fontSize: 26, lineHeight: 1, fontFamily: "'Instrument Serif', Georgia, serif" }}>&ldquo;</div>
+            <div style={{ fontSize: 14.5, color: 'var(--text-1)', lineHeight: 1.6, flex: 1 }}>{t.q}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 12.5 }}>{t.a}</div>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)' }}>{t.n}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-4)' }}>{t.r}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11.5, color: 'var(--text-5)' }}>Example results — real creator stories coming as we launch.</div>
+    </section>
+  );
+}
+window.TestimonialsSection = TestimonialsSection;
+
+// ── MORE HUB ─────────────────────────────────────────────────────────────────
+// One home for the deeper tools so the top nav stays focused.
+function MoreHub({ onNav }) {
+  const mood = 'lime';
+  const m = MOODS[mood] || MOODS.burgundy;
+  const tools = [
+    { id: 'builder',  label: 'Studio',      icon: 'studio',   mood: 'lime',   line: 'Build a thumbnail from scratch — research-grade prompts for ChatGPT or Gemini.' },
+    { id: 'platform', label: 'Platform IQ', icon: 'platform', mood: 'violet', line: 'Ask anything platform-specific: best length, posting cadence, format calls.' },
+    { id: 'playbook', label: 'Playbook',    icon: 'playbook', mood: 'ember',  line: 'The library of proven layouts, hooks and niche patterns behind every score.' },
+  ];
+  return (
+    <div className="ci-work wide" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
+      <div className="ci-section-head">
+        <Eyebrow mood={mood} glow>More tools</Eyebrow>
+        <h2 className="ci-h2">Your full toolkit</h2>
+        <p className="ci-sub">Everything beyond the core checks — in one place.</p>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18 }}>
+        {tools.map(t => {
+          const fm = MOODS[t.mood];
+          return (
+            <div key={t.id} className="ci-feature" onClick={() => onNav(t.id)}
+              style={{ padding: 26, minHeight: 190, background: 'var(--surface-2)', borderRadius: 20, border: '1px solid var(--stroke-1)', borderTop: `2px solid ${fm.accentFrom}55`, cursor: 'pointer', position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', right: -30, top: -40, width: 150, height: 150, background: `radial-gradient(circle, ${fm.orbB}, transparent 70%)`, opacity: 0.22, filter: 'blur(40px)' }} />
+              <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div className="ci-feature-icon" style={{ width: 38, height: 38, borderRadius: 11, border: `1px solid ${fm.accentFrom}40`, background: `${fm.accentFrom}15`, display: 'grid', placeItems: 'center', color: fm.accentFrom }}><CITabIcon name={t.icon} /></div>
+                  <span className="ci-feature-arrow" style={{ fontSize: 16, color: fm.accentFrom }}>→</span>
+                </div>
+                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 26, marginTop: 16, color: 'var(--text-1)' }}>{t.label}</div>
+                <div style={{ fontSize: 14, color: 'var(--text-2)', marginTop: 8, lineHeight: 1.6, flex: 1 }}>{t.line}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+window.MoreHub = MoreHub;
 window.CI_TABS = TABS;
 window.CI_VIDEO = VIDEO_SRC;
