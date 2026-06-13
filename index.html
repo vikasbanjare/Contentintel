@@ -7295,8 +7295,12 @@ function AuthGate({ onAuthed }) {
   const m = MOODS.burgundy;
   const saasOn = !!window.CI_SAAS_ON;
   const [mode, setMode] = React.useState('signup'); // signup | signin
+  const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [pass, setPass] = React.useState('');
+  const [phone, setPhone] = React.useState('');
+  const [persona, setPersona] = React.useState('');
+  const [platform, setPlatform] = React.useState('');
   const [msg, setMsg] = React.useState('');
   const [busy, setBusy] = React.useState(false);
 
@@ -7308,14 +7312,16 @@ function AuthGate({ onAuthed }) {
 
   async function submit() {
     const em = email.trim();
+    if (mode === 'signup' && !name.trim()) { setMsg('Please enter your name.'); return; }
     if (!em || !/.+@.+\..+/.test(em)) { setMsg('Enter a valid email address.'); return; }
     if (saasOn && pass.length < 8) { setMsg('Password must be at least 8 characters.'); return; }
+    const meta = { full_name: name.trim(), phone: phone.trim(), persona, platform };
     setBusy(true); setMsg('');
     try {
       if (saasOn && window.ciGetSupabase) {
         const sb = await window.ciGetSupabase();
         if (mode === 'signup') {
-          const { error } = await sb.auth.signUp({ email: em, password: pass });
+          const { error } = await sb.auth.signUp({ email: em, password: pass, options: { data: meta } });
           if (error) throw error;
           setMsg('✓ Account created — check your inbox, click the confirmation link, then sign in.');
           setMode('signin'); setBusy(false); return;
@@ -7324,7 +7330,7 @@ function AuthGate({ onAuthed }) {
         if (error) throw error;
         await window.refreshSession();
       }
-      markOnboarded(em);
+      markOnboarded(em); try { localStorage.setItem('ci_user_name', name.trim()); } catch(e){}
       onAuthed();
     } catch (e) {
       setMsg(e.message === 'Email not confirmed' ? 'Confirm your email first — check your inbox (and spam).' : (e.message || 'Something went wrong.'));
@@ -7375,11 +7381,37 @@ function AuthGate({ onAuthed }) {
               ? (saasOn ? '5 free checks on us — we just confirm your email. No card.' : 'Enter your email to get early access. No card needed.')
               : 'Sign in to pick up where you left off.'}
           </div>
-          <input className="ci-input" style={{ marginTop: 18 }} type="email" placeholder="you@email.com" value={email}
+          {mode === 'signup' && (
+            <input className="ci-input" style={{ marginTop: 18 }} type="text" placeholder="Your name" value={name}
+              onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
+          )}
+          <input className="ci-input" style={{ marginTop: mode === 'signup' ? 10 : 18 }} type="email" placeholder="you@email.com" value={email}
             onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
           {saasOn && (
             <input className="ci-input" style={{ marginTop: 10 }} type="password" placeholder="Password (8+ characters)" value={pass}
               onChange={e => setPass(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
+          )}
+          {mode === 'signup' && (
+            <>
+              <input className="ci-input" style={{ marginTop: 10 }} type="tel" placeholder="Phone / WhatsApp (optional)" value={phone}
+                onChange={e => setPhone(e.target.value)} />
+              <select className="ci-input" style={{ marginTop: 10, appearance: 'auto' }} value={persona} onChange={e => setPersona(e.target.value)}>
+                <option value="">What best describes you?</option>
+                <option>Creator / Influencer</option>
+                <option>Agency</option>
+                <option>Business / Brand</option>
+                <option>Marketer</option>
+                <option>Just exploring</option>
+              </select>
+              <select className="ci-input" style={{ marginTop: 10, appearance: 'auto' }} value={platform} onChange={e => setPlatform(e.target.value)}>
+                <option value="">Main platform</option>
+                <option>Instagram</option>
+                <option>YouTube</option>
+                <option>Instagram + YouTube</option>
+                <option>TikTok</option>
+                <option>Other</option>
+              </select>
+            </>
           )}
           {msg && <div style={{ fontSize: 12.5, marginTop: 12, lineHeight: 1.5, color: msg.startsWith('✓') ? '#8FD86A' : '#f5788c' }}>{msg}</div>}
           <div style={{ marginTop: 16 }}>
