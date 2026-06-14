@@ -3355,11 +3355,13 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
 
       <div style={{ flex: 1 }} />
 
-      <button className="ci-keybtn" title="API key & model settings" onClick={onOpenKey}>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="5.5" cy="8" r="2.5"/><path d="M8 8h5.5M11.5 8v2.2M13.5 8v1.6"/></svg>
-        <span>{hasKey ? "Key connected" : "Add API key"}</span>
-        <span className={"ci-keydot " + (hasKey ? "on" : "off")} />
-      </button>
+      {(!(window.CI_SAAS && window.CI_SAAS.workerUrl) || admin) && (
+        <button className="ci-keybtn" title="API key & model settings" onClick={onOpenKey}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="5.5" cy="8" r="2.5"/><path d="M8 8h5.5M11.5 8v2.2M13.5 8v1.6"/></svg>
+          <span>{hasKey ? "Key connected" : "Add API key"}</span>
+          <span className={"ci-keydot " + (hasKey ? "on" : "off")} />
+        </button>
+      )}
 
       {admin && (
         <button className="ci-iconbtn" title="Research editor (admin only)" onClick={onAdmin}
@@ -7306,6 +7308,34 @@ if (saasOn) {
 }
 window.refreshSession = refreshSession;
 window.ciGetSupabase = getSupabase;  // let the onboarding gate reuse the client
+async function ciGetMyPlan() {
+  try {
+    const sb = await getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return null;
+    const { data } = await sb.from('profiles').select('plan').eq('id', user.id).single();
+    return data ? data.plan : null;
+  } catch (e) { return null; }
+}
+async function ciRedeemInvite(code) {
+  if (!SAAS.workerUrl || !window.CI_SESSION) throw new Error('Please sign in first.');
+  const res = await fetch(SAAS.workerUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + window.CI_SESSION },
+    body: JSON.stringify({ redeem: true, code: String(code || '') }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'That code is not valid.');
+  return data;
+}
+async function ciSignOut() {
+  try { const sb = await getSupabase(); await sb.auth.signOut(); } catch (e) {}
+  window.CI_SESSION = null; window.CI_USER = null;
+  try { window.dispatchEvent(new Event('ci-auth')); } catch (e) {}
+}
+window.ciGetMyPlan = ciGetMyPlan;
+window.ciRedeemInvite = ciRedeemInvite;
+window.ciSignOut = ciSignOut;
 
 const PLAN_LABEL = { free: 'Free — 15 credits', starter: 'Starter — 150 credits/mo', pro: 'Creator Pro — 750 credits/mo', agency: 'Agency — 3,000 credits/mo' };
 const PLAN_LIMIT = { free: 15, starter: 150, pro: 750, agency: 3000 };
@@ -7342,7 +7372,7 @@ function AccountModal({ open, onClose, onNav }) {
       const sb = await getSupabase();
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
-      const { data } = await sb.from('profiles').select('plan, checks_used, email, full_name').eq('id', user.id).single();
+      const { data } = await sb.from('profiles').select('plan, checks_used, email, full_name, usd_limit').eq('id', user.id).single();
       setProfile({ ...(data || { plan: 'free', checks_used: 0 }), email: user.email });
     } catch (e) {}
   }
@@ -7377,7 +7407,7 @@ function AccountModal({ open, onClose, onNav }) {
   }
 
   if (!open) return null;
-  const limit = profile ? (PLAN_LIMIT[profile.plan] || 15) : 15;
+  const limit = profile ? (profile.usd_limit != null ? Math.round(Number(profile.usd_limit) * 130) : (PLAN_LIMIT[profile.plan] || 15)) : 15;
   const used = profile ? (profile.checks_used || 0) : 0;
   const pct = Math.min(100, Math.round(used / limit * 100));
 
@@ -7577,7 +7607,7 @@ function AuthGate({ onAuthed }) {
           <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 29 }}>{mode === 'signup' ? 'Get started free' : 'Welcome back'}</div>
           <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>
             {mode === 'signup'
-              ? (saasOn ? '5 free checks on us — we just confirm your email. No card.' : 'Enter your email to get early access. No card needed.')
+              ? (saasOn ? 'Sign up in one click. You\'ll enter your invite code next.' : 'Enter your email to get early access. No card needed.')
               : 'Sign in to pick up where you left off.'}
           </div>
           {saasOn && (
@@ -7621,8 +7651,6 @@ function AuthGate({ onAuthed }) {
                 <option>TikTok</option>
                 <option>Other</option>
               </select>
-              <input className="ci-input" style={{ marginTop: 10 }} type="text" placeholder="Invite code (if you have one)" value={invite}
-                onChange={e => setInvite(e.target.value)} />
             </>
           )}
           {msg && <div style={{ fontSize: 12.5, marginTop: 12, lineHeight: 1.5, color: msg.startsWith('✓') ? '#8FD86A' : '#f5788c' }}>{msg}</div>}
@@ -7647,6 +7675,135 @@ function AuthGate({ onAuthed }) {
   );
 }
 window.AuthGate = AuthGate;
+
+// Shown AFTER login when the account isn't approved yet: enter an invite code.
+function InviteGate({ onApproved }) {
+  const m = MOODS.burgundy;
+  const [code, setCode] = React.useState('');
+  const [msg, setMsg] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const email = (window.CI_USER && window.CI_USER.email) || '';
+
+  async function submit() {
+    if (!code.trim()) { setMsg('Enter your invite code.'); return; }
+    setBusy(true); setMsg('');
+    try {
+      await window.ciRedeemInvite(code.trim());
+      try { window.ciMarkOnboarded && window.ciMarkOnboarded(email); } catch (e) {}
+      onApproved();
+    } catch (e) { setMsg(e.message || 'That code is not valid.'); setBusy(false); }
+  }
+  async function logout() { try { await window.ciSignOut(); } catch (e) {} }
+
+  return (
+    <div className="ci-gate ci-hero-aurora" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', position: 'relative', overflow: 'hidden' }}>
+      <div className="ci-aurora-wrap" aria-hidden="true">
+        <div className="ci-aurora-orb a" /><div className="ci-aurora-orb b" /><div className="ci-aurora-orb c" /><div className="ci-aurora-sweep" /><div className="ci-hero-grid" />
+      </div>
+      <div className="ci-block ci-rise in" style={{ position: 'relative', zIndex: 2, width: 420, maxWidth: '92vw', padding: 32, textAlign: 'center' }}>
+        <div style={{ width: 44, height: 44, margin: '0 auto', borderRadius: 12, background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: 20 }}>◈</div>
+        <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 30, marginTop: 16 }}>You're almost in</div>
+        <div style={{ fontSize: 13.5, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.6 }}>
+          ContentIntel is in private alpha. Enter the invite code you were given to unlock access.
+        </div>
+        <input className="ci-input" style={{ marginTop: 20, textAlign: 'center', fontSize: 16, letterSpacing: '0.04em' }} value={code}
+          onChange={e => setCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="Enter invite code" />
+        {msg && <div style={{ fontSize: 12.5, marginTop: 12, color: '#f5788c' }}>{msg}</div>}
+        <div style={{ marginTop: 16 }}>
+          <GlowButton mood="burgundy" size="lg" style={{ width: '100%', justifyContent: 'center' }} onClick={submit}>
+            {busy ? 'Checking…' : 'Unlock access →'}
+          </GlowButton>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 16, lineHeight: 1.6 }}>
+          Signed in as {email || 'your account'}. No code yet? Ask for one, then come back.<br/>
+          <a onClick={logout} style={{ color: 'var(--text-3)', cursor: 'pointer', textDecoration: 'underline' }}>Sign out</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+window.InviteGate = InviteGate;
+</script>
+<script type="text/babel" data-presets="react">
+/* ===== ci-feedback.jsx ===== */
+// ContentIntel -- floating feedback widget. Saves to the Supabase `feedback`
+// table (see SQL in chat). Shows inside the app for signed-in users.
+
+function FeedbackWidget() {
+  const [open, setOpen] = React.useState(false);
+  const [rating, setRating] = React.useState('');
+  const [msg, setMsg] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [done, setDone] = React.useState(false);
+  const saasOn = !!window.CI_SAAS_ON;
+
+  async function send() {
+    if (!msg.trim()) return;
+    setBusy(true);
+    try {
+      if (saasOn && window.ciGetSupabase && window.CI_SESSION) {
+        const sb = await window.ciGetSupabase();
+        const u = window.CI_USER || {};
+        await sb.from('feedback').insert({ user_id: u.id || null, email: u.email || null, rating, message: msg.trim() });
+      } else {
+        // fallback: open an email draft
+        window.open('mailto:vikasbanjare94@gmail.com?subject=ContentIntel%20feedback&body=' + encodeURIComponent((rating ? '['+rating+'] ' : '') + msg.trim()), '_blank');
+      }
+      setDone(true);
+      setTimeout(() => { setOpen(false); setDone(false); setMsg(''); setRating(''); }, 1600);
+    } catch (e) {
+      setMsg(m => m); // keep text
+      alert('Could not send feedback right now — please try again.');
+    }
+    setBusy(false);
+  }
+
+  const RATINGS = [['love', '😍 Love it'], ['ok', '🙂 It’s ok'], ['meh', '😕 Frustrating']];
+
+  return (
+    <>
+      <button onClick={() => setOpen(true)} title="Send feedback"
+        style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 120, height: 44, padding: '0 18px', borderRadius: 999,
+          border: '1px solid var(--stroke-2)', background: 'var(--surface-2)', color: 'var(--text-1)', fontSize: 13.5, fontWeight: 600,
+          cursor: 'pointer', boxShadow: '0 8px 28px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        💬 Feedback
+      </button>
+
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 130, background: 'rgba(4,6,12,0.55)', backdropFilter: 'blur(6px)', display: 'grid', placeItems: 'center' }}>
+          <div className="ci-block" style={{ width: 420, maxWidth: '92vw', padding: 26 }} onClick={e => e.stopPropagation()}>
+            {done ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <div style={{ fontSize: 34 }}>🙏</div>
+                <div style={{ fontSize: 17, fontWeight: 700, marginTop: 8 }}>Thank you!</div>
+                <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 4 }}>Your feedback shapes what we build next.</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 26 }}>Tell us what you think</div>
+                <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>What's working? What's missing? What should we build next?</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  {RATINGS.map(([k, label]) => (
+                    <button key={k} onClick={() => setRating(k)} className="pill"
+                      style={{ flex: 1, height: 38, fontSize: 13, border: rating === k ? '1.5px solid var(--ci-accent, #FF4D8D)' : '1px solid var(--stroke-2)',
+                        background: rating === k ? 'rgba(255,77,141,0.1)' : 'transparent' }}>{label}</button>
+                  ))}
+                </div>
+                <textarea className="ci-textarea" style={{ minHeight: 110, marginTop: 12 }} value={msg} onChange={e => setMsg(e.target.value)}
+                  placeholder="Type your feedback here…" />
+                <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                  <GlowButton mood="burgundy" onClick={send} style={{ flex: 1, justifyContent: 'center' }}>{busy ? 'Sending…' : 'Send feedback'}</GlowButton>
+                  <button className="ci-copybtn" style={{ height: 44, padding: '0 16px' }} onClick={() => setOpen(false)}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+window.FeedbackWidget = FeedbackWidget;
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-app.jsx ===== */
@@ -7672,16 +7829,25 @@ function CIApp() {
     if (typeof window !== 'undefined' && window.CI_SESSION) return null;
     return (window.ciGateDone && window.ciGateDone()) ? null : 'welcome';
   });
-  // A signed-in session (incl. after a Google redirect) sends the user straight in.
+  // After login: approved accounts go straight to the app; un-approved ones
+  // (plan 'pending') see the invite-code screen first.
   React.useEffect(() => {
-    const f = () => {
-      if (typeof window !== 'undefined' && window.CI_SESSION) {
+    let cancelled = false;
+    const f = async () => {
+      if (typeof window === 'undefined' || !window.CI_SESSION) return;
+      let plan = null;
+      try { plan = window.ciGetMyPlan ? await window.ciGetMyPlan() : null; } catch (e) {}
+      if (cancelled) return;
+      const approved = !window.CI_SAAS_ON || (plan && plan !== 'pending');
+      if (approved) {
         try { window.ciMarkOnboarded && window.ciMarkOnboarded(window.CI_USER && window.CI_USER.email); } catch (e) {}
-        setGateStep(g => (g ? null : g));
+        setGateStep(null);
+      } else {
+        setGateStep('invite');
       }
     };
     window.addEventListener('ci-auth', f); f();
-    return () => window.removeEventListener('ci-auth', f);
+    return () => { cancelled = true; window.removeEventListener('ci-auth', f); };
   }, []);
 
   React.useEffect(() => {
@@ -7765,6 +7931,9 @@ function CIApp() {
   if (gateStep === 'welcome') {
     return <AuthGate onAuthed={() => setGateStep('pricing')} />;
   }
+  if (gateStep === 'invite') {
+    return <InviteGate onApproved={() => setGateStep(null)} />;
+  }
   if (gateStep === 'pricing') {
     return (
       <div className="ci-app">
@@ -7780,6 +7949,7 @@ function CIApp() {
       <TopNav active={tab} onNav={nav} mood={activeMood}
         onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
+      {window.FeedbackWidget && <window.FeedbackWidget />}
       {window.AccountModal && <window.AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} onNav={nav} />}
 
       {/* Ambient videos: ALWAYS mounted so the browser never reloads them on tab switch.
