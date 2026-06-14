@@ -65,6 +65,22 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 
 // Build a ready-to-paste image prompt + open ChatGPT with it. (ChatGPT can't be
 // sent the image via URL, so the user attaches their thumbnail there.)
+function buildThumbCreateSys(hasPhoto) {
+  const th = (window.getResearch && window.getResearch('thumbnail')) || {};
+  const st = (window.getResearch && window.getResearch('studio')) || {};
+  const core = (window.liveResearch && window.liveResearch().core) || '';
+  return [
+    "You are ContentIntel's thumbnail art director. Turn the user's idea into 3 strong, ready-to-generate thumbnail concepts. This is CREATIVE GENERATION.",
+    "ABSOLUTE RULES: never ask questions, never refuse, always deliver. Output ONLY the JSON object below -- no preamble, no markdown, no commentary.",
+    core ? 'CLICK SCIENCE:\n"""\n' + core.slice(0, 1500) + '\n"""' : '',
+    th.systemGuidance ? 'THUMBNAIL AESTHETIC RULES (every prompt MUST follow -- realistic faces, pro typography, 60-30-10 colour):\n"""\n' + th.systemGuidance.slice(0, 2600) + '\n"""' : '',
+    st.systemGuidance ? 'IMAGE-PROMPT QUALITY:\n"""\n' + st.systemGuidance.slice(0, 1500) + '\n"""' : '',
+    hasPhoto
+      ? "A reference PHOTO is attached. Describe THAT real person in every prompt (look, hair, vibe) and add: attach this same photo when generating to keep the real face. Never invent a different face."
+      : "No photo attached -- write complete standalone visual prompts and note the user can upload a photo for an accurate face.",
+    'Return ONLY one JSON object: { "concepts": [ { "concept": "1-line idea", "prompt": "full image prompt following the rules above" } x3 ] }.',
+  ].filter(Boolean).join('\n\n');
+}
 function chatgptPrompt(base, hasImage, strict, guidance) {
   const head = hasImage
     ? `Edit the attached YouTube thumbnail into an improved 16:9 version. ${strict ? 'KEEP the same person(s), the exact text, fonts and overall palette -- change ONLY what I describe below.' : 'A bolder redesign is fine, but keep the same person(s), topic and exact text.'}`
@@ -160,6 +176,7 @@ function ThumbnailTab({ onOpenKey }) {
   const estIn = window.estTokens(system, fullUserText) + imgs.length * 1400;
   // Generate mode: describe-from-scratch prompt (no analysis, no tokens).
   const [genPrompt, setGenPrompt] = React.useState('');
+  const [genIdeas, setGenIdeas] = React.useState({ loading: false, items: null, err: '' });
   // Output headroom: A/B/C produces 3 full analyses + a winner, so it needs more
   // room or the JSON truncates and the report comes back broken/empty.
   // Every compared slot needs an image or a written description — otherwise
@@ -167,6 +184,19 @@ function ThumbnailTab({ onOpenKey }) {
   const slotsReady = Array.from({ length: count }).every((_, i) => imgsAll[i] || descsAll[i].trim().length >= 12);
   function check() { if (!slotsReady) return; run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
+  async function genConcepts() {
+    if (!genPrompt.trim() && !imgA) { setGenIdeas({ loading: false, items: null, err: 'Describe the thumbnail or upload a photo first.' }); return; }
+    setGenIdeas({ loading: true, items: null, err: '' });
+    try {
+      const ut = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none)'}\nContent type: ${kind}\nIdea: ${genPrompt.trim() || '(use the attached photo as the subject)'}\n${guidance || ''}\n\nGive 3 concepts now.`;
+      const { text } = await window.callClaude({ system: buildThumbCreateSys(!!imgA), userText: ut, images: imgA ? [imgA] : [], maxTokens: 1800 });
+      const j = window.parseReport(text);
+      if (j && Array.isArray(j.concepts) && j.concepts.length) setGenIdeas({ loading: false, items: j.concepts, err: '' });
+      else setGenIdeas({ loading: false, items: null, err: 'Could not generate concepts -- try again.' });
+    } catch (e) {
+      setGenIdeas({ loading: false, items: null, err: String(e.message) === 'NO_KEY' ? 'Sign in to generate.' : (e.message || 'Could not generate.') });
+    }
+  }
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
       <TWH mood={mood} eyebrow="Thumbnail studio" title={mode === 'Generate' ? 'Generate a thumbnail' : 'Check your thumbnail'}
@@ -176,23 +206,50 @@ function ThumbnailTab({ onOpenKey }) {
         <TCG label="Mode" options={['Check', 'Generate']} value={mode} onChange={setMode} />
       </div>
 
-      {mode === 'Generate' && (
+      {mode === 'Generate' && (<>
         <TB mood={mood}>
-          <label className="ci-label">Upload a thumbnail to remix <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- optional; attach it in ChatGPT to edit it</span></label>
-          <ImageDrop image={imgA} onPick={setImgA} label="Drop an image -- JPG or PNG (optional)" />
-          <label className="ci-label" style={{ marginTop: 16 }}>Describe the thumbnail you want</label>
-          <textarea className="ci-textarea" style={{ minHeight: 90 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
-            placeholder="e.g. 'Shocked founder on the right, huge yellow ₹500 Cr on the left, dark navy background with an upward green graph'" />
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-            <window.GlowButton mood={mood} size="lg" onClick={() => window.openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 Generate in ChatGPT →</window.GlowButton>
-            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.openInGemini(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>✨ Copy + open Gemini</button>
-            <button className="ci-copybtn" style={{ height: 48, padding: '0 16px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
+          <label className="ci-label">Upload your photo <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- optional, but keeps your real face in the thumbnail</span></label>
+          <ImageDrop image={imgA} onPick={setImgA} label="Drop your photo -- JPG or PNG (optional)" />
+          <label className="ci-label" style={{ marginTop: 16 }}>What's the thumbnail for? <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- a topic or a rough idea</span></label>
+          <textarea className="ci-textarea" style={{ minHeight: 80 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
+            placeholder="e.g. 'My video on how beginners should start SIP investing' or 'Shocked reaction to a ₹500 Cr story'" />
+          <div style={{ marginTop: 14 }}>
+            <window.GlowButton mood={mood} size="lg" onClick={genConcepts}>{genIdeas.loading ? 'Designing…' : '✦ Suggest 3 concepts'}</window.GlowButton>
+            <span style={{ fontSize: 12, color: 'var(--text-4)', marginLeft: 12 }}>Uses your research + your photo to write ready prompts.</span>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 10, lineHeight: 1.5 }}>
-            Opens ChatGPT or Gemini with your prompt (also copied). There: <b>attach your thumbnail</b> (drag it in), then press enter -- image generation runs on your own plan.
+          {genIdeas.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12 }}>{genIdeas.err}</div>}
+        </TB>
+
+        {genIdeas.items && genIdeas.items.length > 0 && (
+          <TB title="Thumbnail concepts" desc={imgA ? 'Built around your photo — attach it again when generating' : 'Upload your photo above for an accurate likeness'} mood={mood}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {genIdeas.items.map((t, i) => (
+                <div key={i} style={{ padding: 14, borderRadius: 12, border: '1px solid var(--stroke-1)', background: 'var(--surface-1)' }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{t.concept}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>{t.prompt}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.copyText(t.prompt)}>⧉ Copy prompt</button>
+                    <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInChatGPT(chatgptPrompt(t.prompt, !!imgA, strict, guidance))}>🎨 ChatGPT</button>
+                    <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInGemini(chatgptPrompt(t.prompt, !!imgA, strict, guidance))}>✨ Gemini</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 12, lineHeight: 1.5 }}>
+              ChatGPT/Gemini open with the prompt copied. <b>Attach your photo there</b>, press enter — the image is made on your own plan.
+            </div>
+          </TB>
+        )}
+
+        <TB mood={mood}>
+          <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 10 }}>Already have your own prompt? Send it straight to an image tool:</div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="ci-copybtn" style={{ height: 40, padding: '0 14px' }} onClick={() => window.openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 ChatGPT</button>
+            <button className="ci-copybtn" style={{ height: 40, padding: '0 14px' }} onClick={() => window.openInGemini(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>✨ Gemini</button>
+            <button className="ci-copybtn" style={{ height: 40, padding: '0 14px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
           </div>
         </TB>
-      )}
+      </>)}
 
       {mode === 'Check' && (<>
       <TB mood={mood}>
