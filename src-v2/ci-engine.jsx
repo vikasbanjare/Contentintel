@@ -157,7 +157,7 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
       throw new Error(dataS.error || ("Request failed (" + resS.status + ")."));
     }
     const textS = (dataS.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-    return { text: textS, usage: dataS.usage || null };
+    return { text: textS, usage: dataS.usage || null, sources: dataS.ci_sources || null };
   }
   const key = getKey();
   // Normalise to an array so single- and multi-image (compare) paths share code.

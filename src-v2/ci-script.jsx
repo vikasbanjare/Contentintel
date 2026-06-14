@@ -131,7 +131,8 @@ function ScriptTab({ onOpenKey }) {
         "4. SHAREABILITY (STEPPS): bake in at least one of -- practical save-worthy tip, social-currency 'makes the sharer look smart' insight, a high-arousal 'wait, really?!' moment, or a tight story arc (I did X -> unexpected result -> lesson).\n" +
         "5. CTA (last line): ONE specific call to action that flows from the payoff just delivered (a save/comment/follow tied to the exact value). NEVER 'like and subscribe', 'follow for more', or 'hope this helped'.\n" +
         "Write tight, spoken, punchy lines a creator can read straight to camera -- not an essay. Every sentence must earn its place.",
-      'Return ONLY one JSON object: { "hooks": [ { "text": "opening line", "type": "Curiosity|Contrarian|Emotional|Specific|Authority|Story", "score": 0-100 } x4 ], "script": "a complete ~120-150 word script that OPENS with your highest-scoring hook, ready to record", "sources": [ { "title": "publication or page title", "url": "https://the-real-url-you-used", "date": "publish date if known, else empty" } ] }.',
+      "HOOK RULES + HONEST SCORING (critical -- ContentIntel's checker will re-grade these and must AGREE with you): every hook must be ONE short spoken line, max ~14 words, that lands a concrete promise/tension with ONE specific in the first 2-3 seconds. No banned openers (Hi / Today / In this video / So / Welcome / a dictionary definition / a slow wind-up). Score each hook EXACTLY as a harsh checker would, not generously: a long, vague, or slow hook is 40-60; a decent hook is 65-78; only a tight, specific, curiosity- or tension-driven one-liner earns 85+. Do NOT inflate. The script MUST open with your highest-scoring hook, word-for-word and just as short -- do not expand it into a long paragraph.",
+      'Return ONLY one JSON object: { "hooks": [ { "text": "one short hook line (<=14 words)", "type": "Curiosity|Contrarian|Emotional|Specific|Authority|Story", "score": 0-100 } x4 ], "script": "a complete ~120-150 word script whose FIRST line is your highest-scoring hook verbatim, ready to record", "sources": [ { "title": "publication or page title", "url": "https://the-real-url-you-used", "date": "publish date if known, else empty" } ] }.',
       'SOURCES: if you used web_search, list in "sources" the REAL urls you actually relied on (3-6 of them when available, from multiple outlets) so the creator and their viewers can click and verify. Use only genuine urls returned by the search -- never invent or guess a url. If you did not need to search, return "sources": []. When the script mentions facts/numbers/events drawn from these sources, weave in the timing naturally (e.g. "as of June 2026", "according to reports this week").',
       'FINAL REMINDER: output ONLY that JSON, with hooks, a complete script, and sources. No refusal, no questions, no apology, no missing-info list. Just write the script.',
     ].filter(Boolean).join('\n\n');
@@ -141,7 +142,7 @@ function ScriptTab({ onOpenKey }) {
     if (topic.trim().length < 3) return;
     setCgen({ loading: true, hooks: null, script: null, sources: null, err: '' });
     try {
-      const { text: raw } = await window.callClaude({
+      const { text: raw, sources: webSrc } = await window.callClaude({
         system: buildCreateSys(),
         userText: `Topic: ${topic.trim()}\nContent type: ${kind}\nPlatform: ${where}\nAudience: ${who}\nLanguage: ${lang === 'Auto-detect' ? '(match the topic)' : lang}\n\nWrite it now.`,
         maxTokens: 2600,
@@ -150,8 +151,12 @@ function ScriptTab({ onOpenKey }) {
       const cleanSrc = (arr) => (Array.isArray(arr) ? arr : [])
         .filter(s => s && /^https?:\/\//i.test(s.url || ''))
         .map(s => ({ title: (s.title || s.url).trim(), url: s.url.trim(), date: (s.date || '').trim() }));
-      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', sources: cleanSrc(j.sources), err: '' });
-      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), sources: null, err: '' }); // fallback: use raw text as the script
+      // Prefer the model's own cited sources; fall back to the real URLs the
+      // web-search tool actually returned (captured server-side by the worker).
+      const modelSrc = cleanSrc(j && j.sources);
+      const sources = modelSrc.length ? modelSrc : cleanSrc(webSrc);
+      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', sources, sel: -1, err: '' });
+      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), sources, sel: -1, err: '' }); // fallback: use raw text as the script
     } catch (e) {
       setCgen({ loading: false, hooks: null, script: null, sources: null, err: String(e.message) === 'NO_KEY' ? 'Sign in to generate.' : (e.message || 'Could not generate — try again.') });
     }
@@ -171,6 +176,21 @@ function ScriptTab({ onOpenKey }) {
       return parts.join('\n\n');
     });
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // In CREATE mode: clicking a hook option swaps it into the draft script as the
+  // opening line (instant, no extra call) and marks it selected so "Use this"
+  // carries the choice into the checker.
+  function applyCreateHook(idx, hookText) {
+    setSelectedHook(hookText);
+    setCgen(c => {
+      const sc = c.script || '';
+      const m = sc.match(/^\s*.*?[.!?\n]/); // first sentence / first line
+      const rest = m ? sc.slice(m[0].length).trim() : sc.trim();
+      const h = hookText.trim();
+      const opener = /[.!?]$/.test(h) ? h : h + '.';
+      return { ...c, sel: idx, script: rest ? opener + ' ' + rest : opener };
+    });
   }
 
   // Apply rewrite to the editor then immediately re-run the analysis
@@ -373,13 +393,21 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           {cgen.hooks && cgen.hooks.length > 0 && (
             <div style={{ marginTop: 18 }}>
               <Eyebrow mood={mood} glow>Hook options</Eyebrow>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                {cgen.hooks.map((h, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderTop: i ? '1px solid var(--stroke-1)' : 'none' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: (h.score >= 75 ? '#8FD86A' : h.score >= 55 ? '#F0C85A' : '#F06A7E'), width: 30 }}>{h.score != null ? Math.round(h.score) : '–'}</span>
-                    <span style={{ flex: 1, fontSize: 13.5, color: 'var(--text-1)' }}>{h.text} <span style={{ fontSize: 10.5, color: 'var(--text-5)', textTransform: 'uppercase' }}>{h.type}</span></span>
-                  </div>
-                ))}
+              <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 4, marginBottom: 6 }}>Tap a hook to drop it into the draft script below as the opening line.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 0, marginTop: 4 }}>
+                {cgen.hooks.map((h, i) => {
+                  const on = cgen.sel === i;
+                  return (
+                    <button key={i} type="button" onClick={() => applyCreateHook(i, h.text)}
+                      style={{ display: 'flex', gap: 10, alignItems: 'flex-start', textAlign: 'left', width: '100%', cursor: 'pointer',
+                        padding: '10px 10px', borderTop: i ? '1px solid var(--stroke-1)' : 'none', border: 'none', borderRadius: 8,
+                        background: on ? 'var(--surface-2)' : 'transparent', outline: on ? '1px solid ' + ((m && m.accentFrom) || 'var(--stroke-2)') : 'none' }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: (h.score >= 75 ? '#8FD86A' : h.score >= 55 ? '#F0C85A' : '#F06A7E'), width: 30 }}>{h.score != null ? Math.round(h.score) : '–'}</span>
+                      <span style={{ flex: 1, fontSize: 13.5, color: 'var(--text-1)' }}>{h.text} <span style={{ fontSize: 10.5, color: 'var(--text-5)', textTransform: 'uppercase' }}>{h.type}</span></span>
+                      <span style={{ fontSize: 11, color: on ? 'var(--text-2)' : 'var(--text-5)', flexShrink: 0, alignSelf: 'center' }}>{on ? '✓ in script' : 'Use →'}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

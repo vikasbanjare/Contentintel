@@ -130,6 +130,7 @@ export default {
     // its iteration checkpoint -- feed the partial turn back and let it finish.
     const msgs = Array.isArray(payload.messages) ? payload.messages.slice() : [];
     let data = null, aRes = null, guard = 0;
+    const allBlocks = [];
     while (true) {
       aRes = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST', headers: aHeaders,
@@ -140,12 +141,16 @@ export default {
         return new Response(errTxt, { status: aRes.status, headers: { ...cors, 'content-type': 'application/json' } });
       }
       data = await aRes.json();
+      if (Array.isArray(data.content)) allBlocks.push(...data.content);
       if (data.stop_reason === 'pause_turn' && guard++ < 3) {
         msgs.push({ role: 'assistant', content: data.content });
         continue;
       }
       break;
     }
+    // Capture the REAL urls the web-search tool returned (and any text citations)
+    // so the client can show clickable sources even if the model omits them.
+    data.ci_sources = extractSources(allBlocks);
 
     // 6. Count it (successful calls only)
     await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/increment_usage`, {
@@ -157,4 +162,26 @@ export default {
 
 function json(obj, status, cors) {
   return new Response(JSON.stringify(obj), { status, headers: { ...cors, 'content-type': 'application/json' } });
+}
+
+// Pull the real source URLs out of an Anthropic web-search response: the
+// web_search_tool_result blocks (everything the tool fetched) plus any inline
+// text citations. Deduped, capped at 8.
+function extractSources(blocks) {
+  const out = [], seen = new Set();
+  const add = (url, title, date) => {
+    if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url) || seen.has(url)) return;
+    seen.add(url);
+    out.push({ title: (title || url).slice(0, 160), url, date: date || '' });
+  };
+  for (const b of (blocks || [])) {
+    if (!b) continue;
+    if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) {
+      for (const r of b.content) if (r && r.type === 'web_search_result') add(r.url, r.title, r.page_age || '');
+    }
+    if (b.type === 'text' && Array.isArray(b.citations)) {
+      for (const c of b.citations) if (c) add(c.url, c.title, '');
+    }
+  }
+  return out.slice(0, 8);
 }
