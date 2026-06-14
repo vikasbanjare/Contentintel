@@ -234,6 +234,28 @@ function preprocessForImageGen(raw) {
   ].filter(Boolean).join(" ");
 }
 
+// Turn a plain thumbnail brief into ONE research-grounded image prompt: Claude acts
+// as art director, picks the best-fit layout + colour scheme from the research, and
+// writes a self-contained prompt the image model will actually follow. Falls back to
+// the raw brief if Claude isn't available.
+async function groundThumbPrompt(brief, opts = {}) {
+  const th = getResearch("thumbnail") || {};
+  const st = getResearch("studio") || {};
+  const cat = (arr) => (arr || []).map(x => `- ${x.name}: ${x.what || ""}`).join("\n");
+  const ratio = (opts.ratio && (opts.ratio.label || opts.ratio)) || "16:9";
+  const sys = [
+    "You are a senior YouTube thumbnail ART DIRECTOR. Convert the creator's brief into ONE complete, self-contained image-generation prompt that a text-to-image model (Gemini / DALL-E) will follow precisely.",
+    "From the research below, CHOOSE the single best-fit LAYOUT archetype and the single best-fit COLOUR scheme for this brief, and design to them. Apply the design principles. Keep every person and their count, the topic, and the EXACT on-image text words from the brief unchanged.",
+    th.designPrinciples ? "DESIGN PRINCIPLES:\n" + th.designPrinciples : "",
+    (th.layouts && th.layouts.length) ? "LAYOUT ARCHETYPES (pick ONE that fits):\n" + cat(th.layouts) : "",
+    (th.colorSchemes && th.colorSchemes.length) ? "COLOUR SCHEMES (pick ONE that fits):\n" + cat(th.colorSchemes) : "",
+    st.systemGuidance ? "IMAGE-PROMPT QUALITY SCIENCE:\n" + st.systemGuidance.slice(0, 2600) : "",
+    `OUTPUT: a single tight paragraph describing the FINISHED thumbnail (${ratio}, 1280x720) in this order -- [subject: who, position, expression, clothing]. [exact on-image text: the words, weight, colour, placement]. [background + the chosen colour scheme]. [composition using the chosen layout + lighting]. End with: ultra-sharp, high-contrast, cinematic professional lighting, one dominant focal point, legible at 120px; render ONLY the specified words with no gibberish lettering. Output ONLY the prompt text -- no preamble, no explanation, no markdown.`,
+  ].filter(Boolean).join("\n\n");
+  const { text } = await callClaude({ system: sys, userText: "CREATOR BRIEF:\n" + brief, maxTokens: 700 });
+  return (text || "").trim();
+}
+
 // The non-negotiable design rules every generated thumbnail must obey -- distilled
 // from the thumbnail research, plus an explicit anti-gibberish text rule (the #1
 // thing image models get wrong). Pulled into EVERY generation, edit or text-to-image.
@@ -1158,5 +1180,5 @@ Object.assign(window, {
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
   getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp,
-  preprocessForImageGen, geminiFactCheck,
+  preprocessForImageGen, geminiFactCheck, groundThumbPrompt,
 });

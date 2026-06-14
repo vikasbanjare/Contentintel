@@ -177,6 +177,7 @@ function BuilderTab() {
 
   const [prompt, setPrompt] = React.useState('');
   const [built, setBuilt] = React.useState(false);
+  const [building, setBuilding] = React.useState(false);
   const [copyFeedback, setCopyFeedback] = React.useState('');
 
   // AI thumbnail-text suggestions. Prefills the topic from the last Create result
@@ -347,9 +348,20 @@ function BuilderTab() {
     }
     if (extraNote.trim()) { lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`); lines.push(''); }
     lines.push('Make it bold, high-contrast, impossible to ignore at small thumbnail size. Professional photography and design quality.');
-    const p = lines.join('\n');
-    setPrompt(p); setBuilt(true);
+    const brief = lines.join('\n');
+    setBuilt(true);
     setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    // Route the brief through Claude (art director) so the prompt actually applies
+    // the researched layouts/colour-schemes/principles. Fall back to the raw brief.
+    if (window.canRun && window.canRun() && window.groundThumbPrompt) {
+      setPrompt(brief); setBuilding(true);
+      window.groundThumbPrompt(brief, { ratio: currentRatio })
+        .then(g => setPrompt((g && g.length > 40) ? g : brief))
+        .catch(() => setPrompt(brief))
+        .finally(() => setBuilding(false));
+    } else {
+      setPrompt(brief);
+    }
   }
 
   function openIn(tool) {
@@ -571,9 +583,10 @@ function BuilderTab() {
       </BB>
 
       <div style={{ marginTop: 6 }}>
-        <window.GlowButton mood={mood} size="lg" onClick={buildPrompt} style={{ width: '100%' }}>
-          Build my prompt
+        <window.GlowButton mood={mood} size="lg" onClick={buildPrompt} style={{ width: '100%', opacity: building ? 0.7 : 1 }}>
+          {building ? 'Art-directing your prompt…' : 'Build my prompt'}
         </window.GlowButton>
+        {(window.canRun?.() && window.groundThumbPrompt) && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6, textAlign: 'center' }}>Claude writes a research-grounded prompt (best-fit layout + colour scheme) before you generate.</div>}
       </div>
 
       {built && prompt && (
