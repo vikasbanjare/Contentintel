@@ -511,7 +511,7 @@ const REPORT_SHAPE =
 Rules:
 - LANGUAGE: Every single string in this JSON -- verdict text, score "why", issue text, copy blocks, and "bottomLine" -- must be written in the EXACT same language and script as the user's submitted content. Hindi script -> Hindi. Hinglish -> Hinglish. NEVER default to English for non-English content.
 - ALWAYS include "overall" (0-100), a single headline score for the whole piece.
-- SCORE CALIBRATION -- use the FULL 0-100 range; do NOT cluster scores in the 50s-60s. The "overall" must track the dimension scores and these anchors: 90-100 = elite, post as-is, every lever (hook, retention, payoff, CTA) firing with no real weakness; 80-89 = strong, one or two minor fixes from excellent; 70-79 = good, clearly works, 2-3 real but fixable gaps; 55-69 = mixed, the idea is there but execution has notable problems; 40-54 = weak, major rework needed; below 40 = broken. Grade ONLY what is on the page right now. If a previously weak element (hook, pacing, CTA, etc.) has genuinely been fixed, the score MUST rise to match -- never anchor to an earlier impression of this content, and never default to a "safe" middle score. A clean, specific, well-paced piece SHOULD score 80+; do not withhold high marks out of habit. Reserve low scores for content with real, nameable problems -- and when you give one, the issues you list must justify it.
+- SCORE CALIBRATION -- applies to EVERY score, both each dimension in "scores" AND "overall". Use the FULL 0-100 range; do NOT cluster in the 50s-60s. Anchors: 90-100 = elite, no real weakness on that dimension; 80-89 = strong, one or two minor fixes from excellent; 70-79 = good, clearly works, 2-3 real but fixable gaps; 55-69 = mixed, notable problems; 40-54 = weak, major rework; below 40 = broken. Grade ONLY what is on the page right now. If a previously weak element (hook, pacing, CTA, etc.) has genuinely been fixed, that dimension's score MUST rise to match -- never anchor to an earlier impression of this content, and never default to a "safe" middle number. When a dimension is genuinely well-executed, score it 80+; do not withhold high marks out of habit. Reserve low scores for real, nameable problems -- and when you give one, the issue you list must justify it. (Note: the app derives the headline from these dimension scores, so score each dimension honestly and precisely.)
 - For a SCRIPT, ALWAYS include a "graph" section (the predicted attention/quality curve across the runtime, 6-10 points whose VALUE dips at weak/slow moments) AND a "beats" section (the script split into labelled beats -- HOOK, CONTEXT/SETUP, PROOF, TURN, PAYOFF, CTA, etc. -- each with the actual line text and a level). The graph's x-labels and the beats should line up in order.
 - "winner" is ONLY for A/B comparisons (two versions / two thumbnails / two titles). Include it and name the winner clearly when comparing. OMIT it entirely for single-item checks.
 - Only include a compliance/regulatory section when the topic actually calls for it (financial, medical, legal, gambling and similar regulated claims). For ordinary content, do NOT add any compliance note.
@@ -630,6 +630,31 @@ function parseReport(text) {
   return null;
 }
 
+// Weight a dimension by what it is (creators control hook/retention/value/CTA the
+// most, so those move the headline score the most). Unknown names get a mid weight,
+// so non-script reports effectively become an equal-weight average.
+function dimWeight(name) {
+  const n = String(name || "").toLowerCase();
+  if (/hook/.test(n)) return 3;
+  if (/reten|loop/.test(n)) return 2.5;
+  if (/value|payoff/.test(n)) return 2;
+  if (/cta|call to action/.test(n)) return 1.5;
+  if (/pacing|deliver/.test(n)) return 1;
+  if (/emotion|arc/.test(n)) return 1;
+  if (/share|stepps/.test(n)) return 1;
+  return 1.5;
+}
+// Derive the headline "overall" from the per-dimension scores (weighted), so that
+// fixing a weak dimension MECHANICALLY raises the overall instead of leaving it to
+// the model's gut number (which clustered in the low 60s and never moved).
+function computeOverall(json) {
+  const scores = json && Array.isArray(json.scores) ? json.scores.filter(s => s && typeof s.score === "number") : [];
+  if (!scores.length) return typeof (json && json.overall) === "number" ? Math.round(json.overall) : null;
+  let wsum = 0, w = 0;
+  for (const s of scores) { const k = dimWeight(s.name); wsum += k * s.score; w += k; }
+  return Math.max(0, Math.min(100, Math.round(wsum / w)));
+}
+
 // ── useAnalysis -- shared runner for every checker tab ────────────────────────
 // state: idle | loading | done | error
 // when done with report=null → the tab shows its built-in SAMPLE (no key path)
@@ -654,6 +679,10 @@ function useAnalysis(type) {
         if (!body) throw new Error("The AI returned an empty response. Try again.");
         json = { sections: [{ type: "text", title: "Analysis", body }] };
       }
+      // Recompute the headline score from the dimensions (weighted) so it tracks
+      // the actual per-dimension grades rather than the model's free-form number.
+      const co = computeOverall(json);
+      if (co != null) json.overall = co;
       setReport(json); setUsage(usage); setState("done");
       try {
         const vd = json.verdict || {};

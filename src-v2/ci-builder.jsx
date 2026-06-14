@@ -179,6 +179,37 @@ function BuilderTab() {
   const [built, setBuilt] = React.useState(false);
   const [copyFeedback, setCopyFeedback] = React.useState('');
 
+  // AI thumbnail-text suggestions. Prefills the topic from the last Create result
+  // (the "carry the script's topic into the thumbnail" thread) -- but the field is
+  // free-type too, so it works whether or not you came from a generated script.
+  const lastCreate = React.useMemo(() => { try { return JSON.parse(localStorage.getItem('ci_last_create') || '{}'); } catch (e) { return {}; } }, []);
+  const [txtTopic, setTxtTopic] = React.useState(lastCreate.title || lastCreate.topic || '');
+  const [txtState, setTxtState] = React.useState('idle');
+  const [txtOpts, setTxtOpts] = React.useState([]);
+  const [txtErr, setTxtErr] = React.useState('');
+
+  async function suggestText() {
+    const t = txtTopic.trim();
+    if (t.length < 3) { setTxtState('needinput'); return; }
+    setTxtState('loading'); setTxtErr(''); setTxtOpts([]);
+    try {
+      const sys = [
+        'You suggest the TEXT that goes ON a video thumbnail -- the big overlay words -- for a given video topic or title.',
+        'RULES: the "headline" is 2-5 BIG words max, legible at 120px; optionally a 2-4 word "sub". Make each punchy and click-earning via curiosity, a number, contrast, or stakes. NEVER a full sentence, never generic. Each of the 5 options must take a DIFFERENT angle. Write in the SAME language as the topic.',
+        'Return ONLY one JSON object: { "options": [ { "headline": "BIG WORDS", "sub": "optional short sub or empty", "why": "one short reason it earns the click" } x5 ] }',
+      ].join('\n\n');
+      const { text } = await window.callClaude({ system: sys, userText: `Video topic/title: ${t}\n\nSuggest the thumbnail text now.`, maxTokens: 900 });
+      const j = window.parseReport(text);
+      const opts = (j && Array.isArray(j.options) ? j.options : []).filter(o => o && o.headline).slice(0, 5);
+      if (!opts.length) throw new Error('no options');
+      setTxtOpts(opts); setTxtState('done');
+    } catch (e) {
+      setTxtErr(String(e.message) === 'NO_KEY' ? 'Sign in (or add an API key) to suggest text.' : 'Could not suggest text -- try again.');
+      setTxtState('error');
+    }
+  }
+  function useSuggestion(o) { setHeadline((o.headline || '').trim()); setSubline((o.sub || '').trim()); }
+
   const hasKey = !!(window.getKey && window.getKey());
   const canCloud = !!(window.canRun && window.canRun()); // own key OR free Claude cloud
 
@@ -459,7 +490,30 @@ function BuilderTab() {
       </BB>
 
       {/* TEXT */}
-      <BB mood={mood} title="Text on thumbnail" desc="Optional -- leave blank to skip">
+      <BB mood={mood} title="Text on thumbnail" desc="Let AI suggest the big words, or type your own -- leave blank to skip">
+        {/* AI suggestion */}
+        <label className="ci-label">Suggest from a topic / title</label>
+        {lastCreate.topic && <div style={{ fontSize: 11.5, color: m.accentFrom, marginBottom: 6 }}>↳ pulled from your last generated script — edit it or use as-is</div>}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input className="ci-input" style={{ flex: 1, minWidth: 200 }} value={txtTopic} onChange={e => setTxtTopic(e.target.value)} placeholder="e.g. How I saved ₹5 lakh in a year" />
+          <button className="ci-copybtn" style={{ height: 40, padding: '0 14px', whiteSpace: 'nowrap', background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700 }}
+            onClick={suggestText} disabled={txtState === 'loading'}>{txtState === 'loading' ? 'Thinking…' : '✦ Suggest text'}</button>
+        </div>
+        {txtState === 'needinput' && <div style={{ fontSize: 12, color: '#F0C85A', marginTop: 6 }}>Type a topic or title first.</div>}
+        {txtState === 'error' && <div style={{ fontSize: 12, color: '#f5788c', marginTop: 6 }}>{txtErr}</div>}
+        {txtOpts.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+            {txtOpts.map((o, i) => (
+              <button key={i} onClick={() => useSuggestion(o)}
+                style={{ textAlign: 'left', cursor: 'pointer', padding: '10px 12px', borderRadius: 10, background: 'var(--inset)', border: '1px solid var(--stroke-1)' }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-1)' }}>{o.headline}{o.sub ? <span style={{ fontWeight: 600, color: 'var(--text-3)' }}> · {o.sub}</span> : null}</div>
+                {o.why && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 3 }}>{o.why}</div>}
+              </button>
+            ))}
+            <div style={{ fontSize: 11, color: 'var(--text-5)' }}>Tap one to fill the fields below — then edit freely.</div>
+          </div>
+        )}
+        <div style={{ height: 1, background: 'var(--stroke-1)', margin: '14px 0' }} />
         <input className="ci-input" value={headline} onChange={e => setHeadline(e.target.value)} placeholder='Main headline -- e.g. I QUIT MY JOB' />
         <input className="ci-input" style={{ marginTop: 8 }} value={subline} onChange={e => setSubline(e.target.value)} placeholder="Sub-text -- e.g. what happened next" />
       </BB>

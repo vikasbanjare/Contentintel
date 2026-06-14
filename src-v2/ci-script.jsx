@@ -155,6 +155,8 @@ function ScriptTab({ onOpenKey }) {
       // web-search tool actually returned (captured server-side by the worker).
       const modelSrc = cleanSrc(j && j.sources);
       const sources = modelSrc.length ? modelSrc : cleanSrc(webSrc);
+      // Carry this topic to the thumbnail builder ("suggest text" prefills from it).
+      try { localStorage.setItem('ci_last_create', JSON.stringify({ topic: topic.trim(), ts: Date.now() })); } catch (e) {}
       if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', sources, sel: -1, err: '' });
       else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), sources, sel: -1, err: '' }); // fallback: use raw text as the script
     } catch (e) {

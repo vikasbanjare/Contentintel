@@ -80,6 +80,8 @@ function CreateTab({ onNav }) {
       });
       const json = window.parseReport(text);
       if (!json || (!json.hooks && !json.script)) throw new Error('Could not parse ideas — try again.');
+      // Carry topic + best title to the thumbnail builder ("suggest text" prefills from it).
+      try { localStorage.setItem('ci_last_create', JSON.stringify({ topic: topic.trim(), title: (json.titles && json.titles[0]) || '', ts: Date.now() })); } catch (e) {}
       setOut(json); setState('done');
       document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
