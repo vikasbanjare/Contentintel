@@ -58,6 +58,8 @@ function ScriptTab({ onOpenKey }) {
   const [cgen, setCgen] = React.useState({ loading: false, hooks: null, script: null, sources: null, err: '' });
   const [rewrite, setRewrite] = React.useState({ dir: '', loading: false, out: null });
   const [selectedHook, setSelectedHook] = React.useState('');
+  // Independent fact-check (Gemini + Google Search) and the Claude auto-fix of it.
+  const [fc, setFc] = React.useState({ state: 'idle', data: null, fixing: false, fixed: null, err: '' });
   const fileRef = React.useRef(null);
 
   // File upload: supports .txt / .md / .docx
@@ -339,6 +341,113 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
     }
   }
 
+  // Independent fact-check: Gemini verifies the script's claims with Google Search.
+  async function runFactCheck() {
+    if (!text.trim()) { setFc({ state: 'error', data: null, fixing: false, fixed: null, err: 'Paste a script first.' }); return; }
+    setFc({ state: 'loading', data: null, fixing: false, fixed: null, err: '' });
+    try {
+      const data = await window.geminiFactCheck(text, lang);
+      setFc({ state: 'done', data, fixing: false, fixed: null, err: '' });
+    } catch (e) {
+      const msg = String(e.message) === 'NO_GOOGLE_KEY'
+        ? 'Add a Google AI key in Settings → Image Generation to fact-check with Gemini (it reuses that key).'
+        : (e.message || 'Could not run the fact-check — try again.');
+      setFc({ state: 'error', data: null, fixing: false, fixed: null, err: msg });
+    }
+  }
+
+  // Claude rewrites the script to fix everything Gemini flagged, weaving in research.
+  async function fixWithClaude() {
+    const data = fc.data; if (!data) return;
+    const flagged = (data.claims || []).filter(c => c && c.status && c.status !== 'verified');
+    if (!flagged.length) { setFc(f => ({ ...f, fixed: text })); return; }
+    setFc(f => ({ ...f, fixing: true, err: '' }));
+    try {
+      const core = (window.liveResearch && window.liveResearch().core) || '';
+      const langLine = lang === 'Auto-detect'
+        ? 'Write the rewrite in the SAME language as the original script.'
+        : `Write the entire rewrite in ${lang}.`;
+      const sys = [
+        "You are ContentIntel's script editor. Rewrite the script so it is FACTUALLY CORRECT and still strong, keeping the same topic, length, creator voice and platform.",
+        langLine,
+        'An independent fact-check (Gemini + Google Search) flagged these claims. FIX EACH ONE: correct any false number/name/date/event to the verified fact; soften or cut anything unverifiable; keep everything that was verified. Do not introduce new unverifiable claims.',
+        'FLAGGED CLAIMS:\n' + flagged.map(c => `- "${c.claim}" [${c.status}] -> ${c.correction || 'no reliable source; remove or soften'}${c.source ? ' (src: ' + c.source + ')' : ''}`).join('\n'),
+        core ? 'Apply this virality craft where it helps (hook, open loops, payoff, CTA), but never at the cost of accuracy:\n"""\n' + core.slice(0, 1600) + '\n"""' : '',
+        'Return ONLY the rewritten script — no preamble, no notes, no markdown.',
+      ].filter(Boolean).join('\n\n');
+      const { text: out } = await window.callClaude({ system: sys, userText: `ORIGINAL SCRIPT:\n${text}`, maxTokens: 1600 });
+      setFc(f => ({ ...f, fixing: false, fixed: (out || '').trim() }));
+    } catch (e) {
+      setFc(f => ({ ...f, fixing: false, err: String(e.message) === 'NO_KEY' ? 'Sign in (or add an API key) to apply the fix.' : (e.message || 'Could not apply the fix — try again.') }));
+    }
+  }
+  function useFixedScript() {
+    if (!fc.fixed) return;
+    setText(fc.fixed);
+    setFc(f => ({ ...f, fixed: null, data: null, state: 'idle' }));
+    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  const fcColor = s => s === 'verified' ? '#8FD86A' : s === 'false' ? '#F06A7E' : '#F0C85A';
+  const fcLabel = s => s === 'verified' ? 'Verified' : s === 'false' ? 'False' : 'Unverified';
+
+  const factCheckPanel = (
+    <SB mood={mood}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 15, fontWeight: 600 }}>Independent fact-check</div>
+        <span className="pill" style={{ height: 22, fontSize: 10.5, padding: '0 8px', color: '#7eb8ff' }}>Gemini + Google Search</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
+        A different model checks your script's facts against live sources — then Claude fixes anything flagged.
+      </div>
+      <SRB mood={mood} onClick={runFactCheck} loading={fc.state === 'loading'}>
+        {fc.state === 'done' ? 'Re-run fact-check' : '🔎 Fact-check this script'}
+      </SRB>
+      {fc.state === 'error' && <div style={{ fontSize: 12.5, color: '#f5788c', marginTop: 10 }}>{fc.err}</div>}
+      {fc.state === 'done' && fc.data && (
+        <div style={{ marginTop: 14 }}>
+          {fc.data.summary && <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.55 }}>{fc.data.summary}</div>}
+          {(fc.data.claims || []).length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {fc.data.claims.map((c, i) => (
+                <div key={i} style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--inset)', border: '1px solid var(--stroke-1)' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: fcColor(c.status), textTransform: 'uppercase', whiteSpace: 'nowrap', marginTop: 2 }}>{fcLabel(c.status)}</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-1)', lineHeight: 1.5, flex: 1 }}>{c.claim}</span>
+                  </div>
+                  {c.correction && c.status !== 'verified' && <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 5, lineHeight: 1.5 }}>→ {c.correction}</div>}
+                  {c.source && /^https?:\/\//i.test(c.source) && <a href={c.source} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#7eb8ff', marginTop: 4, display: 'inline-block', wordBreak: 'break-all' }}>{c.source.replace(/^https?:\/\/(www\.)?/, '').slice(0, 60)}</a>}
+                </div>
+              ))}
+            </div>
+          ) : <div style={{ fontSize: 12.5, color: 'var(--text-4)' }}>No checkable factual claims found — this reads as opinion/style.</div>}
+
+          {(fc.data.claims || []).some(c => c.status !== 'verified') && (
+            <div style={{ marginTop: 14 }}>
+              <SRB mood={mood} onClick={fixWithClaude} loading={fc.fixing}>✦ Fix flagged claims with Claude →</SRB>
+            </div>
+          )}
+          {fc.fixed && (
+            <div style={{ marginTop: 16 }}>
+              <Eyebrow mood={mood} glow>Fact-corrected script</Eyebrow>
+              <div style={{ marginTop: 8 }}><SCB text={fc.fixed} label="Copy script" /></div>
+              <div style={{ marginTop: 10 }}><SRB mood={mood} onClick={useFixedScript}>Use this + re-check →</SRB></div>
+            </div>
+          )}
+          {fc.data.sources && fc.data.sources.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Sources checked</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {fc.data.sources.slice(0, 8).map((s, i) => (
+                  <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="pill" style={{ height: 24, fontSize: 11, padding: '0 9px', color: '#7eb8ff', textDecoration: 'none' }}>{(s.title || s.url).slice(0, 40)}</a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </SB>
+  );
+
   const rewritePanel = (
     <SB mood={mood}>
       <div style={{ fontSize: 15, fontWeight: 600 }}>Rewrite from analysis</div>
@@ -510,6 +619,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           <window.UsageBadge usage={usage} />
           <window.ReportView report={report} mood={mood} onApplyText={applyHook} />
           {rewritePanel}
+          {factCheckPanel}
         </div>
       )}
 

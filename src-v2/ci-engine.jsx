@@ -268,6 +268,58 @@ async function generateThumbnail({ instruction, image, model }) {
   throw new Error("The image model returned no image. Try again or simplify the request.");
 }
 
+// Independent fact-check via Gemini, grounded with Google Search. Browser-direct
+// with the user's Google key (CORS-OK), so no Worker change is needed. Returns
+// { summary, claims:[{claim,status,correction,source}], sources:[{title,url}] }.
+async function geminiFactCheck(scriptText, lang) {
+  const key = getGoogleKey();
+  const proxy = getProxyUrl();
+  const mdl = "gemini-2.5-flash";
+  const langLine = lang && lang !== "Auto-detect" ? `Write every string in ${lang}.` : "Write every string in the SAME language as the script.";
+  const sys =
+`You are an INDEPENDENT fact-checker for a short-form video script. Use Google Search to verify the factual, numeric, dated, named and "claim" assertions in the script below. ${langLine}
+For each checkable claim decide a status: "verified" (matches reliable sources), "false" (contradicted by reliable sources), or "unverified" (no reliable source found / too vague). Ignore pure opinion, style or storytelling. For anything false or unverified, give the correct fact (or note no source exists) in one short line.
+Return ONLY one JSON object, no markdown, no text around it:
+{ "summary": "one line on overall factual reliability", "claims": [ { "claim": "the exact claim from the script", "status": "verified|false|unverified", "correction": "the correct fact in one line, or empty if verified", "source": "the main URL you relied on, or empty" } ] }
+
+SCRIPT:
+"""
+${(scriptText || "").slice(0, 6000)}
+"""`;
+  const payload = { contents: [{ parts: [{ text: sys }] }], tools: [{ google_search: {} }] };
+  let res;
+  if (key) {
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    });
+  } else if (proxy) {
+    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); }
+  } else {
+    throw new Error("NO_GOOGLE_KEY");
+  }
+  if (!res.ok) {
+    let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
+    if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid -- check it in Settings.");
+    throw new Error(detail || ("Fact-check request failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const cand = (data.candidates || [])[0] || {};
+  const parts = ((cand.content || {}).parts) || [];
+  const textOut = parts.map(p => p.text || "").join("").trim();
+  const j = parseReport(textOut) || {};
+  // Real sources Gemini grounded against (groundingMetadata).
+  const gm = cand.groundingMetadata || cand.grounding_metadata || {};
+  const chunks = gm.groundingChunks || gm.grounding_chunks || [];
+  const sources = [], seen = new Set();
+  for (const c of (chunks || [])) {
+    const web = (c && (c.web || c.retrievedContext)) || {};
+    const url = web.uri || web.url;
+    if (url && !seen.has(url)) { seen.add(url); sources.push({ title: (web.title || url).slice(0, 160), url, date: "" }); }
+  }
+  return { summary: j.summary || "", claims: Array.isArray(j.claims) ? j.claims : [], sources };
+}
+
 // Image generation via NVIDIA-hosted FLUX (text-to-image). BYO NVIDIA key.
 // flux.2-klein-4b is text-to-image, so it generates FROM the description (it
 // can't preserve the user's exact photo the way Gemini's image edit can).
@@ -1083,5 +1135,5 @@ Object.assign(window, {
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
   getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp,
-  preprocessForImageGen,
+  preprocessForImageGen, geminiFactCheck,
 });
