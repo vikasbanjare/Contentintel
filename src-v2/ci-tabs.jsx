@@ -71,7 +71,8 @@ function buildThumbCreateSys(hasPhoto) {
   const core = (window.liveResearch && window.liveResearch().core) || '';
   return [
     "You are ContentIntel's thumbnail art director. Turn the user's idea into 3 strong, ready-to-generate thumbnail concepts. This is CREATIVE GENERATION.",
-    "ABSOLUTE RULES: never ask questions, never refuse, always deliver. Output ONLY the JSON object below -- no preamble, no markdown, no commentary.",
+    "ABSOLUTE RULES: never ask the user questions, never refuse, always deliver. Output ONLY the JSON object below -- no preamble, no markdown, no commentary.",
+    "WEB GROUNDING: you have a live web_search tool. If the topic involves real people, products, events, brands or current trends, search to ground the concepts in what actually looks right and is currently working -- then write the prompts from that. Don't ask the user for any of it; research it silently.",
     core ? 'CLICK SCIENCE:\n"""\n' + core.slice(0, 1500) + '\n"""' : '',
     th.systemGuidance ? 'THUMBNAIL AESTHETIC RULES (every prompt MUST follow -- realistic faces, pro typography, 60-30-10 colour):\n"""\n' + th.systemGuidance.slice(0, 2600) + '\n"""' : '',
     st.systemGuidance ? 'IMAGE-PROMPT QUALITY:\n"""\n' + st.systemGuidance.slice(0, 1500) + '\n"""' : '',

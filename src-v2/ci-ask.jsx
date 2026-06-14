@@ -20,6 +20,7 @@ function buildAskSystem() {
   const askR = window.getResearch('ask') || {};
   return [
     `You are ContentIntel's growth strategist. Answer the user's question directly, specifically and practically.`,
+    `WEB VERIFICATION: you have a live web_search tool. When the answer depends on current facts, platform features, algorithm changes, numbers, pricing, tools or anything time-sensitive, search and cross-check multiple real sources FIRST, then answer from what you actually find -- never guess or rely on stale memory, and never ask the user to provide sources. Skip searching only for timeless, opinion-based questions.`,
     `LANGUAGE LAW: answer in the same language as the question (Hindi -> Hindi, Hinglish -> Hinglish, English -> English).`,
     core ? 'SHARED RESEARCH:\n"""\n' + core + '\n"""' : '',
     askR.systemGuidance || '',

@@ -12,6 +12,10 @@ const PLAN_ENGINES = {
   starter: ['quick', 'smart'], pro: ['quick', 'smart', 'max'], agency: ['quick', 'smart', 'max'],
 };
 const VISION_PLANS = ['beta', 'pro', 'agency'];
+// Engines that get live web search (so the model verifies facts from real
+// sources instead of guessing or asking the user). Haiku/Quick stays offline
+// to keep the cheap tier cheap; Smart/Max go online when they decide they need to.
+const WEB_ENGINES = ['smart', 'max'];
 
 export default {
   async fetch(req, env) {
@@ -102,26 +106,52 @@ export default {
     // 4. Simple per-user rate limit (10/min) via Cloudflare cache API
     // (best-effort; for hard guarantees use Durable Objects later)
 
-    // 5. Call Anthropic with YOUR key
-    const aRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': env.ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'prompt-caching-2024-07-31',
-      },
-      body: JSON.stringify({ ...(({ engine: _e, ...rest }) => rest)(body), model: engine.id }),
-    });
-    const out = await aRes.text();
-
-    // 6. Count it (only successful calls)
-    if (aRes.ok) {
-      await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/increment_usage`, {
-        method: 'POST', headers: svc, body: JSON.stringify({ uid: user.id, amount: engine.credits }),
-      });
+    // 5. Build the Anthropic request. For the Smart/Max engines we attach the
+    //    live web_search tool so the model can go online, cross-check facts
+    //    against real sources, and write/verify from what it finds -- instead of
+    //    guessing or asking the user for sources. The model only searches when
+    //    it decides it needs to (capped by max_uses), so simple checks stay fast.
+    const { engine: _e, web: _w, model: _m, ...payload } = body;
+    payload.model = engine.id;
+    const webOn = WEB_ENGINES.includes(tier) && body.web !== false;
+    if (webOn) {
+      const existing = Array.isArray(payload.tools) ? payload.tools : [];
+      payload.tools = [...existing, { type: 'web_search_20250305', name: 'web_search', max_uses: 4 }];
     }
-    return new Response(out, { status: aRes.status, headers: { ...cors, 'content-type': 'application/json' } });
+
+    const aHeaders = {
+      'content-type': 'application/json',
+      'x-api-key': env.ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
+    };
+
+    // Run the turn. Web search may return stop_reason "pause_turn" when it hits
+    // its iteration checkpoint -- feed the partial turn back and let it finish.
+    const msgs = Array.isArray(payload.messages) ? payload.messages.slice() : [];
+    let data = null, aRes = null, guard = 0;
+    while (true) {
+      aRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers: aHeaders,
+        body: JSON.stringify({ ...payload, messages: msgs }),
+      });
+      if (!aRes.ok) {
+        const errTxt = await aRes.text();
+        return new Response(errTxt, { status: aRes.status, headers: { ...cors, 'content-type': 'application/json' } });
+      }
+      data = await aRes.json();
+      if (data.stop_reason === 'pause_turn' && guard++ < 3) {
+        msgs.push({ role: 'assistant', content: data.content });
+        continue;
+      }
+      break;
+    }
+
+    // 6. Count it (successful calls only)
+    await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/increment_usage`, {
+      method: 'POST', headers: svc, body: JSON.stringify({ uid: user.id, amount: engine.credits }),
+    });
+    return new Response(JSON.stringify(data), { status: 200, headers: { ...cors, 'content-type': 'application/json' } });
   },
 };
 
