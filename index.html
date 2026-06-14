@@ -4215,13 +4215,21 @@ function ScriptTab({ onOpenKey }) {
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
-  // Apply a hook rewrite from the report to the first paragraph of the script
+  // Apply a hook rewrite from the report: swap ONLY the opening line, keep the rest.
   function applyHook(hookText) {
     setSelectedHook(hookText);
     setText(prev => {
-      const parts = prev.split(/\n\n+/);
-      parts[0] = hookText;
-      return parts.join('\n\n');
+      const sc = (prev || '').trim();
+      const h = (hookText || '').trim();
+      if (!sc) return h;
+      // Replace only the existing opening sentence/line and keep the body.
+      // A pasted script is often ONE block with no blank lines, so we must NOT
+      // split on blank lines and overwrite the whole first block (that gutted
+      // the entire script down to the one-line hook -> score crashed).
+      const m = sc.match(/^.*?(?:[.!?\n]|$)/);
+      const rest = m ? sc.slice(m[0].length).trim() : '';
+      const opener = /[.!?]$/.test(h) ? h : h + '.';
+      return rest ? opener + '\n\n' + rest : opener;
     });
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
