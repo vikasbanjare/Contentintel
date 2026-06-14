@@ -94,6 +94,7 @@ function CIApp() {
 
   let View = null;
   if (tab === 'home') View = <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
+  else if (tab === 'create') View = <CreateTab onNav={nav} />;
   else if (tab === 'script') View = <ScriptTab onOpenKey={openKey} />;
   else if (tab === 'thumbnail') View = <ThumbnailTab onOpenKey={openKey} />;
   else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;

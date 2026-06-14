@@ -43,6 +43,10 @@ function ScriptTab({ onOpenKey }) {
   const m = SM[mood];
 
   const [text, setText] = React.useState('');
+  // Receive a draft sent from the Create tab ("Refine in Script checker").
+  React.useEffect(() => {
+    if (window.__ciPrefillScript) { setText(window.__ciPrefillScript); window.__ciPrefillScript = null; }
+  }, []);
   const [textB, setTextB] = React.useState('');
   const [compare, setCompare] = React.useState(false);
   const [lang, setLang] = React.useState('Auto-detect');

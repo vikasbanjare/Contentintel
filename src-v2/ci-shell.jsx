@@ -35,6 +35,7 @@ window.useCITheme = useCITheme;
 
 // Tab definitions -- each has a mood chosen for its content
 const TABS = [
+  { id: 'create',    label: 'Create',    mood: 'burgundy', icon: 'create'  },
   { id: 'script',    label: 'Script',    mood: 'navy',     icon: 'script'  },
   { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb'   },
   { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title'   },
@@ -61,6 +62,7 @@ function CITabIcon({ name }) {
     case 'playbook': return <svg {...s} viewBox="0 0 16 16"><path d="M3 3h7a2 2 0 012 2v8H5a2 2 0 00-2 2V3z"/><path d="M3 3a2 2 0 00-2 2v8a2 2 0 012-2"/><path d="M6 6h4M6 8.5h3"/></svg>;
     case 'home':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     case 'ask':     return <svg {...s} viewBox="0 0 16 16"><path d="M6 6a2 2 0 113.4 1.4C8.7 8.1 8 8.6 8 9.5"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/><circle cx="8" cy="8" r="6"/></svg>;
+    case 'create':  return <svg {...s} viewBox="0 0 16 16"><path d="M8 2.5l1.4 3.6L13 7.5l-3.6 1.4L8 12.5 6.6 8.9 3 7.5l3.6-1.4z"/></svg>;
     case 'more':    return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>;
     case 'pricing': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 8.5V3.5a1 1 0 011-1h5l5 5a1 1 0 010 1.4l-4.6 4.6a1 1 0 01-1.4 0l-5-5z"/><circle cx="6" cy="6" r="1"/></svg>;
     default: return null;

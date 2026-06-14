@@ -8,7 +8,7 @@ SRC = ROOT / "src-v2"
 TPL = ROOT / "index.html"
 RESEARCH_TAGS = []  # research now lives server-side in the Worker (not shipped to the browser)
 # name -> insert before this existing section's script block
-NEW_SECTIONS = {"ci-pricing.jsx": "ci-app.jsx", "ci-account.jsx": "ci-app.jsx", "ci-gate.jsx": "ci-app.jsx", "ci-feedback.jsx": "ci-app.jsx"}
+NEW_SECTIONS = {"ci-create.jsx": "ci-app.jsx", "ci-pricing.jsx": "ci-app.jsx", "ci-account.jsx": "ci-app.jsx", "ci-gate.jsx": "ci-app.jsx", "ci-feedback.jsx": "ci-app.jsx"}
 
 def load(name):
     return SRC.joinpath(name).read_text(encoding="utf-8").rstrip("\n")
