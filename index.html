@@ -7250,7 +7250,12 @@ function getSupabase() {
   return new Promise((resolve, reject) => {
     if (__sb) return resolve(__sb);
     if (!saasOn) return reject(new Error('SaaS not configured'));
-    const make = () => { __sb = window.supabase.createClient(SAAS.supabaseUrl, SAAS.supabaseAnonKey); resolve(__sb); };
+    const make = () => {
+      __sb = window.supabase.createClient(SAAS.supabaseUrl, SAAS.supabaseAnonKey, {
+        auth: { flowType: 'implicit', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
+      });
+      resolve(__sb);
+    };
     if (window.supabase) return make();
     const sc = document.createElement('script');
     sc.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
@@ -7290,6 +7295,11 @@ if (saasOn) {
       window.CI_USER = session ? session.user : null;
       applyPendingInvite(sb, session);
       try { window.dispatchEvent(new Event('ci-auth')); } catch (e) {}
+      try {
+        if (session && (location.hash.includes('access_token') || location.search.includes('code='))) {
+          history.replaceState(null, '', location.origin + location.pathname);
+        }
+      } catch (e) {}
     });
   }).catch(() => {});
   refreshSession();
