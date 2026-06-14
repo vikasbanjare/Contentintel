@@ -67,6 +67,34 @@ if (saasOn) {
 }
 window.refreshSession = refreshSession;
 window.ciGetSupabase = getSupabase;  // let the onboarding gate reuse the client
+async function ciGetMyPlan() {
+  try {
+    const sb = await getSupabase();
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) return null;
+    const { data } = await sb.from('profiles').select('plan').eq('id', user.id).single();
+    return data ? data.plan : null;
+  } catch (e) { return null; }
+}
+async function ciRedeemInvite(code) {
+  if (!SAAS.workerUrl || !window.CI_SESSION) throw new Error('Please sign in first.');
+  const res = await fetch(SAAS.workerUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + window.CI_SESSION },
+    body: JSON.stringify({ redeem: true, code: String(code || '') }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'That code is not valid.');
+  return data;
+}
+async function ciSignOut() {
+  try { const sb = await getSupabase(); await sb.auth.signOut(); } catch (e) {}
+  window.CI_SESSION = null; window.CI_USER = null;
+  try { window.dispatchEvent(new Event('ci-auth')); } catch (e) {}
+}
+window.ciGetMyPlan = ciGetMyPlan;
+window.ciRedeemInvite = ciRedeemInvite;
+window.ciSignOut = ciSignOut;
 
 const PLAN_LABEL = { free: 'Free — 15 credits', starter: 'Starter — 150 credits/mo', pro: 'Creator Pro — 750 credits/mo', agency: 'Agency — 3,000 credits/mo' };
 const PLAN_LIMIT = { free: 15, starter: 150, pro: 750, agency: 3000 };
@@ -103,7 +131,7 @@ function AccountModal({ open, onClose, onNav }) {
       const sb = await getSupabase();
       const { data: { user } } = await sb.auth.getUser();
       if (!user) return;
-      const { data } = await sb.from('profiles').select('plan, checks_used, email, full_name').eq('id', user.id).single();
+      const { data } = await sb.from('profiles').select('plan, checks_used, email, full_name, usd_limit').eq('id', user.id).single();
       setProfile({ ...(data || { plan: 'free', checks_used: 0 }), email: user.email });
     } catch (e) {}
   }
@@ -138,7 +166,7 @@ function AccountModal({ open, onClose, onNav }) {
   }
 
   if (!open) return null;
-  const limit = profile ? (PLAN_LIMIT[profile.plan] || 15) : 15;
+  const limit = profile ? (profile.usd_limit != null ? Math.round(Number(profile.usd_limit) * 130) : (PLAN_LIMIT[profile.plan] || 15)) : 15;
   const used = profile ? (profile.checks_used || 0) : 0;
   const pct = Math.min(100, Math.round(used / limit * 100));
 

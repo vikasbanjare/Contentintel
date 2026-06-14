@@ -20,16 +20,25 @@ function CIApp() {
     if (typeof window !== 'undefined' && window.CI_SESSION) return null;
     return (window.ciGateDone && window.ciGateDone()) ? null : 'welcome';
   });
-  // A signed-in session (incl. after a Google redirect) sends the user straight in.
+  // After login: approved accounts go straight to the app; un-approved ones
+  // (plan 'pending') see the invite-code screen first.
   React.useEffect(() => {
-    const f = () => {
-      if (typeof window !== 'undefined' && window.CI_SESSION) {
+    let cancelled = false;
+    const f = async () => {
+      if (typeof window === 'undefined' || !window.CI_SESSION) return;
+      let plan = null;
+      try { plan = window.ciGetMyPlan ? await window.ciGetMyPlan() : null; } catch (e) {}
+      if (cancelled) return;
+      const approved = !window.CI_SAAS_ON || (plan && plan !== 'pending');
+      if (approved) {
         try { window.ciMarkOnboarded && window.ciMarkOnboarded(window.CI_USER && window.CI_USER.email); } catch (e) {}
-        setGateStep(g => (g ? null : g));
+        setGateStep(null);
+      } else {
+        setGateStep('invite');
       }
     };
     window.addEventListener('ci-auth', f); f();
-    return () => window.removeEventListener('ci-auth', f);
+    return () => { cancelled = true; window.removeEventListener('ci-auth', f); };
   }, []);
 
   React.useEffect(() => {
@@ -112,6 +121,9 @@ function CIApp() {
 
   if (gateStep === 'welcome') {
     return <AuthGate onAuthed={() => setGateStep('pricing')} />;
+  }
+  if (gateStep === 'invite') {
+    return <InviteGate onApproved={() => setGateStep(null)} />;
   }
   if (gateStep === 'pricing') {
     return (

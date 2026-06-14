@@ -34,9 +34,23 @@ export default {
 
     // 2. Load profile (plan + usage), resetting the monthly window if needed
     const svc = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'content-type': 'application/json' };
-    const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start`, { headers: svc });
+    const body = await req.json().catch(() => ({}));
+    // REDEEM: the post-login invite screen sends { redeem:true, code }. Validate
+    // against INVITE_CODES and promote to 'beta' immediately.
+    if (body && body.redeem) {
+      const codes = String(env.INVITE_CODES || '').split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
+      const code = String(body.code || '').trim().toLowerCase();
+      if (code && codes.includes(code)) {
+        await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
+          method: 'PATCH', headers: svc, body: JSON.stringify({ plan: 'beta' }),
+        });
+        return json({ ok: true, plan: 'beta' }, 200, cors);
+      }
+      return json({ error: "That invite code isn't valid. Double-check it and try again." }, 400, cors);
+    }
+    const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start,usd_limit`, { headers: svc });
     const rows = await pRes.json();
-    let { plan = 'free', checks_used = 0, period_start } = rows[0] || {};
+    let { plan = 'free', checks_used = 0, period_start, usd_limit = null } = rows[0] || {};
     // Closed-alpha approval gate. 'pending' (default for new signups) is locked.
     // AUTO-APPROVE: if the user signed up with a valid invite code (set in the
     // Worker variable INVITE_CODES, comma-separated), promote them to 'beta'.
@@ -62,12 +76,16 @@ export default {
     }
 
     // 3. Resolve the requested engine, enforce plan + credits
-    const body = await req.json();
     const wanted = String(body.engine || (String(body.model || '').includes('haiku') ? 'quick' : String(body.model || '').includes('opus') ? 'max' : 'smart'));
     const allowed = PLAN_ENGINES[plan] || PLAN_ENGINES.free;
     const tier = allowed.includes(wanted) ? wanted : allowed[allowed.length - 1];
     const engine = ENGINES[tier];
-    const limit = PLAN_CREDITS[plan] ?? PLAN_CREDITS.free;
+    // Per-person spend cap: usd_limit (dollars) wins; else the plan's allowance.
+    // ~130 credits ≈ $1 (Haiku ~$0.0077/credit), so credits track real cost.
+    const CREDITS_PER_USD = 130;
+    const limit = (usd_limit != null)
+      ? Math.max(0, Math.round(Number(usd_limit) * CREDITS_PER_USD))
+      : (PLAN_CREDITS[plan] ?? PLAN_CREDITS.free);
     if (checks_used + engine.credits > limit)
       return json({ error: `Not enough credits for the ${tier} engine (needs ${engine.credits}, you have ${Math.max(0, limit - checks_used)} of ${limit}). Upgrade or switch to a lighter engine.`, upgrade: true }, 402, cors);
     const hasImages = JSON.stringify(body.messages || '').includes('"image"');

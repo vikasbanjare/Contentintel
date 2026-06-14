@@ -110,17 +110,9 @@ function AuthGate({ onAuthed }) {
           <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 29 }}>{mode === 'signup' ? 'Get started free' : 'Welcome back'}</div>
           <div style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>
             {mode === 'signup'
-              ? (saasOn ? 'Enter your invite code, then sign up in one click.' : 'Enter your email to get early access. No card needed.')
+              ? (saasOn ? 'Sign up in one click. You\'ll enter your invite code next.' : 'Enter your email to get early access. No card needed.')
               : 'Sign in to pick up where you left off.'}
           </div>
-          {mode === 'signup' && saasOn && (
-            <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 12, border: '1px solid var(--ci-glow, rgba(255,77,141,0.3))', background: 'rgba(255,77,141,0.06)' }}>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ci-accent, #FF4D8D)' }}>Invite code</label>
-              <input className="ci-input" style={{ marginTop: 6 }} type="text" placeholder="Paste your invite code" value={invite}
-                onChange={e => setInvite(e.target.value)} />
-              <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 6, lineHeight: 1.4 }}>Works with Google or email signup. No code? You can still sign up — access opens once approved.</div>
-            </div>
-          )}
           {saasOn && (
             <>
               <button type="button" onClick={google} style={{ width: '100%', height: 46, marginTop: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 12, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)', color: 'var(--text-1)', fontSize: 14.5, fontWeight: 600, cursor: 'pointer' }}>
@@ -186,3 +178,51 @@ function AuthGate({ onAuthed }) {
   );
 }
 window.AuthGate = AuthGate;
+
+// Shown AFTER login when the account isn't approved yet: enter an invite code.
+function InviteGate({ onApproved }) {
+  const m = MOODS.burgundy;
+  const [code, setCode] = React.useState('');
+  const [msg, setMsg] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const email = (window.CI_USER && window.CI_USER.email) || '';
+
+  async function submit() {
+    if (!code.trim()) { setMsg('Enter your invite code.'); return; }
+    setBusy(true); setMsg('');
+    try {
+      await window.ciRedeemInvite(code.trim());
+      try { window.ciMarkOnboarded && window.ciMarkOnboarded(email); } catch (e) {}
+      onApproved();
+    } catch (e) { setMsg(e.message || 'That code is not valid.'); setBusy(false); }
+  }
+  async function logout() { try { await window.ciSignOut(); } catch (e) {} }
+
+  return (
+    <div className="ci-gate ci-hero-aurora" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', position: 'relative', overflow: 'hidden' }}>
+      <div className="ci-aurora-wrap" aria-hidden="true">
+        <div className="ci-aurora-orb a" /><div className="ci-aurora-orb b" /><div className="ci-aurora-orb c" /><div className="ci-aurora-sweep" /><div className="ci-hero-grid" />
+      </div>
+      <div className="ci-block ci-rise in" style={{ position: 'relative', zIndex: 2, width: 420, maxWidth: '92vw', padding: 32, textAlign: 'center' }}>
+        <div style={{ width: 44, height: 44, margin: '0 auto', borderRadius: 12, background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: 20 }}>◈</div>
+        <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 30, marginTop: 16 }}>You're almost in</div>
+        <div style={{ fontSize: 13.5, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.6 }}>
+          ContentIntel is in private alpha. Enter the invite code you were given to unlock access.
+        </div>
+        <input className="ci-input" style={{ marginTop: 20, textAlign: 'center', fontSize: 16, letterSpacing: '0.04em' }} value={code}
+          onChange={e => setCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} placeholder="Enter invite code" />
+        {msg && <div style={{ fontSize: 12.5, marginTop: 12, color: '#f5788c' }}>{msg}</div>}
+        <div style={{ marginTop: 16 }}>
+          <GlowButton mood="burgundy" size="lg" style={{ width: '100%', justifyContent: 'center' }} onClick={submit}>
+            {busy ? 'Checking…' : 'Unlock access →'}
+          </GlowButton>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 16, lineHeight: 1.6 }}>
+          Signed in as {email || 'your account'}. No code yet? Ask for one, then come back.<br/>
+          <a onClick={logout} style={{ color: 'var(--text-3)', cursor: 'pointer', textDecoration: 'underline' }}>Sign out</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+window.InviteGate = InviteGate;
