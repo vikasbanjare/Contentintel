@@ -268,7 +268,9 @@ function PlatformTab() {
         )}
 
         {askState === "nokey" && (
-          <window.FreeModeHint system={platSys} userText={q} />
+          <div style={{ marginTop:10, fontSize:12.5, color:"var(--text-3)", padding:"10px 12px", borderRadius:9, background:"rgba(240,200,90,0.08)", border:"1px solid rgba(240,200,90,0.2)", lineHeight:1.5 }}>
+            To ask for free, open this app inside <b>Claude.ai</b> (it uses Claude's cloud, no key). Or add your own API key in Settings.
+          </div>
         )}
 
         {askState === "error" && (
