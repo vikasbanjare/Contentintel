@@ -8,7 +8,7 @@ SRC = ROOT / "src-v2"
 TPL = ROOT / "index.html"
 RESEARCH_TAGS = ["research.js", "research-2.js", "research-3.js", "research-4.js", "research-5.js", "research-6.js"]
 # name -> insert before this existing section's script block
-NEW_SECTIONS = {"ci-pricing.jsx": "ci-app.jsx", "ci-account.jsx": "ci-app.jsx", "ci-gate.jsx": "ci-app.jsx"}
+NEW_SECTIONS = {"ci-pricing.jsx": "ci-app.jsx", "ci-account.jsx": "ci-app.jsx", "ci-gate.jsx": "ci-app.jsx", "ci-feedback.jsx": "ci-app.jsx"}
 
 def load(name):
     return SRC.joinpath(name).read_text(encoding="utf-8").rstrip("\n")

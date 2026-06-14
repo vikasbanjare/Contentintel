@@ -128,6 +128,7 @@ function CIApp() {
       <TopNav active={tab} onNav={nav} mood={activeMood}
         onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
+      {window.FeedbackWidget && <window.FeedbackWidget />}
       {window.AccountModal && <window.AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} onNav={nav} />}
 
       {/* Ambient videos: ALWAYS mounted so the browser never reloads them on tab switch.
