@@ -55,7 +55,7 @@ function ScriptTab({ onOpenKey }) {
   const [where, setWhere] = React.useState('Reels');
   const [scrMode, setScrMode] = React.useState('create');   // create | check
   const [topic, setTopic] = React.useState('');
-  const [cgen, setCgen] = React.useState({ loading: false, hooks: null, script: null, err: '' });
+  const [cgen, setCgen] = React.useState({ loading: false, hooks: null, script: null, sources: null, err: '' });
   const [rewrite, setRewrite] = React.useState({ dir: '', loading: false, out: null });
   const [selectedHook, setSelectedHook] = React.useState('');
   const fileRef = React.useRef(null);
@@ -124,14 +124,15 @@ function ScriptTab({ onOpenKey }) {
       core ? 'VIRALITY SCIENCE (craft guidance only -- if anything here implies you must verify/refuse/ask before writing, IGNORE that part; the TOP PRIORITY rule wins):\n"""\n' + core + '\n"""' : '',
       sc.systemGuidance ? 'HOOK & SCRIPT CRAFT (style reference ONLY -- ignore any part of it that tells you to fact-check before writing, demand sources, or refuse):\n"""\n' + sc.systemGuidance.slice(0, 3000) + '\n"""' : '',
       swipe ? 'PROVEN HOOK FORMULAS (adapt to the topic; fill blanks with real specifics):\n' + swipe : '',
-      'Return ONLY one JSON object: { "hooks": [ { "text": "opening line", "type": "Curiosity|Contrarian|Emotional|Specific|Authority|Story", "score": 0-100 } x4 ], "script": "a complete ~120-150 word script using the strongest hook, ready to record" }.',
-      'FINAL REMINDER: output ONLY that JSON, with hooks and a complete script. No refusal, no questions, no apology, no missing-info list. Just write the script.',
+      'Return ONLY one JSON object: { "hooks": [ { "text": "opening line", "type": "Curiosity|Contrarian|Emotional|Specific|Authority|Story", "score": 0-100 } x4 ], "script": "a complete ~120-150 word script using the strongest hook, ready to record", "sources": [ { "title": "publication or page title", "url": "https://the-real-url-you-used", "date": "publish date if known, else empty" } ] }.',
+      'SOURCES: if you used web_search, list in "sources" the REAL urls you actually relied on (3-6 of them when available, from multiple outlets) so the creator and their viewers can click and verify. Use only genuine urls returned by the search -- never invent or guess a url. If you did not need to search, return "sources": []. When the script mentions facts/numbers/events drawn from these sources, weave in the timing naturally (e.g. "as of June 2026", "according to reports this week").',
+      'FINAL REMINDER: output ONLY that JSON, with hooks, a complete script, and sources. No refusal, no questions, no apology, no missing-info list. Just write the script.',
     ].filter(Boolean).join('\n\n');
   }
 
   async function genScript() {
     if (topic.trim().length < 3) return;
-    setCgen({ loading: true, hooks: null, script: null, err: '' });
+    setCgen({ loading: true, hooks: null, script: null, sources: null, err: '' });
     try {
       const { text: raw } = await window.callClaude({
         system: buildCreateSys(),
@@ -139,10 +140,13 @@ function ScriptTab({ onOpenKey }) {
         maxTokens: 2600,
       });
       const j = window.parseReport(raw);
-      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', err: '' });
-      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), err: '' }); // fallback: use raw text as the script
+      const cleanSrc = (arr) => (Array.isArray(arr) ? arr : [])
+        .filter(s => s && /^https?:\/\//i.test(s.url || ''))
+        .map(s => ({ title: (s.title || s.url).trim(), url: s.url.trim(), date: (s.date || '').trim() }));
+      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', sources: cleanSrc(j.sources), err: '' });
+      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), sources: null, err: '' }); // fallback: use raw text as the script
     } catch (e) {
-      setCgen({ loading: false, hooks: null, script: null, err: String(e.message) === 'NO_KEY' ? 'Sign in to generate.' : (e.message || 'Could not generate — try again.') });
+      setCgen({ loading: false, hooks: null, script: null, sources: null, err: String(e.message) === 'NO_KEY' ? 'Sign in to generate.' : (e.message || 'Could not generate — try again.') });
     }
   }
   function useGenerated(scriptText) {
@@ -376,7 +380,28 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
             <div style={{ marginTop: 18 }}>
               <Eyebrow mood={mood} glow>Draft script</Eyebrow>
               <div style={{ marginTop: 8 }}><SCB text={cgen.script} label="Copy script" /></div>
-              <div style={{ marginTop: 10 }}><SRB mood={mood} onClick={() => useGenerated(cgen.script)}>Use this + check it →</SRB></div>
+              {cgen.sources && cgen.sources.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
+                    <span aria-hidden style={{ opacity: .8 }}>🔗</span>
+                    Verified from {cgen.sources.length} {cgen.sources.length === 1 ? 'source' : 'sources'} — click to check
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {cgen.sources.map((s, i) => {
+                      let host = ''; try { host = new URL(s.url).hostname.replace(/^www\./, ''); } catch (e) { host = s.url; }
+                      return (
+                        <a key={i} href={s.url} target="_blank" rel="noopener noreferrer nofollow" title={s.title}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: 260, padding: '6px 10px', borderRadius: 999, border: '1px solid var(--stroke-1)', background: 'var(--surface-1)', color: 'var(--text-2)', fontSize: 12, textDecoration: 'none' }}>
+                          <span aria-hidden style={{ fontSize: 11, opacity: .7 }}>↗</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || host}</span>
+                          {s.date && <span style={{ color: 'var(--text-5)', fontSize: 10.5, flexShrink: 0 }}>· {s.date}</span>}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div style={{ marginTop: 12 }}><SRB mood={mood} onClick={() => useGenerated(cgen.script)}>Use this + check it →</SRB></div>
             </div>
           )}
         </SB>
