@@ -53,6 +53,9 @@ function ScriptTab({ onOpenKey }) {
   const [kind, setKind] = React.useState('Education');
   const [who, setWho] = React.useState('General');
   const [where, setWhere] = React.useState('Reels');
+  const [scrMode, setScrMode] = React.useState('create');   // create | check
+  const [topic, setTopic] = React.useState('');
+  const [cgen, setCgen] = React.useState({ loading: false, hooks: null, script: null, err: '' });
   const [rewrite, setRewrite] = React.useState({ dir: '', loading: false, out: null });
   const [selectedHook, setSelectedHook] = React.useState('');
   const fileRef = React.useRef(null);
@@ -106,6 +109,42 @@ function ScriptTab({ onOpenKey }) {
 
   const ready = text.trim().split(/\s+/).filter(Boolean).length >= 10;
   function check() { if (!ready) return; run({ userText, maxTokens: 4500 }); }
+
+  // ---- CREATE: topic -> a draft script + hook options (research-grounded) ----
+  function buildCreateSys() {
+    const core = (window.liveResearch && window.liveResearch().core) || '';
+    const sc = (window.getResearch && window.getResearch('script')) || {};
+    const swipe = (sc.hookSwipeFile || '').split('\n').filter(l => /^\d+\./.test(l.trim())).slice(0, 36).join('\n');
+    return [
+      "You are ContentIntel's scriptwriter. Given a TOPIC, write a strong short-form video script and hook options, specific to the topic -- never generic.",
+      "LANGUAGE LAW: write in the requested language (Hindi->Hindi, Hinglish->Hinglish, etc.).",
+      core ? 'VIRALITY SCIENCE:\n"""\n' + core + '\n"""' : '',
+      sc.systemGuidance ? 'HOOK & SCRIPT METHODOLOGY:\n"""\n' + sc.systemGuidance.slice(0, 3200) + '\n"""' : '',
+      swipe ? 'PROVEN HOOK FORMULAS (adapt to the topic, fill blanks with real specifics):\n' + swipe : '',
+      'Return ONLY one JSON object: { "hooks": [ { "text": "opening line", "type": "Curiosity|Contrarian|Emotional|Specific|Authority|Story", "score": 0-100 } x4 ], "script": "a complete ~120-150 word script using the strongest hook, ready to record" }.',
+    ].filter(Boolean).join('\n\n');
+  }
+  async function genScript() {
+    if (topic.trim().length < 3) return;
+    setCgen({ loading: true, hooks: null, script: null, err: '' });
+    try {
+      const { text: raw } = await window.callClaude({
+        system: buildCreateSys(),
+        userText: `Topic: ${topic.trim()}\nContent type: ${kind}\nPlatform: ${where}\nAudience: ${who}\nLanguage: ${lang === 'Auto-detect' ? '(match the topic)' : lang}\n\nWrite it now.`,
+        maxTokens: 2600,
+      });
+      const j = window.parseReport(raw);
+      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', err: '' });
+      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), err: '' }); // fallback: use raw text as the script
+    } catch (e) {
+      setCgen({ loading: false, hooks: null, script: null, err: String(e.message) === 'NO_KEY' ? 'Sign in to generate.' : (e.message || 'Could not generate — try again.') });
+    }
+  }
+  function useGenerated(scriptText) {
+    setText(scriptText);
+    setScrMode('check');
+    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
+  }
 
   // Apply a hook rewrite from the report to the first paragraph of the script
   function applyHook(hookText) {
@@ -288,9 +327,57 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
-      <SWH mood={mood} eyebrow="Script check" title="Check your script"
-        sub="Paste your video script. We'll tell you what's working, what's not, and how to fix it — line by line." />
+      <SWH mood={mood} eyebrow="Script" title={scrMode === 'create' ? 'Create a script' : 'Check your script'}
+        sub={scrMode === 'create' ? 'Start from a topic — get a ready-to-record script and hook options, then check & refine it.' : "Paste your video script. We'll tell you what's working, what's not, and how to fix it — line by line."} />
 
+      <div style={{ display: 'inline-flex', gap: 4, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)', marginBottom: 18 }}>
+        {['create', 'check'].map(mode => (
+          <button key={mode} className="pill" onClick={() => setScrMode(mode)}
+            style={{ height: 34, border: 'none', textTransform: 'capitalize', background: scrMode === mode ? 'var(--surface-3)' : 'transparent', fontWeight: scrMode === mode ? 700 : 500 }}>
+            {mode === 'create' ? '✦ Create' : '✓ Check'}
+          </button>
+        ))}
+      </div>
+
+      {scrMode === 'create' && (
+        <SB mood={mood} style={{ padding: 22 }}>
+          <label className="ci-label">What's your video about?</label>
+          <textarea className="ci-textarea" style={{ minHeight: 64 }} value={topic} onChange={e => setTopic(e.target.value)}
+            placeholder="e.g. How beginners should start SIP investing · Why most reels flop" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+            <SCG label="Content" options={['Education', 'Entertainment', 'Tech', 'Fitness', 'Comedy', 'Vlog', 'Finance', 'Ad', 'Other']} value={kind} onChange={setKind} />
+            <SCG label="Going to" options={['Reels', 'TikTok', 'Shorts', 'YouTube', 'Other']} value={where} onChange={setWhere} />
+            <SCG label="Language" options={['Auto-detect', 'English', 'Hindi', 'Hinglish', 'Spanish', 'Other']} value={lang} onChange={setLang} />
+          </div>
+          <div style={{ marginTop: 16 }}>
+            <SRB mood={mood} onClick={genScript} loading={cgen.loading}>✦ Generate script</SRB>
+            {topic.trim().length < 3 && <span style={{ fontSize: 12, color: 'var(--text-4)', marginLeft: 12 }}>Enter a topic first.</span>}
+          </div>
+          {cgen.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12 }}>{cgen.err}</div>}
+          {cgen.hooks && cgen.hooks.length > 0 && (
+            <div style={{ marginTop: 18 }}>
+              <Eyebrow mood={mood} glow>Hook options</Eyebrow>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                {cgen.hooks.map((h, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderTop: i ? '1px solid var(--stroke-1)' : 'none' }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: (h.score >= 75 ? '#8FD86A' : h.score >= 55 ? '#F0C85A' : '#F06A7E'), width: 30 }}>{h.score != null ? Math.round(h.score) : '–'}</span>
+                    <span style={{ flex: 1, fontSize: 13.5, color: 'var(--text-1)' }}>{h.text} <span style={{ fontSize: 10.5, color: 'var(--text-5)', textTransform: 'uppercase' }}>{h.type}</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {cgen.script && (
+            <div style={{ marginTop: 18 }}>
+              <Eyebrow mood={mood} glow>Draft script</Eyebrow>
+              <div style={{ marginTop: 8 }}><SCB text={cgen.script} label="Copy script" /></div>
+              <div style={{ marginTop: 10 }}><SRB mood={mood} onClick={() => useGenerated(cgen.script)}>Use this + check it →</SRB></div>
+            </div>
+          )}
+        </SB>
+      )}
+
+      {scrMode === 'check' && (
       <SB mood={mood} style={{ padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <STg on={compare} onChange={setCompare} mood={mood}>Compare two versions</STg>
@@ -338,6 +425,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
             disabled={!ready} disabledHint={text.trim() ? 'Script is too short to analyze — paste the full script (10+ words).' : 'Paste your script first — nothing to check yet.'} />
         </div>
       </SB>
+      )}
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><SLR rows={3} /></div>}
       {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}

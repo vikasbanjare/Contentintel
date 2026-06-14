@@ -35,7 +35,6 @@ window.useCITheme = useCITheme;
 
 // Tab definitions -- each has a mood chosen for its content
 const TABS = [
-  { id: 'create',    label: 'Create',    mood: 'burgundy', icon: 'create'  },
   { id: 'script',    label: 'Script',    mood: 'navy',     icon: 'script'  },
   { id: 'thumbnail', label: 'Thumbnail', mood: 'ember',    icon: 'thumb'   },
   { id: 'title',     label: 'Title',     mood: 'cyan',     icon: 'title'   },
