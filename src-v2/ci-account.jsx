@@ -92,6 +92,25 @@ async function ciSignOut() {
   window.CI_SESSION = null; window.CI_USER = null;
   try { window.dispatchEvent(new Event('ci-auth')); } catch (e) {}
 }
+let __researchLoaded = false, __researchPromise = null;
+async function ciEnsureResearch() {
+  if (__researchLoaded) return true;
+  if (!SAAS.workerUrl || !window.CI_SESSION) return false; // no worker/session -> client uses built-in defaults
+  if (!__researchPromise) __researchPromise = (async () => {
+    try {
+      const res = await fetch(SAAS.workerUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + window.CI_SESSION },
+        body: JSON.stringify({ research: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.research) { window.CI_RESEARCH = data.research; __researchLoaded = true; }
+    } catch (e) {}
+  })();
+  await __researchPromise;
+  return __researchLoaded;
+}
+window.ciEnsureResearch = ciEnsureResearch;
 window.ciGetMyPlan = ciGetMyPlan;
 window.ciRedeemInvite = ciRedeemInvite;
 window.ciSignOut = ciSignOut;

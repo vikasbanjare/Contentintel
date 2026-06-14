@@ -15,6 +15,22 @@ function CIApp() {
   const [accountOpen, setAccountOpen] = React.useState(false);
   const [hasKey, setHasKey] = React.useState(!!window.getKey());
   const [admin, setAdmin] = React.useState(window.isAdmin());
+  const [researchReady, setResearchReady] = React.useState(() => !((window.CI_SAAS || {}).workerUrl));
+  React.useEffect(() => {
+    if (researchReady) return;
+    let done = false;
+    const tryLoad = async () => {
+      if (window.CI_SESSION && window.ciEnsureResearch) {
+        await window.ciEnsureResearch();
+        if (!done) { done = true; setResearchReady(true); }
+      }
+    };
+    tryLoad();
+    const f = () => tryLoad();
+    window.addEventListener('ci-auth', f);
+    const t = setTimeout(() => { if (!done) setResearchReady(true); }, 7000); // never block forever
+    return () => { window.removeEventListener('ci-auth', f); clearTimeout(t); };
+  }, [researchReady]);
   const [gateStep, setGateStep] = React.useState(() => {
     try { if (new URLSearchParams(location.search).get('admin')) return null; } catch (e) {}
     if (typeof window !== 'undefined' && window.CI_SESSION) return null;
@@ -130,6 +146,17 @@ function CIApp() {
       <div className="ci-app">
         <div className="ci-scroll" style={{ minHeight: '100vh', paddingTop: 40 }}>
           <PricingTab gate onSkip={() => setGateStep(null)} onNav={nav} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!researchReady) {
+    return (
+      <div className="ci-app" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-3)' }}>
+          <div style={{ width: 26, height: 26, margin: '0 auto 14px', border: '3px solid var(--stroke-2)', borderTopColor: 'var(--text-2)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ fontSize: 13 }}>Loading your workspace…</div>
         </div>
       </div>
     );

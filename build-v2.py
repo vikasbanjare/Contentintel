@@ -6,7 +6,7 @@ import pathlib, re
 ROOT = pathlib.Path(__file__).resolve().parent
 SRC = ROOT / "src-v2"
 TPL = ROOT / "index.html"
-RESEARCH_TAGS = ["research.js", "research-2.js", "research-3.js", "research-4.js", "research-5.js", "research-6.js"]
+RESEARCH_TAGS = []  # research now lives server-side in the Worker (not shipped to the browser)
 # name -> insert before this existing section's script block
 NEW_SECTIONS = {"ci-pricing.jsx": "ci-app.jsx", "ci-account.jsx": "ci-app.jsx", "ci-gate.jsx": "ci-app.jsx", "ci-feedback.jsx": "ci-app.jsx"}
 
@@ -41,12 +41,9 @@ for name, before in NEW_SECTIONS.items():
     tpl = tpl[:so] + block + tpl[so:]
     n += 1
 
-for i, tag in enumerate(RESEARCH_TAGS[1:], start=2):
-    if f'src="{tag}"' not in tpl:
-        prev = RESEARCH_TAGS[i - 2]
-        tpl = tpl.replace(f'<script src="{prev}"></script>',
-                          f'<script src="{prev}"></script>\n  <script src="{tag}"></script>', 1)
+# Strip any research-N.js script tags — research is server-side now.
+tpl = re.sub(r'\n?\s*<script src="research(?:-\d+)?\.js"></script>', '', tpl)
 
 TPL.write_text(tpl, encoding="utf-8")
-rt = sum(1 for t in RESEARCH_TAGS if ('src="' + t + '"') in tpl)
+rt = 0
 print(f"index.html: {len(tpl):,} bytes | {n} sections | scripts {tpl.count('<script')}/{tpl.count('</script>')} | research {rt}/6")
