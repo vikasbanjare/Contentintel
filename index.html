@@ -2402,25 +2402,48 @@ function preprocessForImageGen(raw) {
   ].filter(Boolean).join(" ");
 }
 
+// The non-negotiable design rules every generated thumbnail must obey -- distilled
+// from the thumbnail research, plus an explicit anti-gibberish text rule (the #1
+// thing image models get wrong). Pulled into EVERY generation, edit or text-to-image.
+function thumbDesignLaw() {
+  const th = (getResearch("thumbnail") || {});
+  const st = (getResearch("studio") || {});
+  const dp = String(th.designPrinciples || st.designPrinciples || "").trim();
+  return [
+    "DESIGN LAW (follow strictly): exactly ONE dominant focal point on a rule-of-thirds line, with strong foreground/background separation. High contrast, a tight 60-30-10 colour palette, cinematic directional lighting. If a person is shown: a sharp, realistic, undistorted face with ONE clear emotion and correct eyes/hands. Bold enough to read at 120px.",
+    "TEXT RULE: render ONLY the exact words specified, spelled correctly, in a heavy bold sans-serif with a strong outline or drop shadow; 3-5 BIG words maximum. Add NO other words, captions, logos, watermarks, or random/gibberish lettering.",
+    "AVOID: clutter, muddy low-contrast colour, tiny text, plastic over-smoothed 'AI' skin, warped faces, extra fingers or limbs, stray symbols.",
+    dp ? "Researched principles to apply where relevant: " + dp.slice(0, 600) : "",
+  ].filter(Boolean).join("\n");
+}
+
 async function generateThumbnail({ instruction, image, model }) {
-  const mdl = model || "gemini-2.0-flash-exp";
-  const parts = [{ text: instruction }];
+  // Default to Google's current image model ("Nano Banana") -- far better at
+  // following composition/design instructions and rendering legible text than the
+  // old gemini-2.0-flash-exp. Fall back to the old model only if the key/region
+  // doesn't expose the new one yet.
+  const PRIMARY = model || "gemini-2.5-flash-image";
+  const FALLBACK = "gemini-2.0-flash-exp";
+  const fullInstruction = String(instruction || "").trim() + "\n\n" + thumbDesignLaw();
+  const parts = [{ text: fullInstruction }];
   if (image && image.data) parts.push({ inline_data: { mime_type: image.mime || "image/png", data: image.data } });
   const payload = { contents: [{ parts }], generationConfig: { responseModalities: ["TEXT", "IMAGE"] } };
-  // Gemini supports browser CORS, so call it DIRECTLY when a Google key is set.
-  // Only fall back to the proxy when there's no key (e.g. a shared deployment).
   const key = getGoogleKey();
   const proxy = getProxyUrl();
-  let res;
-  if (key) {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
+  // Gemini supports browser CORS, so call it DIRECTLY when a Google key is set.
+  const attempt = (mdl) => {
+    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
     });
-  } else if (proxy) {
-    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); }
-  } else {
+    if (proxy) return fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) })
+      .catch(e => { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); });
     throw new Error("NO_GOOGLE_KEY");
+  };
+  let res = await attempt(PRIMARY);
+  // If the new model isn't available on this key, transparently retry the old one.
+  if (!res.ok && (res.status === 404 || res.status === 400) && !model) {
+    let d = ""; try { d = (await res.clone().json())?.error?.message || ""; } catch (e) {}
+    if (/not found|not supported|unknown|does not exist|model/i.test(d) || res.status === 404) res = await attempt(FALLBACK);
   }
   if (!res.ok) {
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
