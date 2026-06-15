@@ -2171,6 +2171,12 @@ Object.assign(window, {
 
 const { MOODS: EM } = window;
 
+// Build stamp -- so you can confirm which version is actually live. Open the
+// browser console (F12) and look for this line; if it's older than expected,
+// you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
+window.CI_BUILD = "2026-06-15-r2";
+try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
+
 // ── Config (editable) ────────────────────────────────────────────────────────
 // Prices are per 1,000,000 tokens (USD) and are APPROXIMATE -- adjust to match
 // Anthropic's current pricing. They only drive the on-screen cost estimate.
@@ -3403,7 +3409,7 @@ function KeyModal({ open, onClose }) {
     <div className="ci-modal-scrim" onClick={() => onClose(false)}>
       <div className="ci-modal" onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <h3 className="display" style={{ fontSize: 22, margin: 0 }}>Settings</h3>
+          <h3 className="display" style={{ fontSize: 22, margin: 0 }}>Settings <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-5)" }}>build {window.CI_BUILD || "?"}</span></h3>
           <button className="ci-iconbtn" style={{ width: 30, height: 30 }} onClick={() => onClose(false)}>✕</button>
         </div>
 
