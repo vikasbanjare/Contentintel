@@ -140,7 +140,9 @@ function ScriptTab({ onOpenKey, onNav }) {
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
   const ready = text.trim().split(/\s+/).filter(Boolean).length >= 10;
-  function check() { if (!ready) return; run({ userText, maxTokens: 4500 }); }
+  // 8000 tokens of headroom so the full report + 3 hook rewrites never truncate
+  // mid-JSON on a long script (truncation = a partial/broken report).
+  function check() { if (!ready) return; run({ userText, maxTokens: 8000 }); }
 
   // ---- CREATE: topic -> a draft script + hook options (research-grounded) ----
   function buildCreateSys() {
@@ -244,7 +246,7 @@ function ScriptTab({ onOpenKey, onNav }) {
     const ns = Math.round(nw / 2.5);
     const newUserText =
       `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${nw} (~${ns}s)\n\nSCRIPT (Version A):\n${newText}`;
-    run({ userText: newUserText, maxTokens: 4500 });
+    run({ userText: newUserText, maxTokens: 8000 });
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
