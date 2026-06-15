@@ -545,7 +545,10 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
                 {tags.length > 0 && (
                   <div style={{ marginTop: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{p.tagLabel}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                        {p.tagLabel}
+                        {p.key === 'youtube' && (() => { const n = tags.join(', ').length; return <span style={{ marginLeft: 7, fontWeight: 600, color: n > 500 ? '#F06A7E' : '#8FD86A' }}>{n}/500</span>; })()}
+                      </span>
                       <button className="ci-copybtn" style={{ height: 24, fontSize: 11, padding: '0 9px' }} onClick={() => window.copyText(tags.join(p.hash ? ' ' : ', '))}>Copy all</button>
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

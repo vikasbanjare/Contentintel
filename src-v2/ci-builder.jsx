@@ -54,7 +54,7 @@ TIER 3 — FULL REIMAGINING: Bold new visual concept for the same topic. Differe
 // Upgrade tier card with inline ⚡ Generate button.
 // When sourceImage is available (Builder tab), passes it to Gemini for image-editing mode;
 // otherwise falls back to text-to-image.
-function BuilderUpgradeCard({ u, i, m, sourceImage }) {
+function BuilderUpgradeCard({ u, i, m, sourceImage, aspect }) {
   const [genState, setGenState] = React.useState('idle');
   const [genImg, setGenImg]     = React.useState(null);
   const [genErr, setGenErr]     = React.useState('');
@@ -66,9 +66,9 @@ function BuilderUpgradeCard({ u, i, m, sourceImage }) {
     try {
       let url;
       if (window.editThumbnailInApp) {
-        url = await window.editThumbnailInApp(u.prompt, sourceImage || null);
+        url = await window.editThumbnailInApp(u.prompt, sourceImage || null, aspect);
       } else if (window.generateImageInApp) {
-        url = await window.generateImageInApp(u.prompt);
+        url = await window.generateImageInApp(u.prompt, aspect);
       } else {
         throw new Error('NO_IMAGE_KEY');
       }
@@ -119,7 +119,7 @@ function BuilderUpgradeCard({ u, i, m, sourceImage }) {
 
 // In-app generation for the MAIN builder prompt -- creates the thumbnail right here
 // with Gemini (Google AI key) or DALL-E (OpenAI/proxy). Only renders when a key is set.
-function GenerateHere({ prompt, sourceImage, m }) {
+function GenerateHere({ prompt, sourceImage, m, aspect }) {
   const [st, setSt] = React.useState('idle');
   const [img, setImg] = React.useState(null);
   const [err, setErr] = React.useState('');
@@ -131,8 +131,8 @@ function GenerateHere({ prompt, sourceImage, m }) {
     setSt('loading'); setImg(null); setErr('');
     try {
       let url;
-      if (sourceImage && window.editThumbnailInApp) url = await window.editThumbnailInApp(prompt, sourceImage);
-      else url = await window.generateImageInApp(prompt);
+      if (sourceImage && window.editThumbnailInApp) url = await window.editThumbnailInApp(prompt, sourceImage, aspect);
+      else url = await window.generateImageInApp(prompt, aspect);
       setImg(url); setSt('done');
     } catch (e) {
       const msg = String(e?.message || '');
@@ -657,7 +657,7 @@ function BuilderTab() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {upgrades.map((u, i) => (
-                  <BuilderUpgradeCard key={i} u={u} i={i} m={m} sourceImage={analyseImg} />
+                  <BuilderUpgradeCard key={i} u={u} i={i} m={m} sourceImage={analyseImg} aspect={currentRatio.label} />
                 ))}
               </div>
             </div>
@@ -699,7 +699,7 @@ function BuilderTab() {
             <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 4 }}>Your prompt (edit if needed):</div>
             <textarea className="ci-textarea" style={{ minHeight: 130, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}
               value={prompt} onChange={e => setPrompt(e.target.value)} />
-            <GenerateHere prompt={prompt} sourceImage={analyseImg} m={m} />
+            <GenerateHere prompt={prompt} sourceImage={analyseImg} m={m} aspect={currentRatio.label} />
             {(photoPeople.length > 0) && (window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.()) && (
               <div style={{ fontSize: 11, color: 'var(--text-4)', margin: '-4px 0 12px', lineHeight: 1.5 }}>
                 Tip: in-app generation won't lock in a real uploaded face — for accurate likeness, use ChatGPT or Gemini below with your photo attached.

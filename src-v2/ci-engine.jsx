@@ -274,16 +274,17 @@ async function packageScript(script, lang, opts = {}) {
     pl.systemGuidance ? "PLATFORM / SEO RULES (ranking signals, hashtag counts, keyword placement -- follow these exactly):\n" + pl.systemGuidance.slice(0, 2600) : "",
     (th.designPrinciples || th.systemGuidance) ? "THUMBNAIL-TEXT RULES (2-4 words, legible at 120px, complements the title -- never repeats it):\n" + (String(th.designPrinciples || "").slice(0, 700) + "\n" + String(th.systemGuidance || "").slice(0, 700)).trim() : "",
     "PER-PLATFORM INTENT -- YouTube: search + browse, keyword EARLY, ~60 chars, strong curiosity gap. Instagram: hook-style first line + keyword-rich phrasing + 3-5 highly-relevant hashtags (hashtags = minor topic signals, not discovery). LinkedIn: professional, insight-led hook, zero hype, 3 relevant hashtags.",
+    "YOUTUBE TAGS (this is the ranking box -- make it strong, not a token list): return 18-30 tags ORDERED most-important-first. Start with the EXACT primary keyword, then its close variations/synonyms, then 2-3 broader category terms, then specific long-tail phrases a real viewer would type (questions, 'how to', year, niche+topic combos) pulled from THIS script. Lowercase, no # symbols, no duplicates. YouTube caps tags at 500 characters TOTAL (including commas) -- pack it close to that limit but never exceed it, so order the highest-value tags first in case of truncation.",
     "SCORE each title 0-100 for predicted click + search strength using the title science, with a one-line 'why' naming the specific lever (curiosity gap / keyword / number / stake). Be honest -- not everything is a 90.",
     "Return ONLY one valid JSON object, no markdown:\n"
-      + '{ "youtube":{ "titles":[{"text":"","score":0,"why":""}], "tags":["8-12 search keywords/phrases, no #"] },'
+      + '{ "youtube":{ "titles":[{"text":"","score":0,"why":""}], "tags":["18-30 ranking tags, primary keyword first, <500 chars total, lowercase, no #"] },'
       + ' "instagram":{ "titles":[{"text":"","score":0,"why":""}], "hashtags":["3-5 with #"], "keywords":["caption SEO keywords"] },'
       + ' "linkedin":{ "titles":[{"text":"","score":0,"why":""}], "hashtags":["3 with #"] },'
       + ' "thumbnailText":[{"text":"2-4 words","why":""}] }\n'
       + "EXACTLY 3 titles per platform and EXACTLY 3 thumbnailText options.",
   ].filter(Boolean).join("\n\n");
   const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "");
-  const { text } = await callClaude({ system: sys, userText: ctx + "\nSCRIPT:\n" + script, maxTokens: 1900 });
+  const { text } = await callClaude({ system: sys, userText: ctx + "\nSCRIPT:\n" + script, maxTokens: 2300 });
   const json = (window.parseReport || (x => null))(text);
   if (!json || (!json.youtube && !json.instagram && !json.linkedin)) throw new Error("Could not generate packaging -- try again.");
   return json;
@@ -326,46 +327,61 @@ function thumbDesignLaw() {
   ].filter(Boolean).join("\n");
 }
 
-async function generateThumbnail({ instruction, image, model }) {
-  // Default to Google's current image model ("Nano Banana") -- far better at
-  // following composition/design instructions and rendering legible text than the
-  // old gemini-2.0-flash-exp. Fall back to the old model only if the key/region
-  // doesn't expose the new one yet.
-  const PRIMARY = model || "gemini-2.5-flash-image";
-  const FALLBACK = "gemini-2.0-flash-exp";
+async function generateThumbnail({ instruction, image, model, aspect }) {
+  // Try Google's image models in order so a key/region that doesn't expose the
+  // newest one still works: Nano Banana (GA) → its preview → 2.0 preview → 2.0 exp.
+  const CANDIDATES = model ? [model] : [
+    "gemini-2.5-flash-image",
+    "gemini-2.5-flash-image-preview",
+    "gemini-2.0-flash-preview-image-generation",
+    "gemini-2.0-flash-exp",
+  ];
   const fullInstruction = String(instruction || "").trim() + "\n\n" + thumbDesignLaw();
-  const parts = [{ text: fullInstruction }];
-  if (image && image.data) parts.push({ inline_data: { mime_type: image.mime || "image/png", data: image.data } });
-  const payload = { contents: [{ parts }], generationConfig: { responseModalities: ["TEXT", "IMAGE"] } };
   const key = getGoogleKey();
   const proxy = getProxyUrl();
-  // Gemini supports browser CORS, so call it DIRECTLY when a Google key is set.
+  if (!key && !proxy) throw new Error("NO_GOOGLE_KEY");
+  const ratio = aspect || "16:9";
+  const buildPayload = (mdl) => {
+    const parts = [{ text: fullInstruction }];
+    if (image && image.data) parts.push({ inline_data: { mime_type: image.mime || "image/png", data: image.data } });
+    const generationConfig = { responseModalities: ["TEXT", "IMAGE"] };
+    // Only the 2.5 image model accepts imageConfig.aspectRatio; older ones 400 on it.
+    if (/2\.5-flash-image/.test(mdl)) generationConfig.imageConfig = { aspectRatio: ratio };
+    return { contents: [{ parts }], generationConfig };
+  };
   const attempt = (mdl) => {
+    const payload = buildPayload(mdl);
     if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
     });
-    if (proxy) return fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) })
+    return fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) })
       .catch(e => { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); });
-    throw new Error("NO_GOOGLE_KEY");
   };
-  let res = await attempt(PRIMARY);
-  // If the new model isn't available on this key, transparently retry the old one.
-  if (!res.ok && (res.status === 404 || res.status === 400) && !model) {
-    let d = ""; try { d = (await res.clone().json())?.error?.message || ""; } catch (e) {}
-    if (/not found|not supported|unknown|does not exist|model/i.test(d) || res.status === 404) res = await attempt(FALLBACK);
-  }
-  if (!res.ok) {
+  let lastDetail = "";
+  for (const mdl of CANDIDATES) {
+    let res;
+    for (let a = 0; ; a++) {           // transient overload backoff, per model
+      res = await attempt(mdl);
+      if (res.ok || !(res.status === 429 || res.status === 503 || res.status === 500) || a >= 2) break;
+      await new Promise(r => setTimeout(r, 900 * Math.pow(2, a) + Math.random() * 400));
+    }
+    if (res.ok) {
+      const data = await res.json();
+      const ps = (((data.candidates || [])[0] || {}).content || {}).parts || [];
+      for (const p of ps) {
+        const inl = p.inlineData || p.inline_data;
+        if (inl && inl.data) return "data:" + (inl.mimeType || inl.mime_type || "image/png") + ";base64," + inl.data;
+      }
+      lastDetail = ps.map(p => p.text).filter(Boolean).join(" ").slice(0, 180) || "model returned no image";
+      continue;                        // OK but no image (often a safety/text reply) -> try next
+    }
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
+    lastDetail = detail || ("HTTP " + res.status);
     if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid -- check it in Settings.");
-    throw new Error(detail || ("Image request failed (" + res.status + ")."));
+    if (res.status === 429 && /quota|billing/i.test(detail)) throw new Error("This Google key is out of image quota / needs billing enabled. Add billing in Google AI Studio, or try again later.");
+    // 403 (API not enabled) / 404 (model unavailable) / other -> try the next model
   }
-  const data = await res.json();
-  const ps = (((data.candidates || [])[0] || {}).content || {}).parts || [];
-  for (const p of ps) {
-    const inl = p.inlineData || p.inline_data;
-    if (inl && inl.data) return "data:" + (inl.mimeType || inl.mime_type || "image/png") + ";base64," + inl.data;
-  }
-  throw new Error("The image model returned no image. Try again or simplify the request.");
+  throw new Error("Couldn't generate the image with this key. " + (lastDetail ? "(" + lastDetail + ") " : "") + "Make sure image generation is enabled for your Google AI key (Generative Language API + billing).");
 }
 
 // Independent fact-check via Gemini, grounded with Google Search. Browser-direct
@@ -550,23 +566,23 @@ async function generateImageDalle({ prompt, size, model }) {
 
 // Unified in-app image generation (no source image -- pure text-to-image).
 // Preprocesses editing-style prompts into descriptive generation prompts first.
-async function generateImageInApp(promptText) {
+async function generateImageInApp(promptText, aspect) {
   const processed = preprocessForImageGen(promptText);
   const gKey  = getGoogleKey();
   const oKey  = getOpenAIKey();
   const proxy = getProxyUrl();
-  if (gKey) return await generateThumbnail({ instruction: processed });
+  if (gKey) return await generateThumbnail({ instruction: processed, aspect });
   if (oKey || proxy) return await generateImageDalle({ prompt: processed });
   throw new Error("NO_IMAGE_KEY");
 }
 
 // Image editing -- uses the source image to drive Gemini's in-context edit.
 // Falls back to text-to-image if no Google key / proxy.
-async function editThumbnailInApp(promptText, sourceImage) {
+async function editThumbnailInApp(promptText, sourceImage, aspect) {
   const gKey  = getGoogleKey();
   const proxy = getProxyUrl();
-  if (gKey && sourceImage) return await generateThumbnail({ instruction: promptText, image: sourceImage });
-  return await generateImageInApp(promptText); // fall back to text-to-image
+  if (gKey && sourceImage) return await generateThumbnail({ instruction: promptText, image: sourceImage, aspect });
+  return await generateImageInApp(promptText, aspect); // fall back to text-to-image
 }
 
 // Image-gen handoff: copy the prompt + open the tool in a new tab. The user
