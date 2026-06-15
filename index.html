@@ -2328,6 +2328,12 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
     return { text: textS, usage: dataS.usage || null, sources: dataS.ci_sources || null };
   }
   const key = getKey();
+  // Neither the BYO-key nor the sandbox path attaches a web_search tool (only the
+  // hosted worker does). Several prompts still say "you have a web_search tool", so
+  // the model emits <function_calls> XML as TEXT and it leaks to the UI. Tell it the
+  // truth here so it writes from its own knowledge and never fakes a tool call.
+  const NO_TOOL_NOTE = "\n\nEXECUTION NOTE (highest priority): You have NO web_search tool and NO external tools in this session. Ignore any instruction above about searching the web or 'search first'. NEVER output tool-call or function-call syntax of any kind -- no <function_calls>, <invoke>, <function_results> or similar; such text is NOT executed and leaks to the user. Do not narrate searching. Answer only from your own knowledge; if a topic is recent or unverifiable, treat it as the user's stated premise and proceed. Output only the final answer in the exact format requested.";
+  if (typeof system === "string") system = system + NO_TOOL_NOTE;
   // Normalise to an array so single- and multi-image (compare) paths share code.
   const imgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
   // No personal key? If we're inside a Claude preview/artifact, use its free AI.
@@ -2389,7 +2395,9 @@ async function callClaude(args) {
   const MAX = 3;
   for (let attempt = 0; ; attempt++) {
     try {
-      return await callClaudeOnce(args);
+      const out = await callClaudeOnce(args);
+      if (out && typeof out.text === "string") out.text = stripToolNoise(out.text);
+      return out;
     } catch (e) {
       if (isOverloaded(e) && attempt < MAX - 1) {
         await new Promise(r => setTimeout(r, 900 * Math.pow(2, attempt) + Math.random() * 400));
@@ -2964,10 +2972,23 @@ function repairJson(s) {
 
 // Robust: tolerate code fences, surrounding prose, trailing commas AND
 // truncated responses. Returns null (never throws) when nothing is usable.
+// Remove leaked tool-call / function-call XML the model sometimes emits as text
+// (when it wrongly thinks it has a web_search tool). Keeps the real prose/JSON.
+function stripToolNoise(s) {
+  return String(s || "")
+    .replace(/<function_calls>[\s\S]*?<\/function_calls>/gi, "")
+    .replace(/<function_results>[\s\S]*?<\/function_results>/gi, "")
+    .replace(/<invoke\b[\s\S]*?<\/invoke>/gi, "")
+    .replace(/<\/?(?:function_calls|function_results|invoke|parameter)\b[^>]*>/gi, "")
+    .trim();
+}
+
 function parseReport(text) {
-  let t = (text || "").trim();
-  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fence) t = fence[1].trim();
+  let t = stripToolNoise(text);
+  // Prefer fenced blocks that actually contain an object; if several, take the LAST
+  // (the model's final answer comes after any preamble/reasoning).
+  const fences = Array.from(t.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)).map(m => m[1].trim()).filter(b => b.includes("{"));
+  if (fences.length) t = fences[fences.length - 1];
   const s = t.indexOf("{");
   if (s === -1) return null;
   t = t.slice(s); // from first "{" to the end -- don't trim the tail (handle cut-offs)
