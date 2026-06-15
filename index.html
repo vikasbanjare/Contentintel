@@ -2449,6 +2449,7 @@ async function packageScript(script, lang, opts = {}) {
     ti.systemGuidance ? "TITLE SCIENCE (apply to every title; an honest, payable curiosity gap -- never clickbait the script can't deliver):\n" + ti.systemGuidance : "",
     pl.systemGuidance ? "PLATFORM / SEO RULES (ranking signals, hashtag counts, keyword placement -- follow these exactly):\n" + pl.systemGuidance.slice(0, 2600) : "",
     (th.designPrinciples || th.systemGuidance) ? "THUMBNAIL-TEXT RULES (2-4 words, legible at 120px, complements the title -- never repeats it):\n" + (String(th.designPrinciples || "").slice(0, 700) + "\n" + String(th.systemGuidance || "").slice(0, 700)).trim() : "",
+    "THUMBNAIL BRIEF: also write a one-to-two sentence VISUAL concept for the thumbnail image (not the words) drawn from the script -- the main subject + their expression/emotion, the key object or scene, the mood, and a simple high-contrast composition idea. Make it concrete enough for an AI image generator to produce a professional, click-worthy thumbnail. This is the scene, NOT the overlay text.",
     "PER-PLATFORM INTENT -- YouTube: search + browse, keyword EARLY, ~60 chars, strong curiosity gap. Instagram: hook-style first line + keyword-rich phrasing + 3-5 highly-relevant hashtags (hashtags = minor topic signals, not discovery). LinkedIn: professional, insight-led hook, zero hype, 3 relevant hashtags.",
     "YOUTUBE TAGS (this is the ranking box -- make it strong, not a token list): return 18-30 tags ORDERED most-important-first. Start with the EXACT primary keyword, then its close variations/synonyms, then 2-3 broader category terms, then specific long-tail phrases a real viewer would type (questions, 'how to', year, niche+topic combos) pulled from THIS script. Lowercase, no # symbols, no duplicates. YouTube caps tags at 500 characters TOTAL (including commas) -- pack it close to that limit but never exceed it, so order the highest-value tags first in case of truncation.",
     "SCORE each title 0-100 for predicted click + search strength using the title science, with a one-line 'why' naming the specific lever (curiosity gap / keyword / number / stake). Be honest -- not everything is a 90.",
@@ -2456,7 +2457,7 @@ async function packageScript(script, lang, opts = {}) {
       + '{ "youtube":{ "titles":[{"text":"","score":0,"why":""}], "tags":["18-30 ranking tags, primary keyword first, <500 chars total, lowercase, no #"] },'
       + ' "instagram":{ "titles":[{"text":"","score":0,"why":""}], "hashtags":["3-5 with #"], "keywords":["caption SEO keywords"] },'
       + ' "linkedin":{ "titles":[{"text":"","score":0,"why":""}], "hashtags":["3 with #"] },'
-      + ' "thumbnailText":[{"text":"2-4 words","why":""}] }\n'
+      + ' "thumbnailText":[{"text":"2-4 words","why":""}], "thumbnailBrief":"1-2 sentence visual concept for the image" }\n'
       + "EXACTLY 3 titles per platform and EXACTLY 3 thumbnailText options.",
   ].filter(Boolean).join("\n\n");
   const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "");
@@ -3039,11 +3040,19 @@ function computeOverall(json) {
 // ── useAnalysis -- shared runner for every checker tab ────────────────────────
 // state: idle | loading | done | error
 // when done with report=null → the tab shows its built-in SAMPLE (no key path)
-function useAnalysis(type) {
-  const [state, setState] = React.useState("idle");
-  const [report, setReport] = React.useState(null);
-  const [usage, setUsage] = React.useState(null);
+function useAnalysis(type, opts = {}) {
+  const pk = opts.persistKey;   // when set, the last result survives tab switches
+  const boot = (() => { if (!pk) return null; try { return JSON.parse(sessionStorage.getItem(pk) || "null"); } catch (e) { return null; } })();
+  const [state, setState] = React.useState(boot && boot.report ? "done" : "idle");
+  const [report, setReport] = React.useState((boot && boot.report) || null);
+  const [usage, setUsage] = React.useState((boot && boot.usage) || null);
   const [err, setErr] = React.useState("");
+  React.useEffect(() => {
+    if (!pk) return;
+    try {
+      if (state === "done" && report) sessionStorage.setItem(pk, JSON.stringify({ report, usage }));
+    } catch (e) {}
+  }, [pk, state, report, usage]);
 
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setState("loading");
@@ -3078,7 +3087,8 @@ function useAnalysis(type) {
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
-  return { state, report, usage, err, run, reset: () => setState("idle") };
+  return { state, report, usage, err, run,
+    reset: () => { setState("idle"); setReport(null); setUsage(null); setErr(""); if (pk) try { sessionStorage.removeItem(pk); } catch (e) {} } };
 }
 
 // ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
@@ -4340,29 +4350,34 @@ Cut the proof section in half — lead with the result, drop the setup list. Tha
 
 (Add your Anthropic API key to analyse your real script and copy the full report.)`;
 
-function ScriptTab({ onOpenKey }) {
+function ScriptTab({ onOpenKey, onNav }) {
   const mood = 'navy';
   const m = SM[mood];
 
-  const [text, setText] = React.useState('');
+  // Everything on this tab survives navigating away & back (sessionStorage), so the
+  // script, analysis, fact-check and packaging are still here when you return.
+  const SS = 'ci_script_session';
+  const snap = React.useMemo(() => { try { return JSON.parse(sessionStorage.getItem(SS) || '{}'); } catch (e) { return {}; } }, []);
+
+  const [text, setText] = React.useState(snap.text || '');
   // Receive a draft sent from the Create tab ("Refine in Script checker").
   React.useEffect(() => {
     if (window.__ciPrefillScript) { setText(window.__ciPrefillScript); window.__ciPrefillScript = null; }
   }, []);
-  const [textB, setTextB] = React.useState('');
-  const [compare, setCompare] = React.useState(false);
-  const [lang, setLang] = React.useState('Auto-detect');
-  const [kind, setKind] = React.useState('Education');
-  const [who, setWho] = React.useState('General');
-  const [where, setWhere] = React.useState('Reels');
-  const [scrMode, setScrMode] = React.useState('create');   // create | check
-  const [topic, setTopic] = React.useState('');
-  const [cgen, setCgen] = React.useState({ loading: false, hooks: null, script: null, sources: null, err: '' });
+  const [textB, setTextB] = React.useState(snap.textB || '');
+  const [compare, setCompare] = React.useState(!!snap.compare);
+  const [lang, setLang] = React.useState(snap.lang || 'Auto-detect');
+  const [kind, setKind] = React.useState(snap.kind || 'Education');
+  const [who, setWho] = React.useState(snap.who || 'General');
+  const [where, setWhere] = React.useState(snap.where || 'Reels');
+  const [scrMode, setScrMode] = React.useState(snap.scrMode || 'create');   // create | check
+  const [topic, setTopic] = React.useState(snap.topic || '');
+  const [cgen, setCgen] = React.useState(snap.cgen || { loading: false, hooks: null, script: null, sources: null, err: '' });
   const [rewrite, setRewrite] = React.useState({ dir: '', loading: false, out: null });
   const [selectedHook, setSelectedHook] = React.useState('');
   // Independent fact-check (Gemini + Google Search) and the Claude auto-fix of it.
-  const [fc, setFc] = React.useState({ state: 'idle', data: null, fixing: false, fixed: null, err: '' });
-  const [pkg, setPkg] = React.useState({ state: 'idle', data: null, err: '' });
+  const [fc, setFc] = React.useState(snap.fc || { state: 'idle', data: null, fixing: false, fixed: null, err: '' });
+  const [pkg, setPkg] = React.useState(snap.pkg || { state: 'idle', data: null, err: '' });
   const fileRef = React.useRef(null);
 
   // File upload: supports .txt / .md / .docx
@@ -4389,7 +4404,31 @@ function ScriptTab({ onOpenKey }) {
     e.target.value = '';
   }
 
-  const { state, report, usage, err, run } = window.useAnalysis('script');
+  const { state, report, usage, err, run, reset } = window.useAnalysis('script', { persistKey: 'ci_script_report' });
+
+  // Persist the tab's inputs/outputs (sanitising any in-flight loading states).
+  React.useEffect(() => {
+    try {
+      sessionStorage.setItem(SS, JSON.stringify({
+        text, textB, compare, lang, kind, who, where, scrMode, topic,
+        cgen: { ...cgen, loading: false },
+        fc: fc.state === 'loading' ? { state: 'idle', data: null, fixing: false, fixed: null, err: '' } : { ...fc, fixing: false },
+        pkg: pkg.state === 'loading' ? { state: 'idle', data: null, err: '' } : pkg,
+      }));
+    } catch (e) {}
+  }, [text, textB, compare, lang, kind, who, where, scrMode, topic, cgen, fc, pkg]);
+
+  // Clear everything on this tab and start fresh.
+  function resetAll() {
+    setText(''); setTextB(''); setCompare(false); setTopic('');
+    setCgen({ loading: false, hooks: null, script: null, sources: null, err: '' });
+    setRewrite({ dir: '', loading: false, out: null }); setSelectedHook('');
+    setFc({ state: 'idle', data: null, fixing: false, fixed: null, err: '' });
+    setPkg({ state: 'idle', data: null, err: '' });
+    reset();
+    try { sessionStorage.removeItem(SS); } catch (e) {}
+    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const seconds = Math.round(words / 2.5);
@@ -4652,8 +4691,20 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       // Use Gemini + Google Search when a Google key is set; otherwise fall back
       // to Claude with its live web_search tool. Both verify against live sources.
       const useGemini = !!(window.getGoogleKey && window.getGoogleKey());
-      const data = useGemini ? await window.geminiFactCheck(text, lang) : await window.claudeFactCheck(text, lang);
-      if (data) data.engine = useGemini ? 'gemini' : 'claude';
+      let data, engine;
+      if (useGemini) {
+        try { data = await window.geminiFactCheck(text, lang); engine = 'gemini'; }
+        catch (e) {
+          // Gemini busy / rate-limited / quota -> automatically fall back to Claude
+          // instead of erroring out, so the user still gets a fact-check.
+          if (/busy|rate.?limit|quota|429|503|high demand|overload/i.test(String(e && e.message)) && window.claudeFactCheck) {
+            data = await window.claudeFactCheck(text, lang); engine = 'claude-fb';
+          } else throw e;
+        }
+      } else {
+        data = await window.claudeFactCheck(text, lang); engine = 'claude';
+      }
+      if (data) data.engine = engine;
       setFc({ state: 'done', data, fixing: false, fixed: null, err: '' });
     } catch (e) {
       const msg = String(e.message) === 'NO_KEY'
@@ -4709,6 +4760,15 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       setPkg({ state: 'error', data: null, err: msg });
     }
   }
+  // Hand the script's thumbnail text + visual brief to the Builder tab, which
+  // prefills its headline and scene direction from this.
+  function sendToBuilder(thumbText) {
+    const d = pkg.data || {};
+    const ytTitle = (d.youtube && d.youtube.titles && d.youtube.titles[0] && d.youtube.titles[0].text) || '';
+    const tt = thumbText || (d.thumbnailText && d.thumbnailText[0] && d.thumbnailText[0].text) || '';
+    try { localStorage.setItem('ci_last_create', JSON.stringify({ topic: ytTitle || text.trim().slice(0, 90), title: ytTitle, thumbText: tt, brief: d.thumbnailBrief || '', ts: Date.now() })); } catch (e) {}
+    if (onNav) onNav('builder');
+  }
   const pkgColor = v => v >= 75 ? '#8FD86A' : v >= 55 ? '#F0C85A' : '#F06A7E';
   const PKG_PLATS = [
     { key: 'youtube', label: 'YouTube', tagKey: 'tags', tagLabel: 'SEO tags', hash: false },
@@ -4735,6 +4795,11 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       {fc.state === 'error' && <div style={{ fontSize: 12.5, color: '#f5788c', marginTop: 10 }}>{fc.err}</div>}
       {fc.state === 'done' && fc.data && (
         <div style={{ marginTop: 14 }}>
+          {fc.data.engine === 'claude-fb' && (
+            <div style={{ fontSize: 11.5, color: '#F0C85A', marginBottom: 10, padding: '8px 11px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)' }}>
+              Gemini was busy/rate-limited, so this was verified with Claude + web search instead.
+            </div>
+          )}
           {fc.data.summary && <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.55 }}>{fc.data.summary}</div>}
           {(fc.data.claims || []).length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -4878,9 +4943,20 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
                       {t.why && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 2 }}>{t.why}</div>}
                     </div>
                     <button className="ci-copybtn" style={{ height: 28, flexShrink: 0 }} onClick={() => window.copyText(t.text)}>⧉</button>
+                    {onNav && <button className="ci-copybtn" style={{ height: 28, flexShrink: 0, fontSize: 11.5, padding: '0 10px' }} onClick={() => sendToBuilder(t.text)}>🎨 Build</button>}
                   </div>
                 ))}
               </div>
+              {pkg.data.thumbnailBrief && (
+                <div style={{ marginTop: 10, padding: '11px 13px', borderRadius: 10, background: `${m.orbB || m.accentFrom}14`, border: `1px solid ${m.accentGlow}40` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>Thumbnail image brief — visual context for a pro look</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>{pkg.data.thumbnailBrief}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    {onNav && <SRB mood={mood} onClick={() => sendToBuilder()}>🎨 Build this thumbnail →</SRB>}
+                    <button className="ci-copybtn" style={{ height: 38, padding: '0 12px', fontSize: 12 }} onClick={() => window.copyText(pkg.data.thumbnailBrief)}>⧉ Copy brief</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -4893,13 +4969,18 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       <SWH mood={mood} eyebrow="Script" title={scrMode === 'create' ? 'Create a script' : 'Check your script'}
         sub={scrMode === 'create' ? 'Start from a topic — get a ready-to-record script and hook options, then check & refine it.' : "Paste your video script. We'll tell you what's working, what's not, and how to fix it — line by line."} />
 
-      <div style={{ display: 'inline-flex', gap: 4, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)', marginBottom: 18 }}>
-        {['create', 'check'].map(mode => (
-          <button key={mode} className="pill" onClick={() => setScrMode(mode)}
-            style={{ height: 34, border: 'none', textTransform: 'capitalize', background: scrMode === mode ? 'var(--surface-3)' : 'transparent', fontWeight: scrMode === mode ? 700 : 500 }}>
-            {mode === 'create' ? '✦ Create' : '✓ Check'}
-          </button>
-        ))}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div style={{ display: 'inline-flex', gap: 4, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)' }}>
+          {['create', 'check'].map(mode => (
+            <button key={mode} className="pill" onClick={() => setScrMode(mode)}
+              style={{ height: 34, border: 'none', textTransform: 'capitalize', background: scrMode === mode ? 'var(--surface-3)' : 'transparent', fontWeight: scrMode === mode ? 700 : 500 }}>
+              {mode === 'create' ? '✦ Create' : '✓ Check'}
+            </button>
+          ))}
+        </div>
+        {(text.trim() || topic.trim() || (cgen && cgen.script) || report || (pkg && pkg.data) || (fc && fc.data)) && (
+          <button className="ci-copybtn" style={{ height: 34, padding: '0 14px', fontSize: 12.5 }} onClick={resetAll} title="Clear the script, analysis, fact-check and packaging">↺ New / Reset</button>
+        )}
       </div>
 
       {scrMode === 'create' && (
@@ -6273,7 +6354,9 @@ function BuilderTab() {
   function setPersonDesc(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, desc: v } : p)); }
   function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
 
-  const [headline, setHeadline] = React.useState('');
+  // Prefill from a "Build this thumbnail" handoff from the Script tab (text + brief).
+  const bootCreate = React.useMemo(() => { try { return JSON.parse(localStorage.getItem('ci_last_create') || '{}'); } catch (e) { return {}; } }, []);
+  const [headline, setHeadline] = React.useState(bootCreate.thumbText || '');
   const [subline, setSubline] = React.useState('');
   const [elements, setElements] = React.useState([]);
   const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
@@ -6290,7 +6373,7 @@ function BuilderTab() {
   const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
   const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
 
-  const [extraNote, setExtraNote] = React.useState('');
+  const [extraNote, setExtraNote] = React.useState(bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
   const [brand] = React.useState(bLoadBrand);
   const brandColors = (brand.colors || []).filter(Boolean);
   const hasBrand = brandColors.length > 0 || !!brand.note;
@@ -8952,7 +9035,7 @@ function CIApp() {
 
   let View = null;
   if (tab === 'home') View = <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
-  else if (tab === 'script') View = <ScriptTab onOpenKey={openKey} />;
+  else if (tab === 'script') View = <ScriptTab onOpenKey={openKey} onNav={nav} />;
   else if (tab === 'thumbnail') View = <ThumbnailTab onOpenKey={openKey} />;
   else if (tab === 'title') View = <TitleTab onOpenKey={openKey} />;
   else if (tab === 'ads') View = <AdsTab onOpenKey={openKey} />;
