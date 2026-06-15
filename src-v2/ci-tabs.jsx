@@ -88,9 +88,78 @@ function chatgptPrompt(base, hasImage, strict, guidance) {
     : `Create a bold, high click-through 16:9 YouTube thumbnail.`;
   return `${head}\n\n${(base || '').trim()}${guidance ? '\n\n' + guidance : ''}`;
 }
-// Image generation is a handoff: copy the prompt + open ChatGPT or Gemini in a
-// new tab (window.openInChatGPT / window.openInGemini). The user pastes their
-// photo there. No in-app generator -- the free ones were unreliable.
+// Image generation has two routes: (1) in-app via the user's own Google
+// (Gemini/Imagen) or OpenAI image key -- creates the picture right here; and
+// (2) a handoff (window.openInChatGPT / window.openInGemini) that opens those
+// tools with the prompt copied so the user generates on their own plan. Claude
+// itself never makes images -- it only writes the prompt.
+
+// Generate-and-show card: an in-app "⚡ Generate" button (when an image key is
+// set) alongside the ChatGPT/Gemini/Copy handoffs. `source` (the uploaded photo)
+// drives an in-context edit so the real face is kept.
+function ThumbGenCard({ prompt, source, m }) {
+  const [genState, setGenState] = React.useState('idle');
+  const [genImg, setGenImg] = React.useState(null);
+  const [genErr, setGenErr] = React.useState('');
+  const canGenerate = !!(window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.());
+
+  async function generate() {
+    if (genState === 'loading') return;
+    setGenState('loading'); setGenImg(null); setGenErr('');
+    try {
+      let url;
+      if (source && window.editThumbnailInApp) url = await window.editThumbnailInApp(prompt, source, '16:9');
+      else if (window.generateImageInApp) url = await window.generateImageInApp(prompt, '16:9');
+      else throw new Error('NO_IMAGE_KEY');
+      setGenImg(url); setGenState('done');
+    } catch (e) {
+      const msg = String(e?.message || '');
+      setGenErr(/NO_IMAGE_KEY|NO_GOOGLE_KEY|NO_NV_KEY/.test(msg)
+        ? 'Add a Google (Gemini) or OpenAI image key in Settings → Image Generation to generate in-app. (Or use ✨ Gemini / 🎨 ChatGPT below.)'
+        : (msg || 'Generation failed — try again.'));
+      setGenState('error');
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {canGenerate && (
+          <button className="ci-copybtn"
+            style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
+            onClick={generate} disabled={genState === 'loading'}>
+            {genState === 'loading' ? '⏳ Generating…' : `⚡ Generate${source ? ' (uses your photo)' : ''}`}
+          </button>
+        )}
+        <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.copyText(prompt)}>⧉ Copy prompt</button>
+        <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInChatGPT(prompt)}>🎨 ChatGPT</button>
+        <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInGemini(prompt)}>✨ Gemini</button>
+      </div>
+      {!canGenerate && (
+        <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 7, lineHeight: 1.5 }}>
+          Add a Google (Gemini) or OpenAI image key in <b>Settings → Image Generation</b> to create the image right here — or use Gemini/ChatGPT above.
+        </div>
+      )}
+      {genState === 'loading' && (
+        <div style={{ marginTop: 12, padding: '20px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', verticalAlign: 'middle', marginRight: 8 }} className="spin" />
+          {source ? 'Generating with your photo…' : 'Generating thumbnail…'}
+        </div>
+      )}
+      {genState === 'error' && <div style={{ marginTop: 9, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>{genErr}</div>}
+      {genState === 'done' && genImg && (
+        <div style={{ marginTop: 12 }}>
+          <img src={genImg} alt="Generated thumbnail" style={{ width: '100%', borderRadius: 10, display: 'block', maxHeight: 420, objectFit: 'contain', background: '#000' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <a href={genImg} download="thumbnail.png" className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>⬇ Download</a>
+            <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={generate}>↺ Regenerate</button>
+            <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={() => { setGenState('idle'); setGenImg(null); }}>✕ Clear</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── THUMBNAIL ────────────────────────────────────────────────────────────────
 function ThumbnailTab({ onOpenKey }) {
@@ -195,7 +264,7 @@ function ThumbnailTab({ onOpenKey }) {
       if (j && Array.isArray(j.concepts) && j.concepts.length) setGenIdeas({ loading: false, items: j.concepts, err: '' });
       else setGenIdeas({ loading: false, items: null, err: 'Could not generate concepts -- try again.' });
     } catch (e) {
-      setGenIdeas({ loading: false, items: null, err: String(e.message) === 'NO_KEY' ? 'Sign in to generate.' : (e.message || 'Could not generate.') });
+      setGenIdeas({ loading: false, items: null, err: String(e.message) === 'NO_KEY' ? 'Add your Anthropic (Claude) API key in Settings to write concepts.' : (e.message || 'Could not generate.') });
     }
   }
   return (
@@ -228,27 +297,21 @@ function ThumbnailTab({ onOpenKey }) {
                 <div key={i} style={{ padding: 14, borderRadius: 12, border: '1px solid var(--stroke-1)', background: 'var(--surface-1)' }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{t.concept}</div>
                   <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>{t.prompt}</div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                    <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.copyText(t.prompt)}>⧉ Copy prompt</button>
-                    <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInChatGPT(chatgptPrompt(t.prompt, !!imgA, strict, guidance))}>🎨 ChatGPT</button>
-                    <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInGemini(chatgptPrompt(t.prompt, !!imgA, strict, guidance))}>✨ Gemini</button>
+                  <div style={{ marginTop: 10 }}>
+                    <ThumbGenCard prompt={chatgptPrompt(t.prompt, !!imgA, strict, guidance)} source={imgA || null} m={m} />
                   </div>
                 </div>
               ))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 12, lineHeight: 1.5 }}>
-              ChatGPT/Gemini open with the prompt copied. <b>Attach your photo there</b>, press enter — the image is made on your own plan.
+              <b>⚡ Generate</b> makes the image here (needs a Google/OpenAI image key). Or open ✨ Gemini / 🎨 ChatGPT, <b>attach your photo there</b>, and generate on your own plan.
             </div>
           </TB>
         )}
 
         <TB mood={mood}>
-          <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 10 }}>Already have your own prompt? Send it straight to an image tool:</div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button className="ci-copybtn" style={{ height: 40, padding: '0 14px' }} onClick={() => window.openInChatGPT(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>🎨 ChatGPT</button>
-            <button className="ci-copybtn" style={{ height: 40, padding: '0 14px' }} onClick={() => window.openInGemini(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>✨ Gemini</button>
-            <button className="ci-copybtn" style={{ height: 40, padding: '0 14px' }} onClick={() => window.copyText(chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance))}>⧉ Copy prompt</button>
-          </div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 10 }}>Already have your own prompt? Generate it here, or send it to an image tool:</div>
+          <ThumbGenCard prompt={chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance)} source={imgA || null} m={m} />
         </TB>
       </>)}
 
