@@ -234,6 +234,41 @@ function preprocessForImageGen(raw) {
   ].filter(Boolean).join(" ");
 }
 
+// From a finished SCRIPT, produce platform-tuned packaging -- 3 title options each
+// for YouTube / Instagram / LinkedIn (scored for click + search), SEO tags/hashtags,
+// and thumbnail text. Everything is grounded in the title + platform + thumbnail
+// research so nothing is random.
+async function packageScript(script, lang, opts = {}) {
+  const ti = getResearch("title") || {};
+  const pl = getResearch("platform") || {};
+  const th = getResearch("thumbnail") || {};
+  const core = liveResearch().core || "";
+  const langLine = (!lang || lang === "Auto-detect" || lang === "Auto")
+    ? "Detect the script's own language and write ALL titles, tags and thumbnail text in that same language and script."
+    : `Write ALL titles, tags and thumbnail text in ${lang}.`;
+  const sys = [
+    "You are ContentIntel's packaging engine. From a finished video SCRIPT, write the metadata that makes it get found and clicked, tuned PER PLATFORM. Everything must be specific to THIS script's actual topic and angle -- never generic filler.",
+    langLine,
+    core ? "VIRALITY SCIENCE:\n" + core.slice(0, 1800) : "",
+    ti.systemGuidance ? "TITLE SCIENCE (apply to every title; an honest, payable curiosity gap -- never clickbait the script can't deliver):\n" + ti.systemGuidance : "",
+    pl.systemGuidance ? "PLATFORM / SEO RULES (ranking signals, hashtag counts, keyword placement -- follow these exactly):\n" + pl.systemGuidance.slice(0, 2600) : "",
+    (th.designPrinciples || th.systemGuidance) ? "THUMBNAIL-TEXT RULES (2-4 words, legible at 120px, complements the title -- never repeats it):\n" + (String(th.designPrinciples || "").slice(0, 700) + "\n" + String(th.systemGuidance || "").slice(0, 700)).trim() : "",
+    "PER-PLATFORM INTENT -- YouTube: search + browse, keyword EARLY, ~60 chars, strong curiosity gap. Instagram: hook-style first line + keyword-rich phrasing + 3-5 highly-relevant hashtags (hashtags = minor topic signals, not discovery). LinkedIn: professional, insight-led hook, zero hype, 3 relevant hashtags.",
+    "SCORE each title 0-100 for predicted click + search strength using the title science, with a one-line 'why' naming the specific lever (curiosity gap / keyword / number / stake). Be honest -- not everything is a 90.",
+    "Return ONLY one valid JSON object, no markdown:\n"
+      + '{ "youtube":{ "titles":[{"text":"","score":0,"why":""}], "tags":["8-12 search keywords/phrases, no #"] },'
+      + ' "instagram":{ "titles":[{"text":"","score":0,"why":""}], "hashtags":["3-5 with #"], "keywords":["caption SEO keywords"] },'
+      + ' "linkedin":{ "titles":[{"text":"","score":0,"why":""}], "hashtags":["3 with #"] },'
+      + ' "thumbnailText":[{"text":"2-4 words","why":""}] }\n'
+      + "EXACTLY 3 titles per platform and EXACTLY 3 thumbnailText options.",
+  ].filter(Boolean).join("\n\n");
+  const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "");
+  const { text } = await callClaude({ system: sys, userText: ctx + "\nSCRIPT:\n" + script, maxTokens: 1900 });
+  const json = (window.parseReport || (x => null))(text);
+  if (!json || (!json.youtube && !json.instagram && !json.linkedin)) throw new Error("Could not generate packaging -- try again.");
+  return json;
+}
+
 // Turn a plain thumbnail brief into ONE research-grounded image prompt: Claude acts
 // as art director, picks the best-fit layout + colour scheme from the research, and
 // writes a self-contained prompt the image model will actually follow. Falls back to
@@ -1201,5 +1236,5 @@ Object.assign(window, {
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
   getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp,
-  preprocessForImageGen, geminiFactCheck, claudeFactCheck, groundThumbPrompt,
+  preprocessForImageGen, geminiFactCheck, claudeFactCheck, groundThumbPrompt, packageScript,
 });

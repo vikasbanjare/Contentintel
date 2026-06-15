@@ -60,6 +60,7 @@ function ScriptTab({ onOpenKey }) {
   const [selectedHook, setSelectedHook] = React.useState('');
   // Independent fact-check (Gemini + Google Search) and the Claude auto-fix of it.
   const [fc, setFc] = React.useState({ state: 'idle', data: null, fixing: false, fixed: null, err: '' });
+  const [pkg, setPkg] = React.useState({ state: 'idle', data: null, err: '' });
   const fileRef = React.useRef(null);
 
   // File upload: supports .txt / .md / .docx
@@ -394,6 +395,25 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   const fcColor = s => s === 'verified' ? '#8FD86A' : s === 'false' ? '#F06A7E' : '#F0C85A';
   const fcLabel = s => s === 'verified' ? 'Verified' : s === 'false' ? 'False' : 'Unverified';
 
+  // Titles + SEO tags + thumbnail text, per platform, grounded in the research.
+  async function runPackaging() {
+    if (!text.trim()) { setPkg({ state: 'error', data: null, err: 'Paste or generate a script first.' }); return; }
+    setPkg({ state: 'loading', data: null, err: '' });
+    try {
+      const data = await window.packageScript(text, lang, { niche: kind, audience: who });
+      setPkg({ state: 'done', data, err: '' });
+    } catch (e) {
+      const msg = String(e.message) === 'NO_KEY' ? 'Sign in (or add an API key) to generate titles & tags.' : (e.message || 'Could not generate packaging — try again.');
+      setPkg({ state: 'error', data: null, err: msg });
+    }
+  }
+  const pkgColor = v => v >= 75 ? '#8FD86A' : v >= 55 ? '#F0C85A' : '#F06A7E';
+  const PKG_PLATS = [
+    { key: 'youtube', label: 'YouTube', tagKey: 'tags', tagLabel: 'SEO tags', hash: false },
+    { key: 'instagram', label: 'Instagram', tagKey: 'hashtags', tagLabel: 'Hashtags', hash: true },
+    { key: 'linkedin', label: 'LinkedIn', tagKey: 'hashtags', tagLabel: 'Hashtags', hash: true },
+  ];
+
   const fcUsesGemini = !!(window.getGoogleKey && window.getGoogleKey());
   const fcEngineLabel = fcUsesGemini ? 'Gemini + Google Search' : 'Claude + Web Search';
   const factCheckPanel = (
@@ -483,6 +503,81 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           <div style={{ marginTop: 10 }}>
             <SRB mood={mood} onClick={useAndRecheck}>Apply + Re-analyze →</SRB>
           </div>
+        </div>
+      )}
+    </SB>
+  );
+
+  const packagingPanel = (
+    <SB mood={mood}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 15, fontWeight: 600 }}>Titles, SEO tags & thumbnail text</div>
+        <span className="pill" style={{ height: 22, fontSize: 10.5, padding: '0 8px', color: '#8FD86A' }}>Per platform · scored</span>
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
+        3 title options each for YouTube, Instagram & LinkedIn — scored for click + search — plus SEO tags and thumbnail text, all grounded in the research (not random).
+      </div>
+      <SRB mood={mood} onClick={runPackaging} loading={pkg.state === 'loading'}>
+        {pkg.state === 'done' ? 'Regenerate' : '🏷️ Get titles, tags & thumbnail text'}
+      </SRB>
+      {pkg.state === 'error' && <div style={{ fontSize: 12.5, color: '#f5788c', marginTop: 10 }}>{pkg.err}</div>}
+      {pkg.state === 'done' && pkg.data && (
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {PKG_PLATS.map(p => {
+            const d = pkg.data[p.key]; if (!d) return null;
+            const tags = d[p.tagKey] || [];
+            const kw = p.key === 'instagram' ? (d.keywords || []) : [];
+            return (
+              <div key={p.key}>
+                <Eyebrow mood={mood} glow>{p.label}</Eyebrow>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                  {(d.titles || []).map((t, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 11, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'var(--inset)', border: '1px solid var(--stroke-1)' }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: pkgColor(t.score || 0), width: 28, textAlign: 'center', flexShrink: 0 }}>{t.score != null ? Math.round(t.score) : '–'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, color: 'var(--text-1)', lineHeight: 1.45 }}>{t.text}</div>
+                        {t.why && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 3 }}>{t.why}</div>}
+                      </div>
+                      <button className="ci-copybtn" style={{ height: 28, flexShrink: 0 }} onClick={() => window.copyText(t.text)}>⧉</button>
+                    </div>
+                  ))}
+                </div>
+                {tags.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{p.tagLabel}</span>
+                      <button className="ci-copybtn" style={{ height: 24, fontSize: 11, padding: '0 9px' }} onClick={() => window.copyText(tags.join(p.hash ? ' ' : ', '))}>Copy all</button>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {tags.map((tg, i) => <span key={i} className="pill" style={{ height: 24, fontSize: 11.5, padding: '0 9px', color: 'var(--text-2)' }}>{p.hash && !String(tg).startsWith('#') ? '#' + tg : tg}</span>)}
+                    </div>
+                    {kw.length > 0 && (
+                      <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--text-4)' }}>
+                        <b style={{ color: 'var(--text-3)' }}>Caption keywords:</b> {kw.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {Array.isArray(pkg.data.thumbnailText) && pkg.data.thumbnailText.length > 0 && (
+            <div>
+              <Eyebrow mood={mood} glow>Thumbnail text</Eyebrow>
+              <div style={{ fontSize: 11.5, color: 'var(--text-4)', margin: '4px 0 8px' }}>Short overlay text that complements the title — built for legibility at small size.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {pkg.data.thumbnailText.map((t, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 11, alignItems: 'center', padding: '10px 12px', borderRadius: 10, background: 'var(--inset)', border: '1px solid var(--stroke-1)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', fontFamily: 'var(--font-display)' }}>{t.text}</div>
+                      {t.why && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 2 }}>{t.why}</div>}
+                    </div>
+                    <button className="ci-copybtn" style={{ height: 28, flexShrink: 0 }} onClick={() => window.copyText(t.text)}>⧉</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </SB>
@@ -628,6 +723,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           <window.ReportView report={report} mood={mood} onApplyText={applyHook} />
           {rewritePanel}
           {factCheckPanel}
+          {packagingPanel}
         </div>
       )}
 
