@@ -3064,9 +3064,13 @@ function useAnalysis(type, opts = {}) {
       const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
-        // Model didn't return clean JSON -- show its analysis as plain text rather than failing.
         const body = (text || "").trim();
         if (!body) throw new Error("The AI returned an empty response. Try again.");
+        // If the model clearly tried to return the JSON report but it failed to
+        // parse (truncated / malformed), do NOT dump raw JSON at the user -- ask
+        // for a re-run. Only show plain text when the reply was genuinely prose.
+        const looksLikeJson = /^[\s`]*[{[]/.test(body) || /"(verdict|scores|sections|bottomLine)"\s*:/.test(body);
+        if (looksLikeJson) throw new Error("The analysis came back malformed — tap Re-analyze to try again.");
         json = { sections: [{ type: "text", title: "Analysis", body }] };
       }
       // Recompute the headline score from the dimensions (weighted) so it tracks
@@ -4452,7 +4456,9 @@ function ScriptTab({ onOpenKey, onNav }) {
   const estIn = window.estTokens(window.buildSystem('script'), userText);
 
   const ready = text.trim().split(/\s+/).filter(Boolean).length >= 10;
-  function check() { if (!ready) return; run({ userText, maxTokens: 4500 }); }
+  // 8000 tokens of headroom so the full report + 3 hook rewrites never truncate
+  // mid-JSON on a long script (truncation = a partial/broken report).
+  function check() { if (!ready) return; run({ userText, maxTokens: 8000 }); }
 
   // ---- CREATE: topic -> a draft script + hook options (research-grounded) ----
   function buildCreateSys() {
@@ -4556,7 +4562,7 @@ function ScriptTab({ onOpenKey, onNav }) {
     const ns = Math.round(nw / 2.5);
     const newUserText =
       `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${nw} (~${ns}s)\n\nSCRIPT (Version A):\n${newText}`;
-    run({ userText: newUserText, maxTokens: 4500 });
+    run({ userText: newUserText, maxTokens: 8000 });
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
 
