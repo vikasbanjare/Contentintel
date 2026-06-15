@@ -3064,9 +3064,13 @@ function useAnalysis(type, opts = {}) {
       const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
-        // Model didn't return clean JSON -- show its analysis as plain text rather than failing.
         const body = (text || "").trim();
         if (!body) throw new Error("The AI returned an empty response. Try again.");
+        // If the model clearly tried to return the JSON report but it failed to
+        // parse (truncated / malformed), do NOT dump raw JSON at the user -- ask
+        // for a re-run. Only show plain text when the reply was genuinely prose.
+        const looksLikeJson = /^[\s`]*[{[]/.test(body) || /"(verdict|scores|sections|bottomLine)"\s*:/.test(body);
+        if (looksLikeJson) throw new Error("The analysis came back malformed — tap Re-analyze to try again.");
         json = { sections: [{ type: "text", title: "Analysis", body }] };
       }
       // Recompute the headline score from the dimensions (weighted) so it tracks
