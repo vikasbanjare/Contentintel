@@ -57,10 +57,20 @@ export default {
     const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start,usd_limit`, { headers: svc });
     const rows = await pRes.json();
     let { plan = 'free', checks_used = 0, period_start, usd_limit = null } = rows[0] || {};
+    // Owner / admin bypass: accounts listed in OWNER_EMAILS always get full,
+    // ungated access -- every engine, image vision, and no credit cap -- for the
+    // owner's own testing and support. Set OWNER_EMAILS in the Worker settings
+    // (comma-separated, lowercase); the default below covers the project owner.
+    // Add whatever email you actually sign into the app with.
+    const OWNER_EMAILS_DEFAULT = 'vikasbanjare94@gmail.com';
+    const owners = String(env.OWNER_EMAILS || OWNER_EMAILS_DEFAULT)
+      .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    const isOwner = owners.includes(String(user.email || '').toLowerCase());
+    if (isOwner) plan = 'agency';
     // Closed-alpha approval gate. 'pending' (default for new signups) is locked.
     // AUTO-APPROVE: if the user signed up with a valid invite code (set in the
     // Worker variable INVITE_CODES, comma-separated), promote them to 'beta'.
-    if ((PLAN_CREDITS[plan] ?? 0) === 0) {
+    if (!isOwner && (PLAN_CREDITS[plan] ?? 0) === 0) {
       const codes = String(env.INVITE_CODES || '').split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
       const userCode = String((user.user_metadata && user.user_metadata.invite_code) || '').trim().toLowerCase();
       if (userCode && codes.includes(userCode)) {
@@ -97,10 +107,10 @@ export default {
     const limit = (usd_limit != null)
       ? Math.max(0, Math.round(Number(usd_limit) * CREDITS_PER_USD))
       : (PLAN_CREDITS[plan] ?? PLAN_CREDITS.free);
-    if (checks_used + engine.credits > limit)
+    if (!isOwner && checks_used + engine.credits > limit)
       return json({ error: `Not enough credits for the ${tier} engine (needs ${engine.credits}, you have ${Math.max(0, limit - checks_used)} of ${limit}). Upgrade or switch to a lighter engine.`, upgrade: true }, 402, cors);
     const hasImages = JSON.stringify(body.messages || '').includes('"image"');
-    if (hasImages && !VISION_PLANS.includes(plan))
+    if (hasImages && !isOwner && !VISION_PLANS.includes(plan))
       return json({ error: 'Thumbnail vision needs Creator Pro. Upgrade to analyze images.', upgrade: true }, 402, cors);
 
     // 4. Simple per-user rate limit (10/min) via Cloudflare cache API
