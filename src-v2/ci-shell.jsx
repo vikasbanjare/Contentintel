@@ -123,13 +123,20 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
 
       <div style={{ flex: 1 }} />
 
-      {(!(window.CI_SAAS && window.CI_SAAS.workerUrl) || admin) && (
-        <button className="ci-keybtn" title="API key & model settings" onClick={onOpenKey}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="5.5" cy="8" r="2.5"/><path d="M8 8h5.5M11.5 8v2.2M13.5 8v1.6"/></svg>
-          <span>{hasKey ? "Key connected" : "Add API key"}</span>
-          <span className={"ci-keydot " + (hasKey ? "on" : "off")} />
-        </button>
-      )}
+      {(() => {
+        // In hosted mode the worker holds the Claude key, so this opens the
+        // image / fact-check key settings instead. Always reachable either way.
+        const saasMode = !!(window.CI_SAAS && window.CI_SAAS.workerUrl) && !admin;
+        const imgKey = !!(window.getGoogleKey && window.getGoogleKey());
+        const dotOn = saasMode ? imgKey : hasKey;
+        return (
+          <button className="ci-keybtn" title={saasMode ? "Settings — image & fact-check keys" : "API key & model settings"} onClick={onOpenKey}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="5.5" cy="8" r="2.5"/><path d="M8 8h5.5M11.5 8v2.2M13.5 8v1.6"/></svg>
+            <span>{saasMode ? "Settings" : (hasKey ? "Key connected" : "Add API key")}</span>
+            <span className={"ci-keydot " + (dotOn ? "on" : "off")} />
+          </button>
+        );
+      })()}
 
       {admin && (
         <button className="ci-iconbtn" title="Research editor (admin only)" onClick={onAdmin}

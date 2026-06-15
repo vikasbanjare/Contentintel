@@ -2533,6 +2533,22 @@ ${(scriptText || "").slice(0, 6000)}
   return { summary: j.summary || "", claims: Array.isArray(j.claims) ? j.claims : [], sources };
 }
 
+// Fallback fact-check for when no Google key is set: Claude verifies the claims
+// using its live web_search tool (provided by the worker in hosted mode) and
+// returns the SAME shape as geminiFactCheck.
+async function claudeFactCheck(scriptText, lang) {
+  const langLine = lang && lang !== "Auto-detect" ? `Write every string in ${lang}.` : "Write every string in the SAME language as the script.";
+  const sys =
+`You are an INDEPENDENT fact-checker for a short-form video script. You have a live web_search tool -- USE IT to verify the factual, numeric, dated, named and "claim" assertions in the script. Cross-check against multiple reliable sources before judging. ${langLine}
+For each checkable claim decide a status: "verified" (matches reliable sources), "false" (contradicted by reliable sources), or "unverified" (no reliable source found / too vague). Ignore pure opinion, style or storytelling. For anything false or unverified, give the correct fact (or note no source exists) in one short line.
+Return ONLY one JSON object, no markdown, no text around it:
+{ "summary": "one line on overall factual reliability", "claims": [ { "claim": "the exact claim from the script", "status": "verified|false|unverified", "correction": "the correct fact in one line, or empty if verified", "source": "the main URL you relied on, or empty" } ] }`;
+  const { text, sources } = await callClaude({ system: sys, userText: `SCRIPT:\n"""\n${(scriptText || "").slice(0, 6000)}\n"""`, maxTokens: 1500 });
+  const j = parseReport(text) || {};
+  const srcs = (sources || []).map(s => ({ title: (s.title || s.url || "").slice(0, 160), url: s.url || s.uri || "", date: s.date || s.page_age || "" })).filter(s => s.url);
+  return { summary: j.summary || "", claims: Array.isArray(j.claims) ? j.claims : [], sources: srcs };
+}
+
 // Image generation via NVIDIA-hosted FLUX (text-to-image). BYO NVIDIA key.
 // flux.2-klein-4b is text-to-image, so it generates FROM the description (it
 // can't preserve the user's exact photo the way Gemini's image edit can).
@@ -3254,7 +3270,10 @@ function KeyModal({ open, onClose }) {
   const [proxy, setProxy] = React.useState(getProxyUrl());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow]   = React.useState(false);
-  const [section, setSection] = React.useState("analysis"); // analysis | image
+  // In hosted/SaaS mode the worker holds the Claude key, so the personal Anthropic
+  // key is irrelevant -- open straight to the image/fact-check key and hide that tab.
+  const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
+  const [section, setSection] = React.useState(saasMode ? "image" : "analysis"); // analysis | image
   React.useEffect(() => {
     if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); }
   }, [open]);
@@ -3275,10 +3294,12 @@ function KeyModal({ open, onClose }) {
         </div>
 
         {/* Tab switcher */}
-        <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
-          <TabBtn id="analysis" label="Analysis (Claude)" />
-          <TabBtn id="image" label="Image Generation" />
-        </div>
+        {!saasMode && (
+          <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
+            <TabBtn id="analysis" label="Analysis (Claude)" />
+            <TabBtn id="image" label="Image Generation" />
+          </div>
+        )}
 
         {section === "analysis" && <>
           <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
@@ -3304,7 +3325,7 @@ function KeyModal({ open, onClose }) {
         {section === "image" && <>
           <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
             Add a key to generate images <b>directly inside ContentIntel</b> — no ChatGPT or Gemini tab needed.
-            Any one key unlocks the <b>⚡ Generate</b> button on all upgrade prompts.
+            Any one key unlocks the <b>⚡ Generate</b> button on all upgrade prompts. The <b>Google AI key</b> also powers the <b>independent fact-check</b> (Gemini + Google Search).
           </p>
 
           <label className="ci-label">Google AI Studio key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(Gemini Imagen — recommended)</span></label>
@@ -3348,7 +3369,7 @@ Object.assign(window, {
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
   getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp,
-  preprocessForImageGen, geminiFactCheck, groundThumbPrompt,
+  preprocessForImageGen, geminiFactCheck, claudeFactCheck, groundThumbPrompt,
 });
 </script>
 <script type="text/babel" data-presets="react">
@@ -3478,13 +3499,20 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
 
       <div style={{ flex: 1 }} />
 
-      {(!(window.CI_SAAS && window.CI_SAAS.workerUrl) || admin) && (
-        <button className="ci-keybtn" title="API key & model settings" onClick={onOpenKey}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="5.5" cy="8" r="2.5"/><path d="M8 8h5.5M11.5 8v2.2M13.5 8v1.6"/></svg>
-          <span>{hasKey ? "Key connected" : "Add API key"}</span>
-          <span className={"ci-keydot " + (hasKey ? "on" : "off")} />
-        </button>
-      )}
+      {(() => {
+        // In hosted mode the worker holds the Claude key, so this opens the
+        // image / fact-check key settings instead. Always reachable either way.
+        const saasMode = !!(window.CI_SAAS && window.CI_SAAS.workerUrl) && !admin;
+        const imgKey = !!(window.getGoogleKey && window.getGoogleKey());
+        const dotOn = saasMode ? imgKey : hasKey;
+        return (
+          <button className="ci-keybtn" title={saasMode ? "Settings — image & fact-check keys" : "API key & model settings"} onClick={onOpenKey}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="5.5" cy="8" r="2.5"/><path d="M8 8h5.5M11.5 8v2.2M13.5 8v1.6"/></svg>
+            <span>{saasMode ? "Settings" : (hasKey ? "Key connected" : "Add API key")}</span>
+            <span className={"ci-keydot " + (dotOn ? "on" : "off")} />
+          </button>
+        );
+      })()}
 
       {admin && (
         <button className="ci-iconbtn" title="Research editor (admin only)" onClick={onAdmin}
@@ -4520,11 +4548,15 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
     if (!text.trim()) { setFc({ state: 'error', data: null, fixing: false, fixed: null, err: 'Paste a script first.' }); return; }
     setFc({ state: 'loading', data: null, fixing: false, fixed: null, err: '' });
     try {
-      const data = await window.geminiFactCheck(text, lang);
+      // Use Gemini + Google Search when a Google key is set; otherwise fall back
+      // to Claude with its live web_search tool. Both verify against live sources.
+      const useGemini = !!(window.getGoogleKey && window.getGoogleKey());
+      const data = useGemini ? await window.geminiFactCheck(text, lang) : await window.claudeFactCheck(text, lang);
+      if (data) data.engine = useGemini ? 'gemini' : 'claude';
       setFc({ state: 'done', data, fixing: false, fixed: null, err: '' });
     } catch (e) {
-      const msg = String(e.message) === 'NO_GOOGLE_KEY'
-        ? 'Add a Google AI key in Settings → Image Generation to fact-check with Gemini (it reuses that key).'
+      const msg = String(e.message) === 'NO_KEY'
+        ? 'Sign in (or add an API key in Settings) to run the fact-check.'
         : (e.message || 'Could not run the fact-check — try again.');
       setFc({ state: 'error', data: null, fixing: false, fixed: null, err: msg });
     }
@@ -4564,14 +4596,18 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   const fcColor = s => s === 'verified' ? '#8FD86A' : s === 'false' ? '#F06A7E' : '#F0C85A';
   const fcLabel = s => s === 'verified' ? 'Verified' : s === 'false' ? 'False' : 'Unverified';
 
+  const fcUsesGemini = !!(window.getGoogleKey && window.getGoogleKey());
+  const fcEngineLabel = fcUsesGemini ? 'Gemini + Google Search' : 'Claude + Web Search';
   const factCheckPanel = (
     <SB mood={mood}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 15, fontWeight: 600 }}>Independent fact-check</div>
-        <span className="pill" style={{ height: 22, fontSize: 10.5, padding: '0 8px', color: '#7eb8ff' }}>Gemini + Google Search</span>
+        <span className="pill" style={{ height: 22, fontSize: 10.5, padding: '0 8px', color: '#7eb8ff' }}>{fcEngineLabel}</span>
       </div>
       <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
-        A different model checks your script's facts against live sources — then Claude fixes anything flagged.
+        {fcUsesGemini
+          ? 'Gemini checks your script’s facts against live Google Search — then Claude fixes anything flagged.'
+          : 'Claude verifies your script’s facts with live web search — then fixes anything flagged. Add a Google AI key in Settings to use Gemini instead.'}
       </div>
       <SRB mood={mood} onClick={runFactCheck} loading={fc.state === 'loading'}>
         {fc.state === 'done' ? 'Re-run fact-check' : '🔎 Fact-check this script'}

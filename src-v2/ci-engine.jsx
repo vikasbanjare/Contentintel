@@ -365,6 +365,22 @@ ${(scriptText || "").slice(0, 6000)}
   return { summary: j.summary || "", claims: Array.isArray(j.claims) ? j.claims : [], sources };
 }
 
+// Fallback fact-check for when no Google key is set: Claude verifies the claims
+// using its live web_search tool (provided by the worker in hosted mode) and
+// returns the SAME shape as geminiFactCheck.
+async function claudeFactCheck(scriptText, lang) {
+  const langLine = lang && lang !== "Auto-detect" ? `Write every string in ${lang}.` : "Write every string in the SAME language as the script.";
+  const sys =
+`You are an INDEPENDENT fact-checker for a short-form video script. You have a live web_search tool -- USE IT to verify the factual, numeric, dated, named and "claim" assertions in the script. Cross-check against multiple reliable sources before judging. ${langLine}
+For each checkable claim decide a status: "verified" (matches reliable sources), "false" (contradicted by reliable sources), or "unverified" (no reliable source found / too vague). Ignore pure opinion, style or storytelling. For anything false or unverified, give the correct fact (or note no source exists) in one short line.
+Return ONLY one JSON object, no markdown, no text around it:
+{ "summary": "one line on overall factual reliability", "claims": [ { "claim": "the exact claim from the script", "status": "verified|false|unverified", "correction": "the correct fact in one line, or empty if verified", "source": "the main URL you relied on, or empty" } ] }`;
+  const { text, sources } = await callClaude({ system: sys, userText: `SCRIPT:\n"""\n${(scriptText || "").slice(0, 6000)}\n"""`, maxTokens: 1500 });
+  const j = parseReport(text) || {};
+  const srcs = (sources || []).map(s => ({ title: (s.title || s.url || "").slice(0, 160), url: s.url || s.uri || "", date: s.date || s.page_age || "" })).filter(s => s.url);
+  return { summary: j.summary || "", claims: Array.isArray(j.claims) ? j.claims : [], sources: srcs };
+}
+
 // Image generation via NVIDIA-hosted FLUX (text-to-image). BYO NVIDIA key.
 // flux.2-klein-4b is text-to-image, so it generates FROM the description (it
 // can't preserve the user's exact photo the way Gemini's image edit can).
@@ -1086,7 +1102,10 @@ function KeyModal({ open, onClose }) {
   const [proxy, setProxy] = React.useState(getProxyUrl());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow]   = React.useState(false);
-  const [section, setSection] = React.useState("analysis"); // analysis | image
+  // In hosted/SaaS mode the worker holds the Claude key, so the personal Anthropic
+  // key is irrelevant -- open straight to the image/fact-check key and hide that tab.
+  const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
+  const [section, setSection] = React.useState(saasMode ? "image" : "analysis"); // analysis | image
   React.useEffect(() => {
     if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); }
   }, [open]);
@@ -1107,10 +1126,12 @@ function KeyModal({ open, onClose }) {
         </div>
 
         {/* Tab switcher */}
-        <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
-          <TabBtn id="analysis" label="Analysis (Claude)" />
-          <TabBtn id="image" label="Image Generation" />
-        </div>
+        {!saasMode && (
+          <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
+            <TabBtn id="analysis" label="Analysis (Claude)" />
+            <TabBtn id="image" label="Image Generation" />
+          </div>
+        )}
 
         {section === "analysis" && <>
           <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
@@ -1136,7 +1157,7 @@ function KeyModal({ open, onClose }) {
         {section === "image" && <>
           <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
             Add a key to generate images <b>directly inside ContentIntel</b> — no ChatGPT or Gemini tab needed.
-            Any one key unlocks the <b>⚡ Generate</b> button on all upgrade prompts.
+            Any one key unlocks the <b>⚡ Generate</b> button on all upgrade prompts. The <b>Google AI key</b> also powers the <b>independent fact-check</b> (Gemini + Google Search).
           </p>
 
           <label className="ci-label">Google AI Studio key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(Gemini Imagen — recommended)</span></label>
@@ -1180,5 +1201,5 @@ Object.assign(window, {
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
   getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp,
-  preprocessForImageGen, geminiFactCheck, groundThumbPrompt,
+  preprocessForImageGen, geminiFactCheck, claudeFactCheck, groundThumbPrompt,
 });

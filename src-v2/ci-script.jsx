@@ -346,11 +346,15 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
     if (!text.trim()) { setFc({ state: 'error', data: null, fixing: false, fixed: null, err: 'Paste a script first.' }); return; }
     setFc({ state: 'loading', data: null, fixing: false, fixed: null, err: '' });
     try {
-      const data = await window.geminiFactCheck(text, lang);
+      // Use Gemini + Google Search when a Google key is set; otherwise fall back
+      // to Claude with its live web_search tool. Both verify against live sources.
+      const useGemini = !!(window.getGoogleKey && window.getGoogleKey());
+      const data = useGemini ? await window.geminiFactCheck(text, lang) : await window.claudeFactCheck(text, lang);
+      if (data) data.engine = useGemini ? 'gemini' : 'claude';
       setFc({ state: 'done', data, fixing: false, fixed: null, err: '' });
     } catch (e) {
-      const msg = String(e.message) === 'NO_GOOGLE_KEY'
-        ? 'Add a Google AI key in Settings → Image Generation to fact-check with Gemini (it reuses that key).'
+      const msg = String(e.message) === 'NO_KEY'
+        ? 'Sign in (or add an API key in Settings) to run the fact-check.'
         : (e.message || 'Could not run the fact-check — try again.');
       setFc({ state: 'error', data: null, fixing: false, fixed: null, err: msg });
     }
@@ -390,14 +394,18 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   const fcColor = s => s === 'verified' ? '#8FD86A' : s === 'false' ? '#F06A7E' : '#F0C85A';
   const fcLabel = s => s === 'verified' ? 'Verified' : s === 'false' ? 'False' : 'Unverified';
 
+  const fcUsesGemini = !!(window.getGoogleKey && window.getGoogleKey());
+  const fcEngineLabel = fcUsesGemini ? 'Gemini + Google Search' : 'Claude + Web Search';
   const factCheckPanel = (
     <SB mood={mood}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ fontSize: 15, fontWeight: 600 }}>Independent fact-check</div>
-        <span className="pill" style={{ height: 22, fontSize: 10.5, padding: '0 8px', color: '#7eb8ff' }}>Gemini + Google Search</span>
+        <span className="pill" style={{ height: 22, fontSize: 10.5, padding: '0 8px', color: '#7eb8ff' }}>{fcEngineLabel}</span>
       </div>
       <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
-        A different model checks your script's facts against live sources — then Claude fixes anything flagged.
+        {fcUsesGemini
+          ? 'Gemini checks your script’s facts against live Google Search — then Claude fixes anything flagged.'
+          : 'Claude verifies your script’s facts with live web search — then fixes anything flagged. Add a Google AI key in Settings to use Gemini instead.'}
       </div>
       <SRB mood={mood} onClick={runFactCheck} loading={fc.state === 'loading'}>
         {fc.state === 'done' ? 'Re-run fact-check' : '🔎 Fact-check this script'}
