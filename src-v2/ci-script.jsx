@@ -38,29 +38,34 @@ Cut the proof section in half — lead with the result, drop the setup list. Tha
 
 (Add your Anthropic API key to analyse your real script and copy the full report.)`;
 
-function ScriptTab({ onOpenKey }) {
+function ScriptTab({ onOpenKey, onNav }) {
   const mood = 'navy';
   const m = SM[mood];
 
-  const [text, setText] = React.useState('');
+  // Everything on this tab survives navigating away & back (sessionStorage), so the
+  // script, analysis, fact-check and packaging are still here when you return.
+  const SS = 'ci_script_session';
+  const snap = React.useMemo(() => { try { return JSON.parse(sessionStorage.getItem(SS) || '{}'); } catch (e) { return {}; } }, []);
+
+  const [text, setText] = React.useState(snap.text || '');
   // Receive a draft sent from the Create tab ("Refine in Script checker").
   React.useEffect(() => {
     if (window.__ciPrefillScript) { setText(window.__ciPrefillScript); window.__ciPrefillScript = null; }
   }, []);
-  const [textB, setTextB] = React.useState('');
-  const [compare, setCompare] = React.useState(false);
-  const [lang, setLang] = React.useState('Auto-detect');
-  const [kind, setKind] = React.useState('Education');
-  const [who, setWho] = React.useState('General');
-  const [where, setWhere] = React.useState('Reels');
-  const [scrMode, setScrMode] = React.useState('create');   // create | check
-  const [topic, setTopic] = React.useState('');
-  const [cgen, setCgen] = React.useState({ loading: false, hooks: null, script: null, sources: null, err: '' });
+  const [textB, setTextB] = React.useState(snap.textB || '');
+  const [compare, setCompare] = React.useState(!!snap.compare);
+  const [lang, setLang] = React.useState(snap.lang || 'Auto-detect');
+  const [kind, setKind] = React.useState(snap.kind || 'Education');
+  const [who, setWho] = React.useState(snap.who || 'General');
+  const [where, setWhere] = React.useState(snap.where || 'Reels');
+  const [scrMode, setScrMode] = React.useState(snap.scrMode || 'create');   // create | check
+  const [topic, setTopic] = React.useState(snap.topic || '');
+  const [cgen, setCgen] = React.useState(snap.cgen || { loading: false, hooks: null, script: null, sources: null, err: '' });
   const [rewrite, setRewrite] = React.useState({ dir: '', loading: false, out: null });
   const [selectedHook, setSelectedHook] = React.useState('');
   // Independent fact-check (Gemini + Google Search) and the Claude auto-fix of it.
-  const [fc, setFc] = React.useState({ state: 'idle', data: null, fixing: false, fixed: null, err: '' });
-  const [pkg, setPkg] = React.useState({ state: 'idle', data: null, err: '' });
+  const [fc, setFc] = React.useState(snap.fc || { state: 'idle', data: null, fixing: false, fixed: null, err: '' });
+  const [pkg, setPkg] = React.useState(snap.pkg || { state: 'idle', data: null, err: '' });
   const fileRef = React.useRef(null);
 
   // File upload: supports .txt / .md / .docx
@@ -87,7 +92,31 @@ function ScriptTab({ onOpenKey }) {
     e.target.value = '';
   }
 
-  const { state, report, usage, err, run } = window.useAnalysis('script');
+  const { state, report, usage, err, run, reset } = window.useAnalysis('script', { persistKey: 'ci_script_report' });
+
+  // Persist the tab's inputs/outputs (sanitising any in-flight loading states).
+  React.useEffect(() => {
+    try {
+      sessionStorage.setItem(SS, JSON.stringify({
+        text, textB, compare, lang, kind, who, where, scrMode, topic,
+        cgen: { ...cgen, loading: false },
+        fc: fc.state === 'loading' ? { state: 'idle', data: null, fixing: false, fixed: null, err: '' } : { ...fc, fixing: false },
+        pkg: pkg.state === 'loading' ? { state: 'idle', data: null, err: '' } : pkg,
+      }));
+    } catch (e) {}
+  }, [text, textB, compare, lang, kind, who, where, scrMode, topic, cgen, fc, pkg]);
+
+  // Clear everything on this tab and start fresh.
+  function resetAll() {
+    setText(''); setTextB(''); setCompare(false); setTopic('');
+    setCgen({ loading: false, hooks: null, script: null, sources: null, err: '' });
+    setRewrite({ dir: '', loading: false, out: null }); setSelectedHook('');
+    setFc({ state: 'idle', data: null, fixing: false, fixed: null, err: '' });
+    setPkg({ state: 'idle', data: null, err: '' });
+    reset();
+    try { sessionStorage.removeItem(SS); } catch (e) {}
+    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   const words = text.trim() ? text.trim().split(/\s+/).length : 0;
   const seconds = Math.round(words / 2.5);
@@ -350,8 +379,20 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       // Use Gemini + Google Search when a Google key is set; otherwise fall back
       // to Claude with its live web_search tool. Both verify against live sources.
       const useGemini = !!(window.getGoogleKey && window.getGoogleKey());
-      const data = useGemini ? await window.geminiFactCheck(text, lang) : await window.claudeFactCheck(text, lang);
-      if (data) data.engine = useGemini ? 'gemini' : 'claude';
+      let data, engine;
+      if (useGemini) {
+        try { data = await window.geminiFactCheck(text, lang); engine = 'gemini'; }
+        catch (e) {
+          // Gemini busy / rate-limited / quota -> automatically fall back to Claude
+          // instead of erroring out, so the user still gets a fact-check.
+          if (/busy|rate.?limit|quota|429|503|high demand|overload/i.test(String(e && e.message)) && window.claudeFactCheck) {
+            data = await window.claudeFactCheck(text, lang); engine = 'claude-fb';
+          } else throw e;
+        }
+      } else {
+        data = await window.claudeFactCheck(text, lang); engine = 'claude';
+      }
+      if (data) data.engine = engine;
       setFc({ state: 'done', data, fixing: false, fixed: null, err: '' });
     } catch (e) {
       const msg = String(e.message) === 'NO_KEY'
@@ -407,6 +448,15 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       setPkg({ state: 'error', data: null, err: msg });
     }
   }
+  // Hand the script's thumbnail text + visual brief to the Builder tab, which
+  // prefills its headline and scene direction from this.
+  function sendToBuilder(thumbText) {
+    const d = pkg.data || {};
+    const ytTitle = (d.youtube && d.youtube.titles && d.youtube.titles[0] && d.youtube.titles[0].text) || '';
+    const tt = thumbText || (d.thumbnailText && d.thumbnailText[0] && d.thumbnailText[0].text) || '';
+    try { localStorage.setItem('ci_last_create', JSON.stringify({ topic: ytTitle || text.trim().slice(0, 90), title: ytTitle, thumbText: tt, brief: d.thumbnailBrief || '', ts: Date.now() })); } catch (e) {}
+    if (onNav) onNav('builder');
+  }
   const pkgColor = v => v >= 75 ? '#8FD86A' : v >= 55 ? '#F0C85A' : '#F06A7E';
   const PKG_PLATS = [
     { key: 'youtube', label: 'YouTube', tagKey: 'tags', tagLabel: 'SEO tags', hash: false },
@@ -433,6 +483,11 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       {fc.state === 'error' && <div style={{ fontSize: 12.5, color: '#f5788c', marginTop: 10 }}>{fc.err}</div>}
       {fc.state === 'done' && fc.data && (
         <div style={{ marginTop: 14 }}>
+          {fc.data.engine === 'claude-fb' && (
+            <div style={{ fontSize: 11.5, color: '#F0C85A', marginBottom: 10, padding: '8px 11px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)' }}>
+              Gemini was busy/rate-limited, so this was verified with Claude + web search instead.
+            </div>
+          )}
           {fc.data.summary && <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.55 }}>{fc.data.summary}</div>}
           {(fc.data.claims || []).length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -576,9 +631,20 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
                       {t.why && <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 2 }}>{t.why}</div>}
                     </div>
                     <button className="ci-copybtn" style={{ height: 28, flexShrink: 0 }} onClick={() => window.copyText(t.text)}>⧉</button>
+                    {onNav && <button className="ci-copybtn" style={{ height: 28, flexShrink: 0, fontSize: 11.5, padding: '0 10px' }} onClick={() => sendToBuilder(t.text)}>🎨 Build</button>}
                   </div>
                 ))}
               </div>
+              {pkg.data.thumbnailBrief && (
+                <div style={{ marginTop: 10, padding: '11px 13px', borderRadius: 10, background: `${m.orbB || m.accentFrom}14`, border: `1px solid ${m.accentGlow}40` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>Thumbnail image brief — visual context for a pro look</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>{pkg.data.thumbnailBrief}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    {onNav && <SRB mood={mood} onClick={() => sendToBuilder()}>🎨 Build this thumbnail →</SRB>}
+                    <button className="ci-copybtn" style={{ height: 38, padding: '0 12px', fontSize: 12 }} onClick={() => window.copyText(pkg.data.thumbnailBrief)}>⧉ Copy brief</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -591,13 +657,18 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       <SWH mood={mood} eyebrow="Script" title={scrMode === 'create' ? 'Create a script' : 'Check your script'}
         sub={scrMode === 'create' ? 'Start from a topic — get a ready-to-record script and hook options, then check & refine it.' : "Paste your video script. We'll tell you what's working, what's not, and how to fix it — line by line."} />
 
-      <div style={{ display: 'inline-flex', gap: 4, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)', marginBottom: 18 }}>
-        {['create', 'check'].map(mode => (
-          <button key={mode} className="pill" onClick={() => setScrMode(mode)}
-            style={{ height: 34, border: 'none', textTransform: 'capitalize', background: scrMode === mode ? 'var(--surface-3)' : 'transparent', fontWeight: scrMode === mode ? 700 : 500 }}>
-            {mode === 'create' ? '✦ Create' : '✓ Check'}
-          </button>
-        ))}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div style={{ display: 'inline-flex', gap: 4, padding: 5, borderRadius: 999, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)' }}>
+          {['create', 'check'].map(mode => (
+            <button key={mode} className="pill" onClick={() => setScrMode(mode)}
+              style={{ height: 34, border: 'none', textTransform: 'capitalize', background: scrMode === mode ? 'var(--surface-3)' : 'transparent', fontWeight: scrMode === mode ? 700 : 500 }}>
+              {mode === 'create' ? '✦ Create' : '✓ Check'}
+            </button>
+          ))}
+        </div>
+        {(text.trim() || topic.trim() || (cgen && cgen.script) || report || (pkg && pkg.data) || (fc && fc.data)) && (
+          <button className="ci-copybtn" style={{ height: 34, padding: '0 14px', fontSize: 12.5 }} onClick={resetAll} title="Clear the script, analysis, fact-check and packaging">↺ New / Reset</button>
+        )}
       </div>
 
       {scrMode === 'create' && (

@@ -209,7 +209,9 @@ function BuilderTab() {
   function setPersonDesc(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, desc: v } : p)); }
   function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
 
-  const [headline, setHeadline] = React.useState('');
+  // Prefill from a "Build this thumbnail" handoff from the Script tab (text + brief).
+  const bootCreate = React.useMemo(() => { try { return JSON.parse(localStorage.getItem('ci_last_create') || '{}'); } catch (e) { return {}; } }, []);
+  const [headline, setHeadline] = React.useState(bootCreate.thumbText || '');
   const [subline, setSubline] = React.useState('');
   const [elements, setElements] = React.useState([]);
   const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
@@ -226,7 +228,7 @@ function BuilderTab() {
   const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
   const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
 
-  const [extraNote, setExtraNote] = React.useState('');
+  const [extraNote, setExtraNote] = React.useState(bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
   const [brand] = React.useState(bLoadBrand);
   const brandColors = (brand.colors || []).filter(Boolean);
   const hasBrand = brandColors.length > 0 || !!brand.note;

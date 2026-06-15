@@ -281,6 +281,7 @@ async function packageScript(script, lang, opts = {}) {
     ti.systemGuidance ? "TITLE SCIENCE (apply to every title; an honest, payable curiosity gap -- never clickbait the script can't deliver):\n" + ti.systemGuidance : "",
     pl.systemGuidance ? "PLATFORM / SEO RULES (ranking signals, hashtag counts, keyword placement -- follow these exactly):\n" + pl.systemGuidance.slice(0, 2600) : "",
     (th.designPrinciples || th.systemGuidance) ? "THUMBNAIL-TEXT RULES (2-4 words, legible at 120px, complements the title -- never repeats it):\n" + (String(th.designPrinciples || "").slice(0, 700) + "\n" + String(th.systemGuidance || "").slice(0, 700)).trim() : "",
+    "THUMBNAIL BRIEF: also write a one-to-two sentence VISUAL concept for the thumbnail image (not the words) drawn from the script -- the main subject + their expression/emotion, the key object or scene, the mood, and a simple high-contrast composition idea. Make it concrete enough for an AI image generator to produce a professional, click-worthy thumbnail. This is the scene, NOT the overlay text.",
     "PER-PLATFORM INTENT -- YouTube: search + browse, keyword EARLY, ~60 chars, strong curiosity gap. Instagram: hook-style first line + keyword-rich phrasing + 3-5 highly-relevant hashtags (hashtags = minor topic signals, not discovery). LinkedIn: professional, insight-led hook, zero hype, 3 relevant hashtags.",
     "YOUTUBE TAGS (this is the ranking box -- make it strong, not a token list): return 18-30 tags ORDERED most-important-first. Start with the EXACT primary keyword, then its close variations/synonyms, then 2-3 broader category terms, then specific long-tail phrases a real viewer would type (questions, 'how to', year, niche+topic combos) pulled from THIS script. Lowercase, no # symbols, no duplicates. YouTube caps tags at 500 characters TOTAL (including commas) -- pack it close to that limit but never exceed it, so order the highest-value tags first in case of truncation.",
     "SCORE each title 0-100 for predicted click + search strength using the title science, with a one-line 'why' naming the specific lever (curiosity gap / keyword / number / stake). Be honest -- not everything is a 90.",
@@ -288,7 +289,7 @@ async function packageScript(script, lang, opts = {}) {
       + '{ "youtube":{ "titles":[{"text":"","score":0,"why":""}], "tags":["18-30 ranking tags, primary keyword first, <500 chars total, lowercase, no #"] },'
       + ' "instagram":{ "titles":[{"text":"","score":0,"why":""}], "hashtags":["3-5 with #"], "keywords":["caption SEO keywords"] },'
       + ' "linkedin":{ "titles":[{"text":"","score":0,"why":""}], "hashtags":["3 with #"] },'
-      + ' "thumbnailText":[{"text":"2-4 words","why":""}] }\n'
+      + ' "thumbnailText":[{"text":"2-4 words","why":""}], "thumbnailBrief":"1-2 sentence visual concept for the image" }\n'
       + "EXACTLY 3 titles per platform and EXACTLY 3 thumbnailText options.",
   ].filter(Boolean).join("\n\n");
   const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "");
@@ -871,11 +872,19 @@ function computeOverall(json) {
 // ── useAnalysis -- shared runner for every checker tab ────────────────────────
 // state: idle | loading | done | error
 // when done with report=null → the tab shows its built-in SAMPLE (no key path)
-function useAnalysis(type) {
-  const [state, setState] = React.useState("idle");
-  const [report, setReport] = React.useState(null);
-  const [usage, setUsage] = React.useState(null);
+function useAnalysis(type, opts = {}) {
+  const pk = opts.persistKey;   // when set, the last result survives tab switches
+  const boot = (() => { if (!pk) return null; try { return JSON.parse(sessionStorage.getItem(pk) || "null"); } catch (e) { return null; } })();
+  const [state, setState] = React.useState(boot && boot.report ? "done" : "idle");
+  const [report, setReport] = React.useState((boot && boot.report) || null);
+  const [usage, setUsage] = React.useState((boot && boot.usage) || null);
   const [err, setErr] = React.useState("");
+  React.useEffect(() => {
+    if (!pk) return;
+    try {
+      if (state === "done" && report) sessionStorage.setItem(pk, JSON.stringify({ report, usage }));
+    } catch (e) {}
+  }, [pk, state, report, usage]);
 
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setState("loading");
@@ -910,7 +919,8 @@ function useAnalysis(type) {
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
-  return { state, report, usage, err, run, reset: () => setState("idle") };
+  return { state, report, usage, err, run,
+    reset: () => { setState("idle"); setReport(null); setUsage(null); setErr(""); if (pk) try { sessionStorage.removeItem(pk); } catch (e) {} } };
 }
 
 // ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
