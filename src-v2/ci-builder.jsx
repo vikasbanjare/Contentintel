@@ -117,6 +117,62 @@ function BuilderUpgradeCard({ u, i, m, sourceImage }) {
   );
 }
 
+// In-app generation for the MAIN builder prompt -- creates the thumbnail right here
+// with Gemini (Google AI key) or DALL-E (OpenAI/proxy). Only renders when a key is set.
+function GenerateHere({ prompt, sourceImage, m }) {
+  const [st, setSt] = React.useState('idle');
+  const [img, setImg] = React.useState(null);
+  const [err, setErr] = React.useState('');
+  const canGen = !!(window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.());
+  const usingGoogle = !!window.getGoogleKey?.();
+  if (!canGen) return null;
+  async function go() {
+    if (st === 'loading' || !prompt.trim()) return;
+    setSt('loading'); setImg(null); setErr('');
+    try {
+      let url;
+      if (sourceImage && window.editThumbnailInApp) url = await window.editThumbnailInApp(prompt, sourceImage);
+      else url = await window.generateImageInApp(prompt);
+      setImg(url); setSt('done');
+    } catch (e) {
+      const msg = String(e?.message || '');
+      setErr(msg === 'NO_IMAGE_KEY' ? 'Add a Google AI key in Settings → Image Generation to generate here.' : (msg || 'Generation failed — try again.'));
+      setSt('error');
+    }
+  }
+  return (
+    <div style={{ padding: '14px 16px', borderRadius: 12, background: `linear-gradient(135deg, ${m.accentFrom}1f, var(--inset))`, border: `1.5px solid ${m.accentGlow}`, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-1)' }}>⚡ Generate it right here {usingGoogle ? 'with Gemini' : ''}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{sourceImage ? 'Edits your uploaded thumbnail as the base.' : 'Creates the image in-app — no copy/paste needed.'}</div>
+        </div>
+        <button className="ci-copybtn"
+          style={{ height: 36, padding: '0 16px', fontSize: 13, background: `${m.accentFrom}30`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: st === 'loading' ? 0.65 : 1 }}
+          onClick={go} disabled={st === 'loading'}>
+          {st === 'loading' ? '⏳ Generating…' : st === 'done' ? '↺ Regenerate' : '⚡ Generate'}
+        </button>
+      </div>
+      {st === 'loading' && (
+        <div style={{ marginTop: 14, padding: '22px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', verticalAlign: 'middle', marginRight: 8 }} className="spin" />
+          {sourceImage ? 'Editing your thumbnail with AI…' : 'Generating your thumbnail…'}
+        </div>
+      )}
+      {st === 'error' && <div style={{ marginTop: 10, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>{err}</div>}
+      {st === 'done' && img && (
+        <div style={{ marginTop: 14 }}>
+          <img src={img} alt="Generated thumbnail" style={{ width: '100%', borderRadius: 10, display: 'block', maxHeight: 420, objectFit: 'contain', background: '#000' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <a href={img} download="thumbnail.png" className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>⬇ Download</a>
+            <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={() => { setSt('idle'); setImg(null); }}>✕ Clear</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function bReadImage(file, cb) {
   const reader = new FileReader();
   reader.onload = () => {
@@ -643,6 +699,12 @@ function BuilderTab() {
             <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 4 }}>Your prompt (edit if needed):</div>
             <textarea className="ci-textarea" style={{ minHeight: 130, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}
               value={prompt} onChange={e => setPrompt(e.target.value)} />
+            <GenerateHere prompt={prompt} sourceImage={analyseImg} m={m} />
+            {(photoPeople.length > 0) && (window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.()) && (
+              <div style={{ fontSize: 11, color: 'var(--text-4)', margin: '-4px 0 12px', lineHeight: 1.5 }}>
+                Tip: in-app generation won't lock in a real uploaded face — for accurate likeness, use ChatGPT or Gemini below with your photo attached.
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {OUTPUT_TOOLS.map(tool => (
                 <div key={tool.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 11, background: 'var(--inset)', border: '1px solid var(--stroke-1)' }}>

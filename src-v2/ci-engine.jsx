@@ -129,7 +129,7 @@ function fmtCost(usd) {
 }
 
 // ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
-async function callClaude({ system, userText, image, images, model, maxTokens = 1800 }) {
+async function callClaudeOnce({ system, userText, image, images, model, maxTokens = 1800 }) {
   // SaaS mode: signed-in users run through the ContentIntel worker (owner's
   // key, plan limits enforced server-side) — no personal key needed.
   const saas = (typeof window !== 'undefined' && window.CI_SAAS) || {};
@@ -211,6 +211,26 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
   const data = await res.json();
   const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("");
   return { text, usage: data.usage || null };
+}
+
+// The model returns a transient 529 "overloaded" / "high demand" when busy. That's
+// not a real failure -- retry a couple of times with backoff before surfacing it,
+// and show a friendly message rather than the raw API error.
+const isOverloaded = (e) => /overloaded|high demand|529|503|temporarily unavailable|please try again later/i.test(String(e && e.message || ""));
+async function callClaude(args) {
+  const MAX = 3;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await callClaudeOnce(args);
+    } catch (e) {
+      if (isOverloaded(e) && attempt < MAX - 1) {
+        await new Promise(r => setTimeout(r, 900 * Math.pow(2, attempt) + Math.random() * 400));
+        continue;
+      }
+      if (isOverloaded(e)) throw new Error("The AI is busy right now (high demand). Wait a few seconds and try again.");
+      throw e;
+    }
+  }
 }
 
 // ── Image generation (Gemini) -- edits the user's thumbnail per the instruction ─
@@ -367,20 +387,28 @@ SCRIPT:
 ${(scriptText || "").slice(0, 6000)}
 """`;
   const payload = { contents: [{ parts: [{ text: sys }] }], tools: [{ google_search: {} }] };
-  let res;
-  if (key) {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
+  const doFetch = async () => {
+    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
     });
-  } else if (proxy) {
-    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); }
-  } else {
+    if (proxy) {
+      try { return await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
+      catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); }
+    }
     throw new Error("NO_GOOGLE_KEY");
-  }
-  if (!res.ok) {
+  };
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    res = await doFetch();
+    if (res.ok) break;
+    // 429 (rate limit) / 503 (overloaded) are transient -- back off and retry.
+    if ((res.status === 429 || res.status === 500 || res.status === 503) && attempt < 2) {
+      await new Promise(r => setTimeout(r, 900 * Math.pow(2, attempt) + Math.random() * 400));
+      continue;
+    }
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
     if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid -- check it in Settings.");
+    if (res.status === 429 || res.status === 503) throw new Error("Gemini is busy or rate-limited right now. Wait a few seconds and try again.");
     throw new Error(detail || ("Fact-check request failed (" + res.status + ")."));
   }
   const data = await res.json();

@@ -2297,7 +2297,7 @@ function fmtCost(usd) {
 }
 
 // ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
-async function callClaude({ system, userText, image, images, model, maxTokens = 1800 }) {
+async function callClaudeOnce({ system, userText, image, images, model, maxTokens = 1800 }) {
   // SaaS mode: signed-in users run through the ContentIntel worker (owner's
   // key, plan limits enforced server-side) — no personal key needed.
   const saas = (typeof window !== 'undefined' && window.CI_SAAS) || {};
@@ -2379,6 +2379,26 @@ async function callClaude({ system, userText, image, images, model, maxTokens = 
   const data = await res.json();
   const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("");
   return { text, usage: data.usage || null };
+}
+
+// The model returns a transient 529 "overloaded" / "high demand" when busy. That's
+// not a real failure -- retry a couple of times with backoff before surfacing it,
+// and show a friendly message rather than the raw API error.
+const isOverloaded = (e) => /overloaded|high demand|529|503|temporarily unavailable|please try again later/i.test(String(e && e.message || ""));
+async function callClaude(args) {
+  const MAX = 3;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await callClaudeOnce(args);
+    } catch (e) {
+      if (isOverloaded(e) && attempt < MAX - 1) {
+        await new Promise(r => setTimeout(r, 900 * Math.pow(2, attempt) + Math.random() * 400));
+        continue;
+      }
+      if (isOverloaded(e)) throw new Error("The AI is busy right now (high demand). Wait a few seconds and try again.");
+      throw e;
+    }
+  }
 }
 
 // ── Image generation (Gemini) -- edits the user's thumbnail per the instruction ─
@@ -2535,20 +2555,28 @@ SCRIPT:
 ${(scriptText || "").slice(0, 6000)}
 """`;
   const payload = { contents: [{ parts: [{ text: sys }] }], tools: [{ google_search: {} }] };
-  let res;
-  if (key) {
-    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
+  const doFetch = async () => {
+    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
     });
-  } else if (proxy) {
-    try { res = await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
-    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); }
-  } else {
+    if (proxy) {
+      try { return await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
+      catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); }
+    }
     throw new Error("NO_GOOGLE_KEY");
-  }
-  if (!res.ok) {
+  };
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    res = await doFetch();
+    if (res.ok) break;
+    // 429 (rate limit) / 503 (overloaded) are transient -- back off and retry.
+    if ((res.status === 429 || res.status === 500 || res.status === 503) && attempt < 2) {
+      await new Promise(r => setTimeout(r, 900 * Math.pow(2, attempt) + Math.random() * 400));
+      continue;
+    }
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
     if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid -- check it in Settings.");
+    if (res.status === 429 || res.status === 503) throw new Error("Gemini is busy or rate-limited right now. Wait a few seconds and try again.");
     throw new Error(detail || ("Fact-check request failed (" + res.status + ")."));
   }
   const data = await res.json();
@@ -6113,6 +6141,62 @@ function BuilderUpgradeCard({ u, i, m, sourceImage }) {
   );
 }
 
+// In-app generation for the MAIN builder prompt -- creates the thumbnail right here
+// with Gemini (Google AI key) or DALL-E (OpenAI/proxy). Only renders when a key is set.
+function GenerateHere({ prompt, sourceImage, m }) {
+  const [st, setSt] = React.useState('idle');
+  const [img, setImg] = React.useState(null);
+  const [err, setErr] = React.useState('');
+  const canGen = !!(window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.());
+  const usingGoogle = !!window.getGoogleKey?.();
+  if (!canGen) return null;
+  async function go() {
+    if (st === 'loading' || !prompt.trim()) return;
+    setSt('loading'); setImg(null); setErr('');
+    try {
+      let url;
+      if (sourceImage && window.editThumbnailInApp) url = await window.editThumbnailInApp(prompt, sourceImage);
+      else url = await window.generateImageInApp(prompt);
+      setImg(url); setSt('done');
+    } catch (e) {
+      const msg = String(e?.message || '');
+      setErr(msg === 'NO_IMAGE_KEY' ? 'Add a Google AI key in Settings → Image Generation to generate here.' : (msg || 'Generation failed — try again.'));
+      setSt('error');
+    }
+  }
+  return (
+    <div style={{ padding: '14px 16px', borderRadius: 12, background: `linear-gradient(135deg, ${m.accentFrom}1f, var(--inset))`, border: `1.5px solid ${m.accentGlow}`, marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-1)' }}>⚡ Generate it right here {usingGoogle ? 'with Gemini' : ''}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{sourceImage ? 'Edits your uploaded thumbnail as the base.' : 'Creates the image in-app — no copy/paste needed.'}</div>
+        </div>
+        <button className="ci-copybtn"
+          style={{ height: 36, padding: '0 16px', fontSize: 13, background: `${m.accentFrom}30`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: st === 'loading' ? 0.65 : 1 }}
+          onClick={go} disabled={st === 'loading'}>
+          {st === 'loading' ? '⏳ Generating…' : st === 'done' ? '↺ Regenerate' : '⚡ Generate'}
+        </button>
+      </div>
+      {st === 'loading' && (
+        <div style={{ marginTop: 14, padding: '22px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
+          <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', verticalAlign: 'middle', marginRight: 8 }} className="spin" />
+          {sourceImage ? 'Editing your thumbnail with AI…' : 'Generating your thumbnail…'}
+        </div>
+      )}
+      {st === 'error' && <div style={{ marginTop: 10, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>{err}</div>}
+      {st === 'done' && img && (
+        <div style={{ marginTop: 14 }}>
+          <img src={img} alt="Generated thumbnail" style={{ width: '100%', borderRadius: 10, display: 'block', maxHeight: 420, objectFit: 'contain', background: '#000' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <a href={img} download="thumbnail.png" className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>⬇ Download</a>
+            <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={() => { setSt('idle'); setImg(null); }}>✕ Clear</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function bReadImage(file, cb) {
   const reader = new FileReader();
   reader.onload = () => {
@@ -6639,6 +6723,12 @@ function BuilderTab() {
             <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 4 }}>Your prompt (edit if needed):</div>
             <textarea className="ci-textarea" style={{ minHeight: 130, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}
               value={prompt} onChange={e => setPrompt(e.target.value)} />
+            <GenerateHere prompt={prompt} sourceImage={analyseImg} m={m} />
+            {(photoPeople.length > 0) && (window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.()) && (
+              <div style={{ fontSize: 11, color: 'var(--text-4)', margin: '-4px 0 12px', lineHeight: 1.5 }}>
+                Tip: in-app generation won't lock in a real uploaded face — for accurate likeness, use ChatGPT or Gemini below with your photo attached.
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {OUTPUT_TOOLS.map(tool => (
                 <div key={tool.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 11, background: 'var(--inset)', border: '1px solid var(--stroke-1)' }}>
