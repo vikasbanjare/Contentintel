@@ -2174,7 +2174,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r8";
+window.CI_BUILD = "2026-06-16-r9";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2308,6 +2308,9 @@ const LS_HISTORY = "ci_history";
 function loadHistory() { try { return JSON.parse(localStorage.getItem(LS_HISTORY)) || []; } catch (e) { return []; } }
 function saveHistory(rec) {
   try {
+    // Strip base64 image data from input before storing — thumbnail analyses can
+    // embed 300KB+ base64 strings that quickly exhaust the localStorage quota.
+    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '[image]').slice(0, 600) };
     const arr = loadHistory();
     arr.unshift(rec);
     let keep = arr.slice(0, 30);
@@ -2503,6 +2506,9 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
 // The model returns a transient 529 "overloaded" / "high demand" when busy. That's
 // not a real failure -- retry a couple of times with backoff before surfacing it,
 // and show a friendly message rather than the raw API error.
+// Session-wide token accumulator — fires a custom event so any UI component
+// (e.g. nav token meter) can re-render without a React context.
+window.CI_SESSION_USAGE = window.CI_SESSION_USAGE || { in: 0, out: 0 };
 const isOverloaded = (e) => /overloaded|high demand|529|503|temporarily unavailable|please try again later/i.test(String(e && e.message || ""));
 async function callClaude(args) {
   const MAX = 3;
@@ -2510,6 +2516,11 @@ async function callClaude(args) {
     try {
       const out = await callClaudeOnce(args);
       if (out && typeof out.text === "string") out.text = stripToolNoise(out.text);
+      if (out && out.usage) {
+        window.CI_SESSION_USAGE.in  += out.usage.input_tokens  || 0;
+        window.CI_SESSION_USAGE.out += out.usage.output_tokens || 0;
+        try { window.dispatchEvent(new Event('ci-usage-update')); } catch (e) {}
+      }
       return out;
     } catch (e) {
       if (isOverloaded(e) && attempt < MAX - 1) {
@@ -3211,10 +3222,11 @@ function useAnalysis(type, opts = {}) {
 }
 
 // ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
-function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model, disabled, disabledHint }) {
+function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze", model, disabled, disabledHint }) {
   const inTok = estIn + 0;
-  const total = inTok + CI_OUTPUT_GUESS;
-  const cost = estCost(inTok, CI_OUTPUT_GUESS, model);
+  const outTok = estOut != null ? estOut : CI_OUTPUT_GUESS;
+  const total = inTok + outTok;
+  const cost = estCost(inTok, outTok, model);
   const hasKey = !!getKey();
   const free = !hasKey && hasSandbox(); // free Claude preview AI
   return (
@@ -3233,7 +3245,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
         )}
       </GlowButton>
       <span className="ci-est">
-        {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}</>}
+        {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(outTok)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · live</span>}
         {!hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
       </span>
@@ -3745,6 +3757,15 @@ window.ThemeToggle = ThemeToggle;
 
 function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
+  const [sessionTok, setSessionTok] = React.useState(0);
+  React.useEffect(() => {
+    const update = () => {
+      const u = window.CI_SESSION_USAGE || { in: 0, out: 0 };
+      setSessionTok(u.in + u.out);
+    };
+    window.addEventListener('ci-usage-update', update);
+    return () => window.removeEventListener('ci-usage-update', update);
+  }, []);
   return (
     <nav className="ci-nav">
       <div className="ci-logo" onClick={() => onNav('home')} style={{ cursor: 'pointer' }}>
@@ -3770,6 +3791,12 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {sessionTok > 0 && (
+        <span style={{ fontSize: 11, color: 'var(--text-5)', marginRight: 4, whiteSpace: 'nowrap' }} title="Tokens used this session">
+          {window.fmtTokens ? window.fmtTokens(sessionTok) : sessionTok} tokens
+        </span>
+      )}
 
       {(() => {
         // In hosted mode the worker holds the Claude key, so this opens the
@@ -4037,36 +4064,28 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
 }
 window.HomeView = HomeView;
 
-// Placeholder testimonials -- swap the text/handles for real ones later.
-const CI_TESTIMONIALS = [
-  { q: "I stopped guessing which hook to use. My last three Reels all crossed 100K — the script tool called the weak opener every time.", n: "Aarav Mehta", r: "Finance creator · 240K", a: "AM" },
-  { q: "We run thumbnails for 12 clients. The A/B/C check settles arguments in seconds and the redesign prompts are genuinely good.", n: "Studio Nine", r: "Content agency · Mumbai", a: "S9" },
-  { q: "The Hinglish hook rewrites actually sound like me. First tool that didn't feel built only for English creators.", n: "Priya Sharma", r: "Lifestyle · 88K", a: "PS" },
+const CI_USE_CASES = [
+  { icon: '🎯', title: 'Hook diagnosis', body: 'Paste a script and see exactly which line loses viewers — with a stronger rewrite that targets the real weak spot, not a generic tip.' },
+  { icon: '🖼️', title: 'Thumbnail A/B test', body: 'Upload two or three thumbnails and get a side-by-side breakdown of click chance, face, text and contrast — with a redesign prompt ready for ChatGPT.' },
+  { icon: '📝', title: 'Title scoring', body: 'Check your title against 60-char mobile truncation, curiosity triggers and SEO patterns — and get 10 click-optimised alternatives in seconds.' },
 ];
 function TestimonialsSection({ mood }) {
   const m = MOODS[mood];
   return (
     <section style={{ maxWidth: 1140, margin: '0 auto', padding: '10px 32px 96px' }}>
       <div className="ci-rise" style={{ textAlign: 'center', marginBottom: 30 }}>
-        <Eyebrow mood={mood} glow>Loved by creators & agencies</Eyebrow>
-        <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 42, margin: '10px 0 0', letterSpacing: '-0.01em' }}>People ship with more confidence.</h2>
+        <Eyebrow mood={mood} glow>What creators use it for</Eyebrow>
+        <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 42, margin: '10px 0 0', letterSpacing: '-0.01em' }}>Catch the problems before you post.</h2>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
-        {CI_TESTIMONIALS.map((t, i) => (
-          <div key={i} className={'ci-block ci-rise rd' + (i % 3)} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ color: m.accentFrom, fontSize: 26, lineHeight: 1, fontFamily: "'Instrument Serif', Georgia, serif" }}>&ldquo;</div>
-            <div style={{ fontSize: 14.5, color: 'var(--text-1)', lineHeight: 1.6, flex: 1 }}>{t.q}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 12.5 }}>{t.a}</div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)' }}>{t.n}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-4)' }}>{t.r}</div>
-              </div>
-            </div>
+        {CI_USE_CASES.map((t, i) => (
+          <div key={i} className={'ci-block ci-rise rd' + (i % 3)} style={{ padding: 26, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 32, lineHeight: 1 }}>{t.icon}</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 22, color: 'var(--text-1)' }}>{t.title}</div>
+            <div style={{ fontSize: 14.5, color: 'var(--text-2)', lineHeight: 1.65, flex: 1 }}>{t.body}</div>
           </div>
         ))}
       </div>
-      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11.5, color: 'var(--text-5)' }}>Example results — real creator stories coming as we launch.</div>
     </section>
   );
 }
@@ -4915,12 +4934,26 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   const fcLabel = s => s === 'verified' ? 'Verified' : s === 'false' ? 'False' : 'Unverified';
 
   // Titles + SEO tags + thumbnail text, per platform, grounded in the research.
+  // Results are cached in sessionStorage so clicking "Regenerate" on an unchanged
+  // script doesn't burn another 2000+ tokens.
+  const PKG_CACHE_KEY = 'ci_pkg_cache';
   async function runPackaging() {
     if (!text.trim()) { setPkg({ state: 'error', data: null, err: 'Paste or generate a script first.' }); return; }
+    const ckey = JSON.stringify({ t: text.trim().slice(0, 200), lang, kind, who });
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(PKG_CACHE_KEY) || '{}');
+      if (cached[ckey]) { setPkg({ state: 'done', data: cached[ckey], err: '' }); return; }
+    } catch (e) {}
     setPkg({ state: 'loading', data: null, err: '' });
     try {
       const data = await window.packageScript(text, lang, { niche: kind, audience: who });
       setPkg({ state: 'done', data, err: '' });
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(PKG_CACHE_KEY) || '{}');
+        const keys = Object.keys(cached);
+        if (keys.length >= 3) delete cached[keys[0]];
+        sessionStorage.setItem(PKG_CACHE_KEY, JSON.stringify({ ...cached, [ckey]: data }));
+      } catch (e) {}
     } catch (e) {
       const msg = String(e.message) === 'NO_KEY' ? 'Sign in (or add an API key) to generate titles & tags.' : (e.message || 'Could not generate packaging — try again.');
       setPkg({ state: 'error', data: null, err: msg });
@@ -5009,7 +5042,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
     </SB>
   );
 
-  const rewritePanel = (
+  const rewritePanel = report ? (
     <SB mood={mood}>
       <div style={{ fontSize: 15, fontWeight: 600 }}>Rewrite from analysis</div>
       <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
@@ -5038,6 +5071,13 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           </div>
         </div>
       )}
+    </SB>
+  ) : (
+    <SB mood={mood}>
+      <div style={{ fontSize: 15, fontWeight: 600 }}>Rewrite from analysis</div>
+      <div style={{ fontSize: 13, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.55 }}>
+        Run an analysis first — the rewrite uses your actual dimension scores to target the real weak spots, not generic feedback.
+      </div>
     </SB>
   );
 
@@ -5260,7 +5300,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script"
+          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={8000} label="Check my script"
             disabled={!ready} disabledHint={text.trim() ? 'Script is too short to analyze — paste the full script (10+ words).' : 'Paste your script first — nothing to check yet.'} />
         </div>
       </SB>
@@ -5345,15 +5385,20 @@ const ASK_SUGGESTIONS = [
 ];
 
 function buildAskSystem() {
-  const core = (window.liveResearch().core || '');
+  const live = window.liveResearch();
+  const core = live.core || '';
   const askR = window.getResearch('ask') || {};
+  const scriptR = window.getResearch('script') || {};
+  const thumbR = window.getResearch('thumbnail') || {};
   return [
-    `You are ContentIntel's growth strategist. Answer the user's question directly, specifically and practically.`,
+    `You are ContentIntel's growth strategist. Answer the user's question directly, specifically and practically — cite numbers, thresholds, and tactics, not vague tips.`,
     `WEB VERIFICATION: you have a live web_search tool. When the answer depends on current facts, platform features, algorithm changes, numbers, pricing, tools or anything time-sensitive, search and cross-check multiple real sources FIRST, then answer from what you actually find -- never guess or rely on stale memory, and never ask the user to provide sources. Skip searching only for timeless, opinion-based questions.`,
     `LANGUAGE LAW: answer in the same language as the question (Hindi -> Hindi, Hinglish -> Hinglish, English -> English).`,
-    core ? 'SHARED RESEARCH:\n"""\n' + core + '\n"""' : '',
+    core ? `PLATFORM & ALGORITHM RESEARCH (ground your answer in this):\n"""\n${core}\n"""` : '',
+    scriptR.systemGuidance ? `HOOK & SCRIPT SCIENCE:\n${String(scriptR.systemGuidance).slice(0, 900)}` : '',
+    thumbR.systemGuidance ? `THUMBNAIL SCIENCE:\n${String(thumbR.systemGuidance).slice(0, 600)}` : '',
     askR.systemGuidance || '',
-    askR.notes || 'Output JSON: {"answer":"2-5 short paragraphs","steps":["3-6 do-today actions"],"related":["2-3 follow-up questions"]}. Return ONLY the JSON object.',
+    askR.notes || 'Output JSON: {"answer":"2-5 short paragraphs with specific numbers/thresholds","steps":["3-6 concrete do-today actions"],"related":["2-3 follow-up questions"]}. Return ONLY the JSON object.',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -5362,19 +5407,25 @@ function AskTab({ onOpenKey }) {
   const m = AM[mood];
   const [q, setQ] = React.useState('');
   const [state, setState] = React.useState('idle'); // idle | loading | done | error
-  const [out, setOut] = React.useState(null);
   const [err, setErr] = React.useState('');
-  const [asked, setAsked] = React.useState('');
+  // Thread: array of { q, out } — newest last. Displayed newest-first.
+  const [thread, setThread] = React.useState([]);
   const inputRef = React.useRef(null);
+
+  const currentOut = thread.length > 0 ? thread[thread.length - 1] : null;
+  const pastThread = thread.slice(0, -1).reverse(); // older items, newest-first
 
   async function ask(question) {
     const text = String(question || q).trim();
-    if (!text) return;
-    setQ(text); setAsked(text); setErr(''); setOut(null); setState('loading');
+    if (!text || state === 'loading') return;
+    setQ(''); setErr(''); setState('loading');
     try {
+      // Prepend up to 2 prior Q/A turns as context for follow-up questions.
+      const ctx = thread.slice(-2).map(t => `Q: ${t.q}\nA: ${typeof t.out.answer === 'string' ? t.out.answer.slice(0, 280) : ''}...`).join('\n\n');
+      const userText = ctx ? `PREVIOUS CONTEXT:\n${ctx}\n\nQUESTION: ${text}` : `QUESTION: ${text}`;
       const { text: raw } = await window.callClaude({
         system: buildAskSystem(),
-        userText: `QUESTION: ${text}`,
+        userText,
         maxTokens: 1600,
         temperature: 0.5,
       });
@@ -5384,7 +5435,8 @@ function AskTab({ onOpenKey }) {
         if (!body) throw new Error('Empty response — try again.');
         json = { answer: body, steps: [], related: [] };
       }
-      setOut(json); setState('done');
+      setThread(prev => [...prev.slice(-4), { q: text, out: json }]);
+      setState('done');
       try { window.saveHistory({ type: 'ask', t: Date.now(), level: 'green', score: null, title: text.slice(0, 80) }); } catch (e) {}
       document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
@@ -5397,6 +5449,11 @@ function AskTab({ onOpenKey }) {
     }
   }
 
+  function startFresh() {
+    setThread([]); setQ(''); setErr(''); setState('idle');
+    document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
       <AWH mood={mood} eyebrow="Ask anything" title="Your growth questions, answered"
@@ -5407,14 +5464,22 @@ function AskTab({ onOpenKey }) {
           <input ref={inputRef} className="ci-input" style={{ fontSize: 15.5, height: 52 }}
             value={q} onChange={e => setQ(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') ask(); }}
-            placeholder="e.g. Why are my Reels stuck at 200 views?" />
+            placeholder={thread.length > 0 ? 'Ask a follow-up...' : 'e.g. Why are my Reels stuck at 200 views?'} />
           <ARB mood={mood} onClick={() => ask()} loading={state === 'loading'}>Ask →</ARB>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-          {ASK_SUGGESTIONS.map(s => (
-            <button key={s} className="pill" style={{ height: 32, fontSize: 12.5 }} onClick={() => ask(s)}>{s}</button>
-          ))}
-        </div>
+        {thread.length === 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+            {ASK_SUGGESTIONS.map(s => (
+              <button key={s} className="pill" style={{ height: 32, fontSize: 12.5 }} onClick={() => ask(s)}>{s}</button>
+            ))}
+          </div>
+        )}
+        {thread.length > 0 && (
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-4)' }}>{thread.length} question{thread.length !== 1 ? 's' : ''} in this conversation</span>
+            <button className="ci-copybtn" style={{ height: 26, padding: '0 10px', fontSize: 11 }} onClick={startFresh}>Start fresh</button>
+          </div>
+        )}
       </AB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><ALR rows={3} /></div>}
@@ -5425,16 +5490,17 @@ function AskTab({ onOpenKey }) {
         </div>
       )}
 
-      {state === 'done' && out && (
+      {(state === 'done' || state === 'idle') && currentOut && (
         <div className="ci-results" style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Current answer */}
           <AB mood={mood}>
-            <div style={{ fontSize: 12.5, color: 'var(--text-4)', marginBottom: 10 }}>You asked: <i>{asked}</i></div>
-            <div style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--text-1)', whiteSpace: 'pre-wrap' }}>{out.answer}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-4)', marginBottom: 10 }}>You asked: <i>{currentOut.q}</i></div>
+            <div style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--text-1)', whiteSpace: 'pre-wrap' }}>{currentOut.out.answer}</div>
           </AB>
 
-          {Array.isArray(out.steps) && out.steps.length > 0 && (
+          {Array.isArray(currentOut.out.steps) && currentOut.out.steps.length > 0 && (
             <AB title="Do this today" mood={mood}>
-              {out.steps.map((st, i) => (
+              {currentOut.out.steps.map((st, i) => (
                 <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '11px 0', borderTop: i ? '1px solid var(--stroke-1)' : 'none' }}>
                   <span style={{ width: 24, height: 24, borderRadius: 7, flexShrink: 0, background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, color: '#07090E', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 12.5 }}>{i + 1}</span>
                   <span style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-1)' }}>{st}</span>
@@ -5443,16 +5509,33 @@ function AskTab({ onOpenKey }) {
             </AB>
           )}
 
-          {Array.isArray(out.related) && out.related.length > 0 && (
-            <AB title="People also ask" mood={mood}>
+          {Array.isArray(currentOut.out.related) && currentOut.out.related.length > 0 && (
+            <AB title="Follow-up questions" mood={mood}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {out.related.map((r, i) => (
+                {currentOut.out.related.map((r, i) => (
                   <button key={i} className="pill" style={{ height: 'auto', minHeight: 36, fontSize: 13.5, justifyContent: 'flex-start', textAlign: 'left', padding: '8px 14px', whiteSpace: 'normal' }} onClick={() => ask(r)}>
                     {r} →
                   </button>
                 ))}
               </div>
             </AB>
+          )}
+
+          {/* Previous answers in thread */}
+          {pastThread.length > 0 && (
+            <details style={{ marginTop: 4 }}>
+              <summary style={{ fontSize: 12.5, color: 'var(--text-4)', cursor: 'pointer', padding: '8px 0', userSelect: 'none' }}>
+                ▸ {pastThread.length} earlier question{pastThread.length !== 1 ? 's' : ''} in this conversation
+              </summary>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                {pastThread.map((item, i) => (
+                  <div key={i} className="ci-block" style={{ padding: '14px 16px', opacity: 0.75 }}>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 6 }}>Q: <i>{item.q}</i></div>
+                    <div style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{typeof item.out.answer === 'string' ? item.out.answer.slice(0, 400) : ''}{item.out.answer && item.out.answer.length > 400 ? '…' : ''}</div>
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </div>
       )}
@@ -5879,7 +5962,7 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         </details>
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={count === 3 ? 5500 : count === 2 ? 4500 : 3200} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
           disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail (or describe it) first — nothing to check yet.'} /></div>
       </TB>
 
@@ -6041,7 +6124,7 @@ function TitleTab({ onOpenKey }) {
             <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good -- under 60' : 'Long -- may truncate'}
           </span>
         </div>
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title"
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2800} label="Check my title"
           disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
       </TB>
 
@@ -6123,16 +6206,20 @@ function AdsTab({ onOpenKey }) {
   const [headline, setHeadline] = React.useState('Built to Outlast Your PR');
   const [cta, setCta] = React.useState('Shop Now');
   const [goal, setGoal] = React.useState('Conversions');
+  // Google Ads controlled state (was uncontrolled defaultValue — data never reached Claude)
+  const [gHeadlines, setGHeadlines] = React.useState('Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days');
+  const [gDescriptions, setGDescriptions] = React.useState('The $90 trainer that beat the $200 ones in a real half-marathon. Try risk-free.');
+  const [gKeywords, setGKeywords] = React.useState('running shoes, marathon trainer, cushioned running shoe');
   const { state, report, usage, sources, err, run } = window.useAnalysis('ads');
 
   const META_PRIMARY = 125, META_HEAD = 27;
   const pOver = primary.length > META_PRIMARY, hOver = headline.length > META_HEAD;
 
-  const userText = `Platform: ${platform}\nObjective: ${goal}\nCTA button: ${cta}\n\n` +
-    `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
-    `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
+  const userText = platform === 'Meta'
+    ? `Platform: Meta\nObjective: ${goal}\nCTA button: ${cta}\n\nPrimary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\nCheck character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`
+    : `Platform: Google Ads\nObjective: ${goal}\n\nHeadlines (max 30 chars each):\n${gHeadlines}\n\nDescriptions (max 90 chars each):\n${gDescriptions}\n\nKeywords: ${gKeywords}\n\nCheck headline character limits, description limits, ad strength score, keyword relevance, and quality. Flag any truncations and give stronger alternatives.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  const adReady = primary.trim().length >= 12;
+  const adReady = platform === 'Meta' ? primary.trim().length >= 12 : gHeadlines.trim().length >= 5;
   function check() { if (!adReady) return; run({ userText, maxTokens: 2200 }); }
 
   return (
@@ -6168,13 +6255,13 @@ function AdsTab({ onOpenKey }) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><label className="ci-label">Headlines (one per line -- max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} defaultValue={'Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days'} /></div>
-            <div><label className="ci-label">Descriptions (one per line -- max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} defaultValue={'The $90 trainer that beat the $200 ones in a real half-marathon. Try risk-free.'} /></div>
-            <div><label className="ci-label">Keywords you're targeting</label><input className="ci-input" defaultValue="running shoes, marathon trainer, cushioned running shoe" /></div>
+            <div><label className="ci-label">Headlines (one per line — max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} value={gHeadlines} onChange={e => setGHeadlines(e.target.value)} /></div>
+            <div><label className="ci-label">Descriptions (one per line — max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} value={gDescriptions} onChange={e => setGDescriptions(e.target.value)} /></div>
+            <div><label className="ci-label">Keywords you're targeting</label><input className="ci-input" value={gKeywords} onChange={e => setGKeywords(e.target.value)} /></div>
           </div>
         )}
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad"
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2200} label="Check my ad"
           disabled={!adReady} disabledHint="Write your ad's main text first — nothing to check yet." /></div>
       </TB>
 
