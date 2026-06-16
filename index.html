@@ -2174,7 +2174,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r6";
+window.CI_BUILD = "2026-06-16-r7";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2216,6 +2216,10 @@ const setOpenAIKeyLS = (k) => { try { k ? localStorage.setItem(LS_OPENAI, k) : l
 const LS_PROXY = "ci_proxy_url";
 const getProxyUrl   = () => { try { return (localStorage.getItem(LS_PROXY) || "").trim(); } catch (e) { return ""; } };
 const setProxyUrlLS = (u) => { try { u ? localStorage.setItem(LS_PROXY, u) : localStorage.removeItem(LS_PROXY); } catch (e) {} };
+// Web-search toggle (BYO-key only; default off — uses extra tokens).
+const LS_WEBSEARCH = "ci_websearch";
+const getWebSearch   = () => { try { return localStorage.getItem(LS_WEBSEARCH) === "1"; } catch (e) { return false; } };
+const setWebSearchLS = (on) => { try { on ? localStorage.setItem(LS_WEBSEARCH, "1") : localStorage.removeItem(LS_WEBSEARCH); } catch (e) {} };
 const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAULT_MODEL; } catch (e) { return CI_DEFAULT_MODEL; } };
 const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
 const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
@@ -2302,6 +2306,26 @@ function fmtCost(usd) {
   return "$" + usd.toFixed(2);
 }
 
+// Extract web-search source URLs from Anthropic content blocks (mirrors worker.js).
+function extractSourcesBYO(blocks) {
+  const out = [], seen = new Set();
+  const add = (url, title) => {
+    if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url) || seen.has(url)) return;
+    seen.add(url);
+    out.push({ title: (title || url).slice(0, 160), url });
+  };
+  for (const b of (blocks || [])) {
+    if (!b) continue;
+    if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) {
+      for (const r of b.content) if (r && r.type === 'web_search_result') add(r.url, r.title);
+    }
+    if (b.type === 'text' && Array.isArray(b.citations)) {
+      for (const c of b.citations) if (c) add(c.url, c.title);
+    }
+  }
+  return out.slice(0, 8);
+}
+
 // ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
 async function callClaudeOnce({ system, userText, image, images, model, maxTokens = 1800, temperature }) {
   // SaaS mode: signed-in users run through the ContentIntel worker (owner's
@@ -2334,12 +2358,12 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
     return { text: textS, usage: dataS.usage || null, sources: dataS.ci_sources || null };
   }
   const key = getKey();
-  // Neither the BYO-key nor the sandbox path attaches a web_search tool (only the
-  // hosted worker does). Several prompts still say "you have a web_search tool", so
-  // the model emits <function_calls> XML as TEXT and it leaks to the UI. Tell it the
-  // truth here so it writes from its own knowledge and never fakes a tool call.
+  // Web search: enabled only when the user has toggled it on AND the selected model
+  // is not Haiku (Haiku doesn't support web_search_20250305). When disabled we inject
+  // NO_TOOL_NOTE so the model never leaks <function_calls> XML to the UI.
+  const webOn = getWebSearch() && !(model || getModel()).includes("haiku");
   const NO_TOOL_NOTE = "\n\nEXECUTION NOTE (highest priority): You have NO web_search tool and NO external tools in this session. Ignore any instruction above about searching the web or 'search first'. NEVER output tool-call or function-call syntax of any kind -- no <function_calls>, <invoke>, <function_results> or similar; such text is NOT executed and leaks to the user. Do not narrate searching. Answer only from your own knowledge; if a topic is recent or unverifiable, treat it as the user's stated premise and proceed. Output only the final answer in the exact format requested.";
-  if (typeof system === "string") system = system + NO_TOOL_NOTE;
+  if (!webOn && typeof system === "string") system = system + NO_TOOL_NOTE;
   // Normalise to an array so single- and multi-image (compare) paths share code.
   const imgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
   // No personal key? If we're inside a Claude preview/artifact, use its free AI.
@@ -2370,27 +2394,44 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
   const sysBlock = typeof system === "string" && system.length > 2000
     ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
     : system;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": "prompt-caching-2024-07-31",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, ...(temperature != null ? { temperature } : {}), system: sysBlock, messages: [{ role: "user", content }] }),
-  });
-  if (!res.ok) {
-    let detail = "";
-    try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
-    if (res.status === 401) throw new Error("Invalid API key. Check it in Settings.");
-    if (res.status === 429) throw new Error("Rate limited or out of credit on this key.");
-    throw new Error(detail || ("Request failed (" + res.status + ")."));
+  const tools = webOn ? [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4 }] : undefined;
+  const betaStr = webOn ? "prompt-caching-2024-07-31,web-search-2025-03-05" : "prompt-caching-2024-07-31";
+
+  // Web search may trigger stop_reason "pause_turn" — feed the partial turn back
+  // and continue until the model finishes (mirrors the worker's loop).
+  const msgs = [{ role: "user", content }];
+  let lastData = null, guard = 0;
+  const allBlocks = [];
+  while (true) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": betaStr,
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, ...(temperature != null ? { temperature } : {}), system: sysBlock, messages: msgs, ...(tools ? { tools } : {}) }),
+    });
+    if (!res.ok) {
+      let detail = "";
+      try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
+      if (res.status === 401) throw new Error("Invalid API key. Check it in Settings.");
+      if (res.status === 429) throw new Error("Rate limited or out of credit on this key.");
+      throw new Error(detail || ("Request failed (" + res.status + ")."));
+    }
+    lastData = await res.json();
+    if (Array.isArray(lastData.content)) allBlocks.push(...lastData.content);
+    if (lastData.stop_reason === "pause_turn" && guard++ < 3) {
+      msgs.push({ role: "assistant", content: lastData.content });
+      continue;
+    }
+    break;
   }
-  const data = await res.json();
-  const text = (data.content || []).filter(c => c.type === "text").map(c => c.text).join("");
-  return { text, usage: data.usage || null };
+  const text = allBlocks.filter(c => c.type === "text").map(c => c.text).join("");
+  const byoSources = webOn ? extractSourcesBYO(allBlocks) : [];
+  return { text, usage: lastData.usage || null, sources: byoSources.length > 0 ? byoSources : null };
 }
 
 // The model returns a transient 529 "overloaded" / "high demand" when busy. That's
@@ -3424,15 +3465,16 @@ function KeyModal({ open, onClose }) {
   const [proxy, setProxy] = React.useState(getProxyUrl());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow]   = React.useState(false);
+  const [webSearch, setWebSearch] = React.useState(getWebSearch());
   // In hosted/SaaS mode the worker holds the Claude key, so the personal Anthropic
   // key is irrelevant -- open straight to the image/fact-check key and hide that tab.
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
   const [section, setSection] = React.useState(saasMode ? "image" : "analysis"); // analysis | image
   React.useEffect(() => {
-    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); }
+    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); }
   }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
 
   const TabBtn = ({ id, label }) => (
@@ -3474,6 +3516,16 @@ function KeyModal({ open, onClose }) {
           <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
             Pricing (approx, per 1M tokens): in ${modelInfo(model).inP} / out ${modelInfo(model).outP}.
           </div>
+
+          <label className="ci-label" style={{ marginTop: 18 }}>Live web search</label>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <input type="checkbox" checked={webSearch} onChange={e => setWebSearch(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: "var(--ci-accent, #818CF8)", cursor: "pointer" }} />
+            <span style={{ fontSize: 13.5, color: "var(--text-2)" }}>Enable real-time web verification</span>
+          </label>
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+            When on, Claude searches the web before answering — facts, algorithm changes, and numbers are grounded in live sources. Uses roughly <b>2× tokens</b>. Not available on Haiku. Off by default.
+          </div>
         </>}
 
         {section === "image" && <>
@@ -3512,7 +3564,7 @@ function KeyModal({ open, onClose }) {
 
 Object.assign(window, {
   CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, ADMIN_PASS,
-  getKey, setKeyLS, getModel, setModelLS, modelInfo, getResearch, liveResearch,
+  getKey, setKeyLS, getModel, setModelLS, modelInfo, getWebSearch, setWebSearchLS, getResearch, liveResearch,
   canRun, hasSandbox,
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
