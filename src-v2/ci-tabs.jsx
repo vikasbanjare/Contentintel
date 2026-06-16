@@ -259,7 +259,7 @@ function ThumbnailTab({ onOpenKey }) {
     setGenIdeas({ loading: true, items: null, err: '' });
     try {
       const ut = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none)'}\nContent type: ${kind}\nIdea: ${genPrompt.trim() || '(use the attached photo as the subject)'}\n${guidance || ''}\n\nGive 3 concepts now.`;
-      const { text } = await window.callClaude({ system: buildThumbCreateSys(!!imgA), userText: ut, images: imgA ? [imgA] : [], maxTokens: 1800 });
+      const { text } = await window.callClaude({ system: buildThumbCreateSys(!!imgA), userText: ut, images: imgA ? [imgA] : [], maxTokens: 1800, temperature: 0.9 });
       const j = window.parseReport(text);
       if (j && Array.isArray(j.concepts) && j.concepts.length) setGenIdeas({ loading: false, items: j.concepts, err: '' });
       else setGenIdeas({ loading: false, items: null, err: 'Could not generate concepts -- try again.' });

@@ -180,6 +180,7 @@ function ScriptTab({ onOpenKey, onNav }) {
         system: buildCreateSys(),
         userText: `Topic: ${topic.trim()}\nContent type: ${kind}\nPlatform: ${where}\nAudience: ${who}\nLanguage: ${lang === 'Auto-detect' ? '(match the topic)' : lang}\n\nWrite it now.`,
         maxTokens: 2600,
+        temperature: 0.85,
       });
       const j = window.parseReport(raw);
       const cleanSrc = (arr) => (Array.isArray(arr) ? arr : [])
@@ -363,6 +364,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
         system: rwSystem,
         userText: `ORIGINAL SCRIPT:\n${text}`,
         maxTokens: 1500,
+        temperature: 0.8,
       });
       setRewrite(r => ({ ...r, loading: false, out: (out || '').trim() }));
     } catch (e) {
@@ -423,7 +425,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
         core ? 'Apply this virality craft where it helps (hook, open loops, payoff, CTA), but never at the cost of accuracy:\n"""\n' + core.slice(0, 1600) + '\n"""' : '',
         'Return ONLY the rewritten script — no preamble, no notes, no markdown.',
       ].filter(Boolean).join('\n\n');
-      const { text: out } = await window.callClaude({ system: sys, userText: `ORIGINAL SCRIPT:\n${text}`, maxTokens: 1600 });
+      const { text: out } = await window.callClaude({ system: sys, userText: `ORIGINAL SCRIPT:\n${text}`, maxTokens: 1600, temperature: 0.8 });
       setFc(f => ({ ...f, fixing: false, fixed: (out || '').trim() }));
     } catch (e) {
       setFc(f => ({ ...f, fixing: false, err: String(e.message) === 'NO_KEY' ? 'Sign in (or add an API key) to apply the fix.' : (e.message || 'Could not apply the fix — try again.') }));

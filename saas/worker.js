@@ -123,6 +123,13 @@ export default {
     //    it decides it needs to (capped by max_uses), so simple checks stay fast.
     const { engine: _e, web: _w, model: _m, ...payload } = body;
     payload.model = engine.id;
+    // Clamp client-supplied temperature into Anthropic's valid 0..1 range (drop
+    // anything invalid so a bad value can never 400 the request).
+    if (payload.temperature != null) {
+      const t = Number(payload.temperature);
+      if (Number.isFinite(t)) payload.temperature = Math.max(0, Math.min(1, t));
+      else delete payload.temperature;
+    }
     const webOn = WEB_ENGINES.includes(tier) && body.web !== false;
     if (webOn) {
       const existing = Array.isArray(payload.tools) ? payload.tools : [];

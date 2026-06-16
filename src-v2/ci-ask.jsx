@@ -47,6 +47,7 @@ function AskTab({ onOpenKey }) {
         system: buildAskSystem(),
         userText: `QUESTION: ${text}`,
         maxTokens: 1600,
+        temperature: 0.5,
       });
       let json = window.parseReport(raw);
       if (!json || (!json.answer && !json.steps)) {

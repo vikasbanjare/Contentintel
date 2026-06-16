@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-15-r4";
+window.CI_BUILD = "2026-06-16-r5";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -135,7 +135,7 @@ function fmtCost(usd) {
 }
 
 // ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
-async function callClaudeOnce({ system, userText, image, images, model, maxTokens = 1800 }) {
+async function callClaudeOnce({ system, userText, image, images, model, maxTokens = 1800, temperature }) {
   // SaaS mode: signed-in users run through the ContentIntel worker (owner's
   // key, plan limits enforced server-side) — no personal key needed.
   const saas = (typeof window !== 'undefined' && window.CI_SAAS) || {};
@@ -155,7 +155,7 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
     const resS = await fetch(saas.workerUrl, {
       method: "POST",
       headers: { "content-type": "application/json", "Authorization": "Bearer " + window.CI_SESSION },
-      body: JSON.stringify({ engine: (window.getEngine && window.getEngine()) || 'smart', max_tokens: maxTokens, system: sysS, messages: [{ role: "user", content: contentS }] }),
+      body: JSON.stringify({ engine: (window.getEngine && window.getEngine()) || 'smart', max_tokens: maxTokens, ...(temperature != null ? { temperature } : {}), system: sysS, messages: [{ role: "user", content: contentS }] }),
     });
     const dataS = await resS.json().catch(() => ({}));
     if (!resS.ok) {
@@ -211,7 +211,7 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
       "anthropic-beta": "prompt-caching-2024-07-31",
       "anthropic-dangerous-direct-browser-access": "true",
     },
-    body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, system: sysBlock, messages: [{ role: "user", content }] }),
+    body: JSON.stringify({ model: model || getModel(), max_tokens: maxTokens, ...(temperature != null ? { temperature } : {}), system: sysBlock, messages: [{ role: "user", content }] }),
   });
   if (!res.ok) {
     let detail = "";
@@ -299,7 +299,7 @@ async function packageScript(script, lang, opts = {}) {
       + "EXACTLY 3 titles per platform and EXACTLY 3 thumbnailText options.",
   ].filter(Boolean).join("\n\n");
   const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "");
-  const { text } = await callClaude({ system: sys, userText: ctx + "\nSCRIPT:\n" + script, maxTokens: 2300 });
+  const { text } = await callClaude({ system: sys, userText: ctx + "\nSCRIPT:\n" + script, maxTokens: 2300, temperature: 0.8 });
   const json = (window.parseReport || (x => null))(text);
   if (!json || (!json.youtube && !json.instagram && !json.linkedin)) throw new Error("Could not generate packaging -- try again.");
   return json;
@@ -323,7 +323,7 @@ async function groundThumbPrompt(brief, opts = {}) {
     st.systemGuidance ? "IMAGE-PROMPT QUALITY SCIENCE:\n" + st.systemGuidance.slice(0, 2600) : "",
     `OUTPUT: a single tight paragraph describing the FINISHED thumbnail (${ratio}, 1280x720) in this order -- [subject: who, position, expression, clothing]. [exact on-image text: the words, weight, colour, placement]. [background + the chosen colour scheme]. [composition using the chosen layout + lighting]. End with: ultra-sharp, high-contrast, cinematic professional lighting, one dominant focal point, legible at 120px; render ONLY the specified words with no gibberish lettering. Output ONLY the prompt text -- no preamble, no explanation, no markdown.`,
   ].filter(Boolean).join("\n\n");
-  const { text } = await callClaude({ system: sys, userText: "CREATOR BRIEF:\n" + brief, maxTokens: 700 });
+  const { text } = await callClaude({ system: sys, userText: "CREATOR BRIEF:\n" + brief, maxTokens: 700, temperature: 0.7 });
   return (text || "").trim();
 }
 
@@ -469,7 +469,7 @@ async function claudeFactCheck(scriptText, lang) {
 For each checkable claim decide a status: "verified" (matches reliable sources), "false" (contradicted by reliable sources), or "unverified" (no reliable source found / too vague). Ignore pure opinion, style or storytelling. For anything false or unverified, give the correct fact (or note no source exists) in one short line.
 Return ONLY one JSON object, no markdown, no text around it:
 { "summary": "one line on overall factual reliability", "claims": [ { "claim": "the exact claim from the script", "status": "verified|false|unverified", "correction": "the correct fact in one line, or empty if verified", "source": "the main URL you relied on, or empty" } ] }`;
-  const { text, sources } = await callClaude({ system: sys, userText: `SCRIPT:\n"""\n${(scriptText || "").slice(0, 6000)}\n"""`, maxTokens: 1500 });
+  const { text, sources } = await callClaude({ system: sys, userText: `SCRIPT:\n"""\n${(scriptText || "").slice(0, 6000)}\n"""`, maxTokens: 1500, temperature: 0.2 });
   const j = parseReport(text) || {};
   const srcs = (sources || []).map(s => ({ title: (s.title || s.url || "").slice(0, 160), url: s.url || s.uri || "", date: s.date || s.page_age || "" })).filter(s => s.url);
   return { summary: j.summary || "", claims: Array.isArray(j.claims) ? j.claims : [], sources: srcs };
@@ -899,7 +899,7 @@ function useAnalysis(type, opts = {}) {
       return;
     }
     try {
-      const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens });
+      const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4 });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
         const body = (text || "").trim();
