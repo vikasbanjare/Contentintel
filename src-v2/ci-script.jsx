@@ -92,7 +92,7 @@ function ScriptTab({ onOpenKey, onNav }) {
     e.target.value = '';
   }
 
-  const { state, report, usage, err, run, reset } = window.useAnalysis('script', { persistKey: 'ci_script_report' });
+  const { state, report, usage, sources, err, run, reset } = window.useAnalysis('script', { persistKey: 'ci_script_report' });
 
   // Persist the tab's inputs/outputs (sanitising any in-flight loading states).
   React.useEffect(() => {
@@ -798,7 +798,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       {state === 'done' && report && (
         <div className="ci-results" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <window.UsageBadge usage={usage} />
-          <window.ReportView report={report} mood={mood} onApplyText={applyHook} />
+          <window.ReportView report={report} mood={mood} onApplyText={applyHook} sources={sources} />
           {rewritePanel}
           {factCheckPanel}
           {packagingPanel}

@@ -194,7 +194,7 @@ function ThumbnailTab({ onOpenKey }) {
   const addColor = () => setBrand(b => b.colors.length >= 5 ? b : ({ ...b, colors: [...b.colors, '#FFE14D'] }));
   const delColor = (i) => setBrand(b => ({ ...b, colors: b.colors.filter((_, j) => j !== i) }));
   const toggleEmph = (c) => setEmphasis(e => e.includes(c) ? e.filter(x => x !== c) : [...e, c]);
-  const { state, report, usage, err, run } = window.useAnalysis('thumbnail');
+  const { state, report, usage, sources, err, run } = window.useAnalysis('thumbnail');
 
   // Layout + colour options come straight from the research design library (single source of truth).
   const TLib = window.getResearch('thumbnail') || {};
@@ -424,7 +424,7 @@ function ThumbnailTab({ onOpenKey }) {
       {state === 'done' && report && (
         <div>
           <window.UsageBadge usage={usage} />
-          <window.ReportView report={report} mood={mood} />
+          <window.ReportView report={report} mood={mood} sources={sources} />
           {!compare && imgA && (
             <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 17, color: 'var(--text-1)' }}>🎨 Generate the improved thumbnail</div>
@@ -524,7 +524,7 @@ function TitleTab({ onOpenKey }) {
   const [lang, setLang] = React.useState('Auto-detect');
   const [platform, setPlatform] = React.useState('YouTube');
   const [aud, setAud] = React.useState('General');
-  const { state, report, usage, err, run } = window.useAnalysis('title');
+  const { state, report, usage, sources, err, run } = window.useAnalysis('title');
   const chars = title.length;
 
   const userText =
@@ -584,7 +584,7 @@ function TitleTab({ onOpenKey }) {
       {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
 
       {state === 'done' && report && (
-        <div><window.UsageBadge usage={usage} /><window.ReportView report={report} mood={mood} /></div>
+        <div><window.UsageBadge usage={usage} /><window.ReportView report={report} mood={mood} sources={sources} /></div>
       )}
 
       {state === 'done' && !report && (
@@ -658,7 +658,7 @@ function AdsTab({ onOpenKey }) {
   const [headline, setHeadline] = React.useState('Built to Outlast Your PR');
   const [cta, setCta] = React.useState('Shop Now');
   const [goal, setGoal] = React.useState('Conversions');
-  const { state, report, usage, err, run } = window.useAnalysis('ads');
+  const { state, report, usage, sources, err, run } = window.useAnalysis('ads');
 
   const META_PRIMARY = 125, META_HEAD = 27;
   const pOver = primary.length > META_PRIMARY, hOver = headline.length > META_HEAD;
@@ -717,7 +717,7 @@ function AdsTab({ onOpenKey }) {
       {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
 
       {state === 'done' && report && (
-        <div><window.UsageBadge usage={usage} /><window.ReportView report={report} mood={mood} /></div>
+        <div><window.UsageBadge usage={usage} /><window.ReportView report={report} mood={mood} sources={sources} /></div>
       )}
 
       {state === 'done' && !report && (

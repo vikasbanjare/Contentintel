@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r5";
+window.CI_BUILD = "2026-06-16-r6";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -884,22 +884,23 @@ function useAnalysis(type, opts = {}) {
   const [state, setState] = React.useState(boot && boot.report ? "done" : "idle");
   const [report, setReport] = React.useState((boot && boot.report) || null);
   const [usage, setUsage] = React.useState((boot && boot.usage) || null);
+  const [sources, setSources] = React.useState((boot && boot.sources) || null);
   const [err, setErr] = React.useState("");
   React.useEffect(() => {
     if (!pk) return;
     try {
-      if (state === "done" && report) sessionStorage.setItem(pk, JSON.stringify({ report, usage }));
+      if (state === "done" && report) sessionStorage.setItem(pk, JSON.stringify({ report, usage, sources }));
     } catch (e) {}
-  }, [pk, state, report, usage]);
+  }, [pk, state, report, usage, sources]);
 
   async function run({ userText, image, images, maxTokens, system }) {
-    setErr(""); setReport(null); setUsage(null); setState("loading");
+    setErr(""); setReport(null); setUsage(null); setSources(null); setState("loading");
     if (!canRun()) { // sample mode -- no key and not in a Claude preview
       setTimeout(() => setState("done"), 850);
       return;
     }
     try {
-      const { text, usage } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4 });
+      const { text, usage, sources: rawSources } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4 });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
         const body = (text || "").trim();
@@ -915,6 +916,7 @@ function useAnalysis(type, opts = {}) {
       // the actual per-dimension grades rather than the model's free-form number.
       const co = computeOverall(json);
       if (co != null) json.overall = co;
+      setSources(Array.isArray(rawSources) && rawSources.length > 0 ? rawSources : null);
       setReport(json); setUsage(usage); setState("done");
       try {
         const vd = json.verdict || {};
@@ -929,8 +931,8 @@ function useAnalysis(type, opts = {}) {
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
-  return { state, report, usage, err, run,
-    reset: () => { setState("idle"); setReport(null); setUsage(null); setErr(""); if (pk) try { sessionStorage.removeItem(pk); } catch (e) {} } };
+  return { state, report, usage, sources, err, run,
+    reset: () => { setState("idle"); setReport(null); setUsage(null); setSources(null); setErr(""); if (pk) try { sessionStorage.removeItem(pk); } catch (e) {} } };
 }
 
 // ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
@@ -1072,8 +1074,39 @@ function GenPromptCard({ block, mood }) {
   );
 }
 
+// ── GroundingBadge -- shows whether the report used live web search ───────────
+function GroundingBadge({ sources }) {
+  const [open, setOpen] = React.useState(false);
+  const hasSources = Array.isArray(sources) && sources.length > 0;
+  return (
+    <div style={{ marginTop: 12, borderTop: "1px solid var(--stroke-1)", paddingTop: 10 }}>
+      {hasSources ? (
+        <div>
+          <button onClick={() => setOpen(o => !o)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 12, color: "#4ADE80", fontWeight: 600, letterSpacing: 0.2 }}>✅ Verified with {sources.length} live {sources.length === 1 ? "source" : "sources"}</span>
+            <span style={{ fontSize: 11, color: "var(--text-4)" }}>{open ? "▲" : "▼"}</span>
+          </button>
+          {open && (
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 5 }}>
+              {sources.map((s, i) => (
+                <a key={i} href={s.url || "#"} target="_blank" rel="noopener noreferrer"
+                  style={{ fontSize: 12, color: "var(--text-3)", textDecoration: "none", display: "flex", alignItems: "baseline", gap: 6, lineHeight: 1.4 }}>
+                  <span style={{ color: "var(--text-4)", flexShrink: 0 }}>{i + 1}.</span>
+                  <span style={{ textDecoration: "underline", textDecorationColor: "var(--stroke-1)" }}>{s.title || s.url || "Source"}</span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <span style={{ fontSize: 11.5, color: "var(--text-4)" }}>⚠ From model knowledge · not live-verified</span>
+      )}
+    </div>
+  );
+}
+
 // ── ReportView -- dashboard-style report renderer ─────────────────────────────
-function ReportView({ report, mood, onApplyText }) {
+function ReportView({ report, mood, onApplyText, sources }) {
   const m = EM[mood] || EM.navy;
   if (!report || typeof report !== "object") return null;
   const v = report.verdict || {};
@@ -1099,6 +1132,7 @@ function ReportView({ report, mood, onApplyText }) {
             </div>
             {hasOverall && <ScoreDonut value={report.overall} label="Overall" />}
           </div>
+          <GroundingBadge sources={sources} />
         </Block>
       )}
 
@@ -1314,7 +1348,7 @@ Object.assign(window, {
   canRun, hasSandbox,
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
-  useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, KeyModal,
+  useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
