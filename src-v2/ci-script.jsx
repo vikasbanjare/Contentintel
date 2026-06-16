@@ -202,6 +202,16 @@ function ScriptTab({ onOpenKey, onNav }) {
     setText(scriptText);
     setScrMode('check');
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
+    // Precompute userText from scriptText directly (React state is async so
+    // `text` hasn't updated yet when run() is called immediately after setText).
+    const nw = scriptText.trim().split(/\s+/).filter(Boolean).length;
+    if (nw >= 10) {
+      const ns = Math.round(nw / 2.5);
+      const computed =
+        `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${nw} (~${ns}s)\n\n` +
+        `SCRIPT (Version A):\n${scriptText}` + hookUpgradeAsk;
+      run({ userText: computed, maxTokens: 8000 });
+    }
   }
 
   // Apply a hook rewrite from the report: swap ONLY the opening line, keep the rest.
@@ -821,8 +831,8 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           <window.UsageBadge usage={usage} />
           <window.ReportView report={report} mood={mood} onApplyText={applyHook} sources={sources} />
           {rewritePanel}
-          {factCheckPanel}
-          {packagingPanel}
+          {!!text.trim() && factCheckPanel}
+          {!!text.trim() && packagingPanel}
         </div>
       )}
 

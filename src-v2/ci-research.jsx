@@ -10,14 +10,12 @@ const LS_ADMIN = "ci_admin";
 function isAdmin() {
   try {
     if (localStorage.getItem(LS_ADMIN) === "1") return true;
-    const p = new URLSearchParams(location.search).get("admin");
-    if (p && p === window.ADMIN_PASS) { localStorage.setItem(LS_ADMIN, "1"); return true; }
   } catch (e) {}
   return false;
 }
-function promptAdmin() {
+async function promptAdmin() {
   const p = window.prompt("Research editor passphrase:");
-  if (p === window.ADMIN_PASS) { try { localStorage.setItem(LS_ADMIN, "1"); } catch (e) {} return true; }
+  if (p != null && await window.checkAdminPass(p)) { try { localStorage.setItem(LS_ADMIN, "1"); } catch (e) {} return true; }
   if (p != null) window.alert("Wrong passphrase.");
   return false;
 }

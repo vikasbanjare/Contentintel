@@ -42,6 +42,23 @@ function AskTab({ onOpenKey }) {
   // Thread: array of { q, out } — newest last. Displayed newest-first.
   const [thread, setThread] = React.useState([]);
   const inputRef = React.useRef(null);
+  const SS_ASK = 'ci_ask_session';
+
+  // Rehydrate thread from sessionStorage on mount so it survives tab switches.
+  React.useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(SS_ASK) || 'null');
+      if (Array.isArray(saved) && saved.length > 0) setThread(saved);
+    } catch (e) {}
+  }, []);
+
+  // Persist thread to sessionStorage on every change.
+  React.useEffect(() => {
+    try {
+      if (thread.length > 0) sessionStorage.setItem(SS_ASK, JSON.stringify(thread));
+      else sessionStorage.removeItem(SS_ASK);
+    } catch (e) {}
+  }, [thread]);
 
   const currentOut = thread.length > 0 ? thread[thread.length - 1] : null;
   const pastThread = thread.slice(0, -1).reverse(); // older items, newest-first
@@ -82,6 +99,7 @@ function AskTab({ onOpenKey }) {
 
   function startFresh() {
     setThread([]); setQ(''); setErr(''); setState('idle');
+    try { sessionStorage.removeItem('ci_ask_session'); } catch (e) {}
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 

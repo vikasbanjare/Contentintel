@@ -652,6 +652,10 @@
   .ci-badge { display: none; }
   .ci-tabs { max-width: none; flex: 1; }
 }
+@media (max-width: 640px) {
+  .ci-tab-pricing, .ci-tab-history { display: none; }
+  .ci-tab { padding: 0 9px; font-size: 11.5px; gap: 5px; }
+}
 
 /* ── Animated UI layer (v7) ───────────────────────────────────────────────── */
 

@@ -121,7 +121,7 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
           const tm = MOODS[t.mood];
           const isActive = active === t.id || (t.id === 'more' && MORE_TABS.includes(active));
           return (
-            <button key={t.id} className={'ci-tab' + (isActive ? ' active' : '')} onClick={() => onNav(t.id)}>
+            <button key={t.id} className={'ci-tab ci-tab-' + t.id + (isActive ? ' active' : '')} onClick={() => onNav(t.id)}>
               <span className="ci-tab-glow" style={{ boxShadow: isActive ? `inset 0 0 0 1px ${tm.accentGlow}, 0 0 18px ${tm.accentGlow}` : 'none' }} />
               <span style={{ color: isActive ? tm.accentFrom : 'inherit', display: 'flex' }}><CITabIcon name={t.icon} /></span>
               {t.label}

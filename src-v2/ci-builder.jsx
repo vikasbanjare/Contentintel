@@ -210,8 +210,10 @@ function BuilderTab() {
   function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
 
   // Prefill from a "Build this thumbnail" handoff from the Script tab (text + brief).
+  // Only prefill when the handoff is < 1 hour old — stale data from yesterday is confusing.
   const bootCreate = React.useMemo(() => { try { return JSON.parse(localStorage.getItem('ci_last_create') || '{}'); } catch (e) { return {}; } }, []);
-  const [headline, setHeadline] = React.useState(bootCreate.thumbText || '');
+  const bootFresh = Date.now() - (bootCreate.ts || 0) < 3600000;
+  const [headline, setHeadline] = React.useState(bootFresh ? (bootCreate.thumbText || '') : '');
   const [subline, setSubline] = React.useState('');
   const [elements, setElements] = React.useState([]);
   const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
@@ -228,7 +230,7 @@ function BuilderTab() {
   const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
   const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
 
-  const [extraNote, setExtraNote] = React.useState(bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
+  const [extraNote, setExtraNote] = React.useState(bootFresh && bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
   const [brand] = React.useState(bLoadBrand);
   const brandColors = (brand.colors || []).filter(Boolean);
   const hasBrand = brandColors.length > 0 || !!brand.note;
@@ -241,8 +243,8 @@ function BuilderTab() {
   // AI thumbnail-text suggestions. Prefills the topic from the last Create result
   // (the "carry the script's topic into the thumbnail" thread) -- but the field is
   // free-type too, so it works whether or not you came from a generated script.
-  const lastCreate = React.useMemo(() => { try { return JSON.parse(localStorage.getItem('ci_last_create') || '{}'); } catch (e) { return {}; } }, []);
-  const [txtTopic, setTxtTopic] = React.useState(lastCreate.title || lastCreate.topic || '');
+  const lastCreate = bootCreate; // same object, aliased for clarity
+  const [txtTopic, setTxtTopic] = React.useState(bootFresh ? (bootCreate.title || bootCreate.topic || '') : '');
   const [txtState, setTxtState] = React.useState('idle');
   const [txtOpts, setTxtOpts] = React.useState([]);
   const [txtErr, setTxtErr] = React.useState('');
@@ -339,29 +341,23 @@ function BuilderTab() {
   }
 
   async function analyzeRef() {
-    const key = window.getKey ? window.getKey() : null;
-    if (!key || !refImg) return;
+    if (!refImg) return;
     setRefState('loading');
     try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: window.getModel ? window.getModel() : 'claude-sonnet-4-6',
-          max_tokens: 350,
-          system: 'Extract visual design properties. Return ONLY JSON.',
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: refImg.mime, data: refImg.data } },
-            { type: 'text', text: 'Analyse this thumbnail. Return JSON: { "layout": "...", "colors": "...", "textStyle": "...", "mood": "...", "keyElements": "..." }' },
-          ]}],
-        }),
+      const { text: raw } = await window.callClaude({
+        system: 'Extract visual design properties from this thumbnail image. Return ONLY a JSON object, no markdown.',
+        userText: 'Analyse this thumbnail. Return JSON: { "layout": "...", "colors": "...", "textStyle": "...", "mood": "...", "keyElements": "..." }',
+        image: refImg,
+        maxTokens: 350,
+        temperature: 0.2,
       });
-      const data = await resp.json();
-      const raw = (data.content?.[0]?.text || '').trim();
-      const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || 'null');
+      const parsed = JSON.parse((raw || '').match(/\{[\s\S]*\}/)?.[0] || 'null');
       if (parsed) setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
       setRefState('done');
-    } catch (e) { setRefState('error'); }
+    } catch (e) {
+      if (String(e?.message) === 'NO_KEY') setRefState('idle');
+      else setRefState('error');
+    }
   }
 
   function buildPrompt() {
@@ -407,18 +403,20 @@ function BuilderTab() {
     if (extraNote.trim()) { lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`); lines.push(''); }
     lines.push('Make it bold, high-contrast, impossible to ignore at small thumbnail size. Professional photography and design quality.');
     const brief = lines.join('\n');
-    setBuilt(true);
-    setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     // Route the brief through Claude (art director) so the prompt actually applies
     // the researched layouts/colour-schemes/principles. Fall back to the raw brief.
+    // setBuilt(true) is intentionally in .finally() so the output section only
+    // reveals after grounding completes — not mid-request with the raw prompt.
     if (window.canRun && window.canRun() && window.groundThumbPrompt) {
       setPrompt(brief); setBuilding(true);
       window.groundThumbPrompt(brief, { ratio: currentRatio })
         .then(g => setPrompt((g && g.length > 40) ? g : brief))
         .catch(() => setPrompt(brief))
-        .finally(() => setBuilding(false));
+        .finally(() => { setBuilding(false); setBuilt(true); setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); });
     } else {
       setPrompt(brief);
+      setBuilt(true);
+      setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     }
   }
 
@@ -619,7 +617,7 @@ function BuilderTab() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
                 <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }}
                   onClick={() => { setRefImg(null); setRefAnalysis(''); setRefState('idle'); }}>Remove</button>
-                {window.getKey?.() && refState === 'idle' && (
+                {window.canRun?.() && refState === 'idle' && (
                   <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }} onClick={analyzeRef}>Detect style</button>
                 )}
                 {refState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Detecting...</span>}
@@ -628,7 +626,7 @@ function BuilderTab() {
               </div>
               {refAnalysis && <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6, padding: '8px 10px', background: 'var(--inset)', borderRadius: 8, marginBottom: 10 }}>{refAnalysis}</div>}
               {hasBrand && <BTg on={refOverride} onChange={setRefOverride} mood={mood}>Override reference colours with my brand colours</BTg>}
-              {!window.getKey?.() && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6 }}>Add a Claude API key in Settings to auto-detect style.</div>}
+              {!window.canRun?.() && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6 }}>Sign in or add a Claude API key in Settings to auto-detect style.</div>}
             </div>
           </div>
         )}

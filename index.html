@@ -989,6 +989,10 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
   .ci-badge { display: none; }
   .ci-tabs { max-width: none; flex: 1; }
 }
+@media (max-width: 640px) {
+  .ci-tab-pricing, .ci-tab-history { display: none; }
+  .ci-tab { padding: 0 9px; font-size: 11.5px; gap: 5px; }
+}
 
 /* ── Animated UI layer (v7) ───────────────────────────────────────────────── */
 
@@ -2174,7 +2178,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r9";
+window.CI_BUILD = "2026-06-16-r10";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2229,7 +2233,18 @@ const REPORT_TOOL = {
   }
 };
 
-const ADMIN_PASS = "vikas-intel-2026"; // your private unlock phrase for the Research editor
+// Admin passphrase is stored as a SHA-256 hash — never plaintext — so it can't be
+// trivially extracted from the bundle. Still "obscurity-level" on a static site,
+// but meaningfully better than shipping the raw passphrase to every browser.
+const ADMIN_PASS_HASH = "f732fcca391394461fdd0ef18a92518930d957eb39ab8e7e9d6d4841c6aab3a0";
+async function checkAdminPass(input) {
+  try {
+    if (!input) return false;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return hex === ADMIN_PASS_HASH;
+  } catch (e) { return false; }
+}
 
 // ── Local storage (key + model live only in the user's browser) ──────────────
 const LS_KEY = "ci_anthropic_key";
@@ -3641,7 +3656,7 @@ function KeyModal({ open, onClose }) {
 }
 
 Object.assign(window, {
-  CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, ADMIN_PASS,
+  CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, checkAdminPass,
   getKey, setKeyLS, getModel, setModelLS, modelInfo, getWebSearch, setWebSearchLS, getResearch, liveResearch,
   canRun, hasSandbox,
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
@@ -3781,7 +3796,7 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
           const tm = MOODS[t.mood];
           const isActive = active === t.id || (t.id === 'more' && MORE_TABS.includes(active));
           return (
-            <button key={t.id} className={'ci-tab' + (isActive ? ' active' : '')} onClick={() => onNav(t.id)}>
+            <button key={t.id} className={'ci-tab ci-tab-' + t.id + (isActive ? ' active' : '')} onClick={() => onNav(t.id)}>
               <span className="ci-tab-glow" style={{ boxShadow: isActive ? `inset 0 0 0 1px ${tm.accentGlow}, 0 0 18px ${tm.accentGlow}` : 'none' }} />
               <span style={{ color: isActive ? tm.accentFrom : 'inherit', display: 'flex' }}><CITabIcon name={t.icon} /></span>
               {t.label}
@@ -4695,6 +4710,16 @@ function ScriptTab({ onOpenKey, onNav }) {
     setText(scriptText);
     setScrMode('check');
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
+    // Precompute userText from scriptText directly (React state is async so
+    // `text` hasn't updated yet when run() is called immediately after setText).
+    const nw = scriptText.trim().split(/\s+/).filter(Boolean).length;
+    if (nw >= 10) {
+      const ns = Math.round(nw / 2.5);
+      const computed =
+        `Language: ${lang === 'Auto-detect' ? '(detect from the script)' : lang}\nContent type: ${kind}\nAudience: ${who}\nPublishing to: ${where}\nWord count: ${nw} (~${ns}s)\n\n` +
+        `SCRIPT (Version A):\n${scriptText}` + hookUpgradeAsk;
+      run({ userText: computed, maxTokens: 8000 });
+    }
   }
 
   // Apply a hook rewrite from the report: swap ONLY the opening line, keep the rest.
@@ -5314,8 +5339,8 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           <window.UsageBadge usage={usage} />
           <window.ReportView report={report} mood={mood} onApplyText={applyHook} sources={sources} />
           {rewritePanel}
-          {factCheckPanel}
-          {packagingPanel}
+          {!!text.trim() && factCheckPanel}
+          {!!text.trim() && packagingPanel}
         </div>
       )}
 
@@ -5411,6 +5436,23 @@ function AskTab({ onOpenKey }) {
   // Thread: array of { q, out } — newest last. Displayed newest-first.
   const [thread, setThread] = React.useState([]);
   const inputRef = React.useRef(null);
+  const SS_ASK = 'ci_ask_session';
+
+  // Rehydrate thread from sessionStorage on mount so it survives tab switches.
+  React.useEffect(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(SS_ASK) || 'null');
+      if (Array.isArray(saved) && saved.length > 0) setThread(saved);
+    } catch (e) {}
+  }, []);
+
+  // Persist thread to sessionStorage on every change.
+  React.useEffect(() => {
+    try {
+      if (thread.length > 0) sessionStorage.setItem(SS_ASK, JSON.stringify(thread));
+      else sessionStorage.removeItem(SS_ASK);
+    } catch (e) {}
+  }, [thread]);
 
   const currentOut = thread.length > 0 ? thread[thread.length - 1] : null;
   const pastThread = thread.slice(0, -1).reverse(); // older items, newest-first
@@ -5451,6 +5493,7 @@ function AskTab({ onOpenKey }) {
 
   function startFresh() {
     setThread([]); setQ(''); setErr(''); setState('idle');
+    try { sessionStorage.removeItem('ci_ask_session'); } catch (e) {}
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -5963,7 +6006,7 @@ function ThumbnailTab({ onOpenKey }) {
         </details>
 
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={count === 3 ? 5500 : count === 2 ? 4500 : 3200} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
-          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail (or describe it) first — nothing to check yet.'} /></div>
+          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail OR type a description below — nothing to check yet.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -6205,6 +6248,7 @@ function AdsTab({ onOpenKey }) {
   const [primary, setPrimary] = React.useState('Tired of trainers that fall apart in 3 months? The Atlas Mach lasts 800km -- guaranteed, or your money back.');
   const [headline, setHeadline] = React.useState('Built to Outlast Your PR');
   const [cta, setCta] = React.useState('Shop Now');
+  const [desc, setDesc] = React.useState('');
   const [goal, setGoal] = React.useState('Conversions');
   // Google Ads controlled state (was uncontrolled defaultValue — data never reached Claude)
   const [gHeadlines, setGHeadlines] = React.useState('Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days');
@@ -6216,7 +6260,7 @@ function AdsTab({ onOpenKey }) {
   const pOver = primary.length > META_PRIMARY, hOver = headline.length > META_HEAD;
 
   const userText = platform === 'Meta'
-    ? `Platform: Meta\nObjective: ${goal}\nCTA button: ${cta}\n\nPrimary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\nCheck character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`
+    ? `Platform: Meta\nObjective: ${goal}\nCTA button: ${cta}\n\nPrimary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}${desc.trim() ? `\nDescription: ${desc.trim()}` : ''}\n\nCheck character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`
     : `Platform: Google Ads\nObjective: ${goal}\n\nHeadlines (max 30 chars each):\n${gHeadlines}\n\nDescriptions (max 90 chars each):\n${gDescriptions}\n\nKeywords: ${gKeywords}\n\nCheck headline character limits, description limits, ad strength score, keyword relevance, and quality. Flag any truncations and give stronger alternatives.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
   const adReady = platform === 'Meta' ? primary.trim().length >= 12 : gHeadlines.trim().length >= 5;
@@ -6248,7 +6292,7 @@ function AdsTab({ onOpenKey }) {
             </div>
             <div>
               <label className="ci-label">Description (most people never see this)</label>
-              <input className="ci-input" placeholder="Optional supporting line..." />
+              <input className="ci-input" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Optional supporting line..." />
             </div>
             <TCG label="CTA button" options={['Learn More', 'Sign Up', 'Shop Now', 'Download', 'Apply Now']} value={cta} onChange={setCta} />
             <TCG label="Goal" options={['Traffic', 'Leads', 'Conversions', 'Awareness']} value={goal} onChange={setGoal} />
@@ -6422,7 +6466,8 @@ function HistoryTab() {
               return (
                 <div key={i}>
                 <div className="ci-block" onClick={() => hasReport && setOpenIdx(isOpen ? -1 : i)}
-                  style={{ padding: 16, display: 'grid', gridTemplateColumns: '120px 1fr 90px 70px', gap: 16, alignItems: 'center', cursor: hasReport ? 'pointer' : 'default', borderColor: isOpen ? im.accentGlow : undefined }}>
+                  style={{ padding: 16, display: 'grid', gridTemplateColumns: '120px 1fr 90px 70px', gap: 16, alignItems: 'center', cursor: hasReport ? 'pointer' : 'default', borderColor: isOpen ? im.accentGlow : undefined }}
+                  title={!hasReport ? 'Full report not stored — re-run this check to see the details' : undefined}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${im.accentFrom}, ${im.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E' }}><CITabIcon name={it.type === 'script' ? 'script' : it.type === 'thumbnail' ? 'thumb' : it.type === 'title' ? 'title' : 'ads'} /></span>
                     <span style={{ fontSize: 12.5, fontWeight: 600 }}>{TYPE_LABEL[it.type] || it.type}</span>
@@ -6435,6 +6480,11 @@ function HistoryTab() {
                     {hasReport && <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 2 }}>{isOpen ? '▴' : '▾'}</span>}
                   </div>
                 </div>
+                {isOpen && !hasReport && (
+                  <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 10, background: 'rgba(240,200,90,0.07)', border: '1px solid rgba(240,200,90,0.2)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12.5, color: 'var(--text-3)', flex: 1 }}>Full report not stored — re-run this check to see the details.</span>
+                  </div>
+                )}
                 {isOpen && hasReport && (
                   <div style={{ marginTop: 10, paddingLeft: 6, borderLeft: `2px solid ${im.accentGlow}` }}>
                     {it.input && (
@@ -6672,8 +6722,10 @@ function BuilderTab() {
   function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
 
   // Prefill from a "Build this thumbnail" handoff from the Script tab (text + brief).
+  // Only prefill when the handoff is < 1 hour old — stale data from yesterday is confusing.
   const bootCreate = React.useMemo(() => { try { return JSON.parse(localStorage.getItem('ci_last_create') || '{}'); } catch (e) { return {}; } }, []);
-  const [headline, setHeadline] = React.useState(bootCreate.thumbText || '');
+  const bootFresh = Date.now() - (bootCreate.ts || 0) < 3600000;
+  const [headline, setHeadline] = React.useState(bootFresh ? (bootCreate.thumbText || '') : '');
   const [subline, setSubline] = React.useState('');
   const [elements, setElements] = React.useState([]);
   const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
@@ -6690,7 +6742,7 @@ function BuilderTab() {
   const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
   const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
 
-  const [extraNote, setExtraNote] = React.useState(bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
+  const [extraNote, setExtraNote] = React.useState(bootFresh && bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
   const [brand] = React.useState(bLoadBrand);
   const brandColors = (brand.colors || []).filter(Boolean);
   const hasBrand = brandColors.length > 0 || !!brand.note;
@@ -6703,8 +6755,8 @@ function BuilderTab() {
   // AI thumbnail-text suggestions. Prefills the topic from the last Create result
   // (the "carry the script's topic into the thumbnail" thread) -- but the field is
   // free-type too, so it works whether or not you came from a generated script.
-  const lastCreate = React.useMemo(() => { try { return JSON.parse(localStorage.getItem('ci_last_create') || '{}'); } catch (e) { return {}; } }, []);
-  const [txtTopic, setTxtTopic] = React.useState(lastCreate.title || lastCreate.topic || '');
+  const lastCreate = bootCreate; // same object, aliased for clarity
+  const [txtTopic, setTxtTopic] = React.useState(bootFresh ? (bootCreate.title || bootCreate.topic || '') : '');
   const [txtState, setTxtState] = React.useState('idle');
   const [txtOpts, setTxtOpts] = React.useState([]);
   const [txtErr, setTxtErr] = React.useState('');
@@ -6801,29 +6853,23 @@ function BuilderTab() {
   }
 
   async function analyzeRef() {
-    const key = window.getKey ? window.getKey() : null;
-    if (!key || !refImg) return;
+    if (!refImg) return;
     setRefState('loading');
     try {
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: window.getModel ? window.getModel() : 'claude-sonnet-4-6',
-          max_tokens: 350,
-          system: 'Extract visual design properties. Return ONLY JSON.',
-          messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: refImg.mime, data: refImg.data } },
-            { type: 'text', text: 'Analyse this thumbnail. Return JSON: { "layout": "...", "colors": "...", "textStyle": "...", "mood": "...", "keyElements": "..." }' },
-          ]}],
-        }),
+      const { text: raw } = await window.callClaude({
+        system: 'Extract visual design properties from this thumbnail image. Return ONLY a JSON object, no markdown.',
+        userText: 'Analyse this thumbnail. Return JSON: { "layout": "...", "colors": "...", "textStyle": "...", "mood": "...", "keyElements": "..." }',
+        image: refImg,
+        maxTokens: 350,
+        temperature: 0.2,
       });
-      const data = await resp.json();
-      const raw = (data.content?.[0]?.text || '').trim();
-      const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || 'null');
+      const parsed = JSON.parse((raw || '').match(/\{[\s\S]*\}/)?.[0] || 'null');
       if (parsed) setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
       setRefState('done');
-    } catch (e) { setRefState('error'); }
+    } catch (e) {
+      if (String(e?.message) === 'NO_KEY') setRefState('idle');
+      else setRefState('error');
+    }
   }
 
   function buildPrompt() {
@@ -6869,18 +6915,20 @@ function BuilderTab() {
     if (extraNote.trim()) { lines.push(`ADDITIONAL DIRECTION: ${extraNote.trim()}`); lines.push(''); }
     lines.push('Make it bold, high-contrast, impossible to ignore at small thumbnail size. Professional photography and design quality.');
     const brief = lines.join('\n');
-    setBuilt(true);
-    setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     // Route the brief through Claude (art director) so the prompt actually applies
     // the researched layouts/colour-schemes/principles. Fall back to the raw brief.
+    // setBuilt(true) is intentionally in .finally() so the output section only
+    // reveals after grounding completes — not mid-request with the raw prompt.
     if (window.canRun && window.canRun() && window.groundThumbPrompt) {
       setPrompt(brief); setBuilding(true);
       window.groundThumbPrompt(brief, { ratio: currentRatio })
         .then(g => setPrompt((g && g.length > 40) ? g : brief))
         .catch(() => setPrompt(brief))
-        .finally(() => setBuilding(false));
+        .finally(() => { setBuilding(false); setBuilt(true); setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); });
     } else {
       setPrompt(brief);
+      setBuilt(true);
+      setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
     }
   }
 
@@ -7081,7 +7129,7 @@ function BuilderTab() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
                 <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }}
                   onClick={() => { setRefImg(null); setRefAnalysis(''); setRefState('idle'); }}>Remove</button>
-                {window.getKey?.() && refState === 'idle' && (
+                {window.canRun?.() && refState === 'idle' && (
                   <button className="ci-copybtn" style={{ height: 28, fontSize: 11.5 }} onClick={analyzeRef}>Detect style</button>
                 )}
                 {refState === 'loading' && <span style={{ fontSize: 12, color: 'var(--text-4)' }}>Detecting...</span>}
@@ -7090,7 +7138,7 @@ function BuilderTab() {
               </div>
               {refAnalysis && <div style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.6, padding: '8px 10px', background: 'var(--inset)', borderRadius: 8, marginBottom: 10 }}>{refAnalysis}</div>}
               {hasBrand && <BTg on={refOverride} onChange={setRefOverride} mood={mood}>Override reference colours with my brand colours</BTg>}
-              {!window.getKey?.() && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6 }}>Add a Claude API key in Settings to auto-detect style.</div>}
+              {!window.canRun?.() && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6 }}>Sign in or add a Claude API key in Settings to auto-detect style.</div>}
             </div>
           </div>
         )}
@@ -7790,14 +7838,12 @@ const LS_ADMIN = "ci_admin";
 function isAdmin() {
   try {
     if (localStorage.getItem(LS_ADMIN) === "1") return true;
-    const p = new URLSearchParams(location.search).get("admin");
-    if (p && p === window.ADMIN_PASS) { localStorage.setItem(LS_ADMIN, "1"); return true; }
   } catch (e) {}
   return false;
 }
-function promptAdmin() {
+async function promptAdmin() {
   const p = window.prompt("Research editor passphrase:");
-  if (p === window.ADMIN_PASS) { try { localStorage.setItem(LS_ADMIN, "1"); } catch (e) {} return true; }
+  if (p != null && await window.checkAdminPass(p)) { try { localStorage.setItem(LS_ADMIN, "1"); } catch (e) {} return true; }
   if (p != null) window.alert("Wrong passphrase.");
   return false;
 }

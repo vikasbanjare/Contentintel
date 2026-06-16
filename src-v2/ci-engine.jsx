@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r9";
+window.CI_BUILD = "2026-06-16-r10";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -61,7 +61,18 @@ const REPORT_TOOL = {
   }
 };
 
-const ADMIN_PASS = "vikas-intel-2026"; // your private unlock phrase for the Research editor
+// Admin passphrase is stored as a SHA-256 hash — never plaintext — so it can't be
+// trivially extracted from the bundle. Still "obscurity-level" on a static site,
+// but meaningfully better than shipping the raw passphrase to every browser.
+const ADMIN_PASS_HASH = "f732fcca391394461fdd0ef18a92518930d957eb39ab8e7e9d6d4841c6aab3a0";
+async function checkAdminPass(input) {
+  try {
+    if (!input) return false;
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return hex === ADMIN_PASS_HASH;
+  } catch (e) { return false; }
+}
 
 // ── Local storage (key + model live only in the user's browser) ──────────────
 const LS_KEY = "ci_anthropic_key";
@@ -1473,7 +1484,7 @@ function KeyModal({ open, onClose }) {
 }
 
 Object.assign(window, {
-  CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, ADMIN_PASS,
+  CI_MODELS, CI_DEFAULT_MODEL, CI_OUTPUT_GUESS, checkAdminPass,
   getKey, setKeyLS, getModel, setModelLS, modelInfo, getWebSearch, setWebSearchLS, getResearch, liveResearch,
   canRun, hasSandbox,
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,

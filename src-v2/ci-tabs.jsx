@@ -415,7 +415,7 @@ function ThumbnailTab({ onOpenKey }) {
         </details>
 
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={count === 3 ? 5500 : count === 2 ? 4500 : 3200} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
-          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail (or describe it) first — nothing to check yet.'} /></div>
+          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail OR type a description below — nothing to check yet.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -657,6 +657,7 @@ function AdsTab({ onOpenKey }) {
   const [primary, setPrimary] = React.useState('Tired of trainers that fall apart in 3 months? The Atlas Mach lasts 800km -- guaranteed, or your money back.');
   const [headline, setHeadline] = React.useState('Built to Outlast Your PR');
   const [cta, setCta] = React.useState('Shop Now');
+  const [desc, setDesc] = React.useState('');
   const [goal, setGoal] = React.useState('Conversions');
   // Google Ads controlled state (was uncontrolled defaultValue — data never reached Claude)
   const [gHeadlines, setGHeadlines] = React.useState('Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days');
@@ -668,7 +669,7 @@ function AdsTab({ onOpenKey }) {
   const pOver = primary.length > META_PRIMARY, hOver = headline.length > META_HEAD;
 
   const userText = platform === 'Meta'
-    ? `Platform: Meta\nObjective: ${goal}\nCTA button: ${cta}\n\nPrimary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\nCheck character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`
+    ? `Platform: Meta\nObjective: ${goal}\nCTA button: ${cta}\n\nPrimary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}${desc.trim() ? `\nDescription: ${desc.trim()}` : ''}\n\nCheck character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`
     : `Platform: Google Ads\nObjective: ${goal}\n\nHeadlines (max 30 chars each):\n${gHeadlines}\n\nDescriptions (max 90 chars each):\n${gDescriptions}\n\nKeywords: ${gKeywords}\n\nCheck headline character limits, description limits, ad strength score, keyword relevance, and quality. Flag any truncations and give stronger alternatives.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
   const adReady = platform === 'Meta' ? primary.trim().length >= 12 : gHeadlines.trim().length >= 5;
@@ -700,7 +701,7 @@ function AdsTab({ onOpenKey }) {
             </div>
             <div>
               <label className="ci-label">Description (most people never see this)</label>
-              <input className="ci-input" placeholder="Optional supporting line..." />
+              <input className="ci-input" value={desc} onChange={e => setDesc(e.target.value)} placeholder="Optional supporting line..." />
             </div>
             <TCG label="CTA button" options={['Learn More', 'Sign Up', 'Shop Now', 'Download', 'Apply Now']} value={cta} onChange={setCta} />
             <TCG label="Goal" options={['Traffic', 'Leads', 'Conversions', 'Awareness']} value={goal} onChange={setGoal} />
@@ -874,7 +875,8 @@ function HistoryTab() {
               return (
                 <div key={i}>
                 <div className="ci-block" onClick={() => hasReport && setOpenIdx(isOpen ? -1 : i)}
-                  style={{ padding: 16, display: 'grid', gridTemplateColumns: '120px 1fr 90px 70px', gap: 16, alignItems: 'center', cursor: hasReport ? 'pointer' : 'default', borderColor: isOpen ? im.accentGlow : undefined }}>
+                  style={{ padding: 16, display: 'grid', gridTemplateColumns: '120px 1fr 90px 70px', gap: 16, alignItems: 'center', cursor: hasReport ? 'pointer' : 'default', borderColor: isOpen ? im.accentGlow : undefined }}
+                  title={!hasReport ? 'Full report not stored — re-run this check to see the details' : undefined}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 26, height: 26, borderRadius: 7, background: `linear-gradient(135deg, ${im.accentFrom}, ${im.accentTo})`, display: 'grid', placeItems: 'center', color: '#07090E' }}><CITabIcon name={it.type === 'script' ? 'script' : it.type === 'thumbnail' ? 'thumb' : it.type === 'title' ? 'title' : 'ads'} /></span>
                     <span style={{ fontSize: 12.5, fontWeight: 600 }}>{TYPE_LABEL[it.type] || it.type}</span>
@@ -887,6 +889,11 @@ function HistoryTab() {
                     {hasReport && <span style={{ fontSize: 11, color: 'var(--text-4)', marginLeft: 2 }}>{isOpen ? '▴' : '▾'}</span>}
                   </div>
                 </div>
+                {isOpen && !hasReport && (
+                  <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 10, background: 'rgba(240,200,90,0.07)', border: '1px solid rgba(240,200,90,0.2)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12.5, color: 'var(--text-3)', flex: 1 }}>Full report not stored — re-run this check to see the details.</span>
+                  </div>
+                )}
                 {isOpen && hasReport && (
                   <div style={{ marginTop: 10, paddingLeft: 6, borderLeft: `2px solid ${im.accentGlow}` }}>
                     {it.input && (
