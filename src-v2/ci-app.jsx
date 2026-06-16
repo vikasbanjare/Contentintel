@@ -82,7 +82,11 @@ function CIApp() {
 
   function openKey() { setKeyOpen(true); }
   function closeKey(changed) { setKeyOpen(false); if (changed) setHasKey(!!window.getKey()); }
-  function onAdmin() { nav('research'); }
+  async function onAdmin() {
+    if (admin) { nav('research'); return; }
+    const ok = await window.promptAdmin();
+    if (ok) { setAdmin(true); nav('research'); }
+  }
   function exitResearch() { setAdmin(window.isAdmin()); nav('home'); }
 
   // If unlocked via ?admin=... on this browser, jump straight to the editor.
@@ -91,6 +95,11 @@ function CIApp() {
       if (window.isAdmin() && new URLSearchParams(location.search).get('admin')) { setAdmin(true); setTab('research'); }
     } catch (e) {}
   }, []);
+
+  // Auto-prompt for passphrase when navigating to a protected tab while not admin.
+  React.useEffect(() => {
+    if (!admin && (tab === 'research' || tab === 'train')) { onAdmin(); }
+  }, [tab]);
 
   let View = null;
   if (tab === 'home') View = <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
@@ -101,7 +110,7 @@ function CIApp() {
   else if (tab === 'ask') View = <AskTab onOpenKey={openKey} />;
   else if (tab === 'pricing') View = <PricingTab onNav={nav} />;
   else if (tab === 'more') View = <MoreHub onNav={nav} />;
-  else if (tab === 'builder') View = <BuilderTab />;
+  else if (tab === 'builder') View = <BuilderTab onNav={nav} />;
   else if (tab === 'platform') View = <PlatformTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;

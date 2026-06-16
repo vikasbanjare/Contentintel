@@ -194,7 +194,7 @@ async function bCopyImageToClipboard(dataUrl, mime) {
   await navigator.clipboard.write([new ClipboardItem({ [blob.type || mime || 'image/png']: blob })]);
 }
 
-function BuilderTab() {
+function BuilderTab({ onNav }) {
   const mood = 'ember';
   const m = BM[mood];
 
@@ -208,6 +208,25 @@ function BuilderTab() {
   function setPersonExpr(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, expression: v } : p)); }
   function setPersonDesc(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, desc: v } : p)); }
   function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
+  async function autoDescribePerson(i) {
+    const p = people[i]; if (!p || !p.photo) return;
+    setAutoDescState(s => ({ ...s, [i]: 'loading' }));
+    try {
+      const { text } = await window.callClaude({
+        system: 'Describe the person in this photo in one short sentence suitable for an AI image generator. Focus on: approximate age, gender, notable features, clothing, and skin tone. Keep it under 30 words. Return ONLY the description.',
+        userText: 'Describe this person for a thumbnail image generator.',
+        image: p.photo,
+        maxTokens: 80,
+        temperature: 0.2,
+      });
+      const desc = (text || '').trim().replace(/^["']|["']$/g, '');
+      if (desc) setPersonDesc(i, desc);
+      setAutoDescState(s => ({ ...s, [i]: 'done' }));
+      setTimeout(() => setAutoDescState(s => ({ ...s, [i]: 'idle' })), 2000);
+    } catch (e) {
+      setAutoDescState(s => ({ ...s, [i]: 'idle' }));
+    }
+  }
 
   // Prefill from a "Build this thumbnail" handoff from the Script tab (text + brief).
   // Only prefill when the handoff is < 1 hour old — stale data from yesterday is confusing.
@@ -215,6 +234,21 @@ function BuilderTab() {
   const bootFresh = Date.now() - (bootCreate.ts || 0) < 3600000;
   const [headline, setHeadline] = React.useState(bootFresh ? (bootCreate.thumbText || '') : '');
   const [subline, setSubline] = React.useState('');
+
+  // Live bridge: when the Script tab fires a packaging handoff while Builder is mounted,
+  // update headline and extraNote without requiring a remount.
+  React.useEffect(() => {
+    function onHandoff() {
+      try {
+        const d = JSON.parse(localStorage.getItem('ci_last_create') || '{}');
+        if (!d || !d.ts || Date.now() - d.ts > 5000) return; // ignore old entries
+        if (d.thumbText) setHeadline(d.thumbText);
+        if (d.brief) setExtraNote('Scene context from the script: ' + d.brief);
+      } catch (e) {}
+    }
+    window.addEventListener('ci-builder-handoff', onHandoff);
+    return () => window.removeEventListener('ci-builder-handoff', onHandoff);
+  }, []);
   const [elements, setElements] = React.useState([]);
   const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
 
@@ -238,7 +272,9 @@ function BuilderTab() {
   const [prompt, setPrompt] = React.useState('');
   const [built, setBuilt] = React.useState(false);
   const [building, setBuilding] = React.useState(false);
+  const [groundingFailed, setGroundingFailed] = React.useState(false);
   const [copyFeedback, setCopyFeedback] = React.useState('');
+  const [autoDescState, setAutoDescState] = React.useState({});
 
   // AI thumbnail-text suggestions. Prefills the topic from the last Create result
   // (the "carry the script's topic into the thumbnail" thread) -- but the field is
@@ -351,8 +387,15 @@ function BuilderTab() {
         maxTokens: 350,
         temperature: 0.2,
       });
-      const parsed = JSON.parse((raw || '').match(/\{[\s\S]*\}/)?.[0] || 'null');
-      if (parsed) setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
+      let parsed = null;
+      try { parsed = JSON.parse((raw || '').match(/\{[\s\S]*\}/)?.[0] || 'null'); } catch (pe) {}
+      if (parsed && typeof parsed === 'object') {
+        setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
+      } else {
+        // Model returned prose instead of JSON — use it verbatim as style notes.
+        const prose = (raw || '').trim().slice(0, 500);
+        if (prose) setRefAnalysis(prose);
+      }
       setRefState('done');
     } catch (e) {
       if (String(e?.message) === 'NO_KEY') setRefState('idle');
@@ -410,8 +453,8 @@ function BuilderTab() {
     if (window.canRun && window.canRun() && window.groundThumbPrompt) {
       setPrompt(brief); setBuilding(true);
       window.groundThumbPrompt(brief, { ratio: currentRatio })
-        .then(g => setPrompt((g && g.length > 40) ? g : brief))
-        .catch(() => setPrompt(brief))
+        .then(g => { setPrompt((g && g.length > 40) ? g : brief); })
+        .catch(() => { setPrompt(brief); setGroundingFailed(true); })
         .finally(() => { setBuilding(false); setBuilt(true); setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); });
     } else {
       setPrompt(brief);
@@ -539,8 +582,16 @@ function BuilderTab() {
               </div>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Person {i + 1}</div>
-                <input className="ci-input" style={{ fontSize: 12 }} value={p.desc} onChange={e => setPersonDesc(i, e.target.value)}
-                  placeholder="Describe appearance -- e.g. man in 30s, brown hair, glasses" />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input className="ci-input" style={{ fontSize: 12, flex: 1 }} value={p.desc} onChange={e => setPersonDesc(i, e.target.value)}
+                    placeholder="Describe appearance -- e.g. man in 30s, brown hair, glasses" />
+                  {p.photo && (
+                    <button className="ci-copybtn" style={{ height: 40, padding: '0 10px', fontSize: 11.5, whiteSpace: 'nowrap', flexShrink: 0 }}
+                      onClick={() => autoDescribePerson(i)} disabled={autoDescState[i] === 'loading'}>
+                      {autoDescState[i] === 'loading' ? '…' : autoDescState[i] === 'done' ? '✓' : '✦ Auto'}
+                    </button>
+                  )}
+                </div>
                 <select className="ci-input" style={{ fontSize: 12, height: 30, padding: '0 6px', appearance: 'auto' }}
                   value={p.expression} onChange={e => setPersonExpr(i, e.target.value)}>
                   {BUILDER_EXPRESSIONS.map(ex => <option key={ex.id} value={ex.id}>{ex.emoji} {ex.label}</option>)}
@@ -639,10 +690,11 @@ function BuilderTab() {
       </BB>
 
       <div style={{ marginTop: 6 }}>
-        <window.GlowButton mood={mood} size="lg" onClick={buildPrompt} style={{ width: '100%', opacity: building ? 0.7 : 1 }}>
+        <window.GlowButton mood={mood} size="lg" onClick={() => { setGroundingFailed(false); buildPrompt(); }} style={{ width: '100%', opacity: building ? 0.7 : 1 }}>
           {building ? 'Art-directing your prompt…' : 'Build my prompt'}
         </window.GlowButton>
-        {(window.canRun?.() && window.groundThumbPrompt) && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6, textAlign: 'center' }}>Claude writes a research-grounded prompt (best-fit layout + colour scheme) before you generate.</div>}
+        {(window.canRun?.() && window.groundThumbPrompt) && !groundingFailed && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6, textAlign: 'center' }}>Claude writes a research-grounded prompt (best-fit layout + colour scheme) before you generate.</div>}
+        {groundingFailed && <div style={{ fontSize: 11.5, color: '#F0C85A', marginTop: 6, textAlign: 'center' }}>Grounding failed — using your raw brief (still works, but not research-enhanced). Try again if you have an API key.</div>}
       </div>
 
       {built && prompt && (
@@ -721,6 +773,21 @@ function BuilderTab() {
               ))}
             </div>
           </div>
+
+          {onNav && (headline.trim() || txtTopic.trim()) && (
+            <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: `${m.orbB || m.accentFrom}14`, border: `1px solid ${m.accentGlow}40` }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', marginBottom: 4 }}>Need a script for this video?</div>
+              <div style={{ fontSize: 12, color: 'var(--text-4)', marginBottom: 10 }}>Take this topic straight to the Script tab — starts in Create mode with the topic prefilled.</div>
+              <button className="ci-copybtn" style={{ height: 36, padding: '0 16px', fontSize: 13, background: `${m.accentFrom}20`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700 }}
+                onClick={() => {
+                  const t = (headline.trim() || txtTopic.trim());
+                  try { window.__ciScriptTopic = t; } catch (e) {}
+                  onNav('script');
+                }}>
+                ✦ Write a script →
+              </button>
+            </div>
+          )}
 
         </div>
       )}

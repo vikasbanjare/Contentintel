@@ -415,7 +415,7 @@ function ThumbnailTab({ onOpenKey }) {
         </details>
 
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={count === 3 ? 5500 : count === 2 ? 4500 : 3200} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
-          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail OR type a description below — nothing to check yet.'} /></div>
+          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a written description (at least 12 characters) before comparing.' : 'Upload your thumbnail — or type a description at least 12 characters long below.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -424,6 +424,23 @@ function ThumbnailTab({ onOpenKey }) {
       {state === 'done' && report && (
         <div>
           <window.UsageBadge usage={usage} />
+          {compare && report.winner && (
+            <div className="ci-block" style={{ marginBottom: 14, padding: 18, background: `linear-gradient(135deg, ${m.orbB}33, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>Winner</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color: 'var(--text-1)' }}>{report.winner.label || report.winner.pick}</div>
+              {report.winner.why && <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginTop: 6, lineHeight: 1.55 }}>{report.winner.why}</div>}
+              {Array.isArray(report.scores) && report.scores.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                  {report.scores.map((s, i) => (
+                    <div key={i} style={{ padding: '6px 11px', borderRadius: 9, background: 'var(--inset)', border: '1px solid var(--stroke-1)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: s.score >= 75 ? '#8FD86A' : s.score >= 55 ? '#F0C85A' : '#F06A7E' }}>{s.score}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{s.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <window.ReportView report={report} mood={mood} sources={sources} />
           {!compare && imgA && (
             <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
@@ -709,7 +726,18 @@ function AdsTab({ onOpenKey }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div><label className="ci-label">Headlines (one per line — max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} value={gHeadlines} onChange={e => setGHeadlines(e.target.value)} /></div>
-            <div><label className="ci-label">Descriptions (one per line — max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} value={gDescriptions} onChange={e => setGDescriptions(e.target.value)} /></div>
+            <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <label className="ci-label">Descriptions (one per line — max 90 characters each)</label>
+              {gDescriptions.split('\n').some(l => l.length > 90) && (
+                <span style={{ fontSize: 11.5, color: '#F06A7E', fontWeight: 600 }}>Over limit on {gDescriptions.split('\n').filter(l => l.length > 90).length} line{gDescriptions.split('\n').filter(l => l.length > 90).length !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+            <textarea className="ci-textarea" style={{ minHeight: 70 }} value={gDescriptions} onChange={e => setGDescriptions(e.target.value)} />
+            {gDescriptions.split('\n').map((l, i) => l.length > 90 ? (
+              <div key={i} style={{ fontSize: 11.5, color: '#F06A7E', marginTop: 3 }}>Line {i + 1}: {l.length}/90 chars ({l.length - 90} over)</div>
+            ) : null)}
+          </div>
             <div><label className="ci-label">Keywords you're targeting</label><input className="ci-input" value={gKeywords} onChange={e => setGKeywords(e.target.value)} /></div>
           </div>
         )}
@@ -903,6 +931,25 @@ function HistoryTab() {
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 6 }}>
+                      <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                        onClick={() => { try { window.copyText(JSON.stringify(it.report, null, 2)); } catch(e){} }}>
+                        ⧉ Copy report JSON
+                      </button>
+                      {it.report?.verdict && (
+                        <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                          onClick={() => {
+                            const r = it.report;
+                            const lines = [`Score: ${r.overall ?? '--'} — ${r.verdict?.title ?? ''}`];
+                            if (r.bottomLine) lines.push(`Bottom line: ${r.bottomLine}`);
+                            (r.scores || []).forEach(s => lines.push(`${s.name}: ${s.score} — ${s.why}`));
+                            (r.sections || []).forEach(s => { if (s.body) lines.push(`\n${s.title}:\n${s.body}`); });
+                            try { window.copyText(lines.join('\n')); } catch(e) {}
+                          }}>
+                          ⧉ Copy as text
+                        </button>
+                      )}
+                    </div>
                     <HistoryResults it={it} mood={tmoodOf[it.type] || 'navy'} onSaved={() => setItems(window.loadHistory())} />
                   </div>
                 )}

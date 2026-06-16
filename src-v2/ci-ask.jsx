@@ -68,8 +68,8 @@ function AskTab({ onOpenKey }) {
     if (!text || state === 'loading') return;
     setQ(''); setErr(''); setState('loading');
     try {
-      // Prepend up to 2 prior Q/A turns as context for follow-up questions.
-      const ctx = thread.slice(-2).map(t => `Q: ${t.q}\nA: ${typeof t.out.answer === 'string' ? t.out.answer.slice(0, 280) : ''}...`).join('\n\n');
+      // Prepend up to 4 prior Q/A turns as context for follow-up questions.
+      const ctx = thread.slice(-4).map(t => `Q: ${t.q}\nA: ${typeof t.out.answer === 'string' ? t.out.answer.slice(0, 700) : ''}...`).join('\n\n');
       const userText = ctx ? `PREVIOUS CONTEXT:\n${ctx}\n\nQUESTION: ${text}` : `QUESTION: ${text}`;
       const { text: raw } = await window.callClaude({
         system: buildAskSystem(),
@@ -136,6 +136,12 @@ function AskTab({ onOpenKey }) {
         <div className="ci-block" style={{ marginTop: 14, border: '1px solid rgba(245,120,140,0.3)' }}>
           <div style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.6 }}>{err}</div>
           <button className="ci-copybtn" style={{ height: 32, marginTop: 12 }} onClick={onOpenKey}>Open Settings</button>
+          <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-4)' }}>Or try one of these:</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+            {ASK_SUGGESTIONS.slice(0, 4).map(s => (
+              <button key={s} className="pill" style={{ height: 30, fontSize: 12 }} onClick={() => { setState('idle'); setErr(''); ask(s); }}>{s}</button>
+            ))}
+          </div>
         </div>
       )}
 

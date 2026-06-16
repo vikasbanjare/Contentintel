@@ -51,6 +51,11 @@ function ScriptTab({ onOpenKey, onNav }) {
   // Receive a draft sent from the Create tab ("Refine in Script checker").
   React.useEffect(() => {
     if (window.__ciPrefillScript) { setText(window.__ciPrefillScript); window.__ciPrefillScript = null; }
+    // Receive a topic sent from the Builder tab ("Write a script").
+    if (window.__ciScriptTopic) {
+      setTopic(window.__ciScriptTopic); setScrMode('create');
+      window.__ciScriptTopic = null;
+    }
   }, []);
   const [textB, setTextB] = React.useState(snap.textB || '');
   const [compare, setCompare] = React.useState(!!snap.compare);
@@ -192,8 +197,8 @@ function ScriptTab({ onOpenKey, onNav }) {
       const sources = modelSrc.length ? modelSrc : cleanSrc(webSrc);
       // Carry this topic to the thumbnail builder ("suggest text" prefills from it).
       try { localStorage.setItem('ci_last_create', JSON.stringify({ topic: topic.trim(), ts: Date.now() })); } catch (e) {}
-      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', sources, sel: -1, err: '' });
-      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), sources, sel: -1, err: '' }); // fallback: use raw text as the script
+      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', sources, sel: -1, err: '', warnRaw: false });
+      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), sources, sel: -1, err: '', warnRaw: true }); // fallback: use raw text as the script
     } catch (e) {
       setCgen({ loading: false, hooks: null, script: null, sources: null, err: String(e.message) === 'NO_KEY' ? 'Sign in to generate.' : (e.message || 'Could not generate — try again.') });
     }
@@ -252,7 +257,7 @@ function ScriptTab({ onOpenKey, onNav }) {
   function useAndRecheck() {
     const newText = rewrite.out;
     setText(newText);
-    setRewrite({ dir: '', loading: false, out: null });
+    setRewrite({ dir: rewrite.dir, loading: false, out: null }); // preserve direction for next rewrite
     const nw = newText.trim().split(/\s+/).length;
     const ns = Math.round(nw / 2.5);
     const newUserText =
@@ -395,11 +400,14 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       const useGemini = !!(window.getGoogleKey && window.getGoogleKey());
       let data, engine;
       if (useGemini) {
-        try { data = await window.geminiFactCheck(text, lang); engine = 'gemini'; }
+        try {
+          const geminiTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('rate-limit timeout')), 12000));
+          data = await Promise.race([window.geminiFactCheck(text, lang), geminiTimeout]);
+          engine = 'gemini';
+        }
         catch (e) {
-          // Gemini busy / rate-limited / quota -> automatically fall back to Claude
-          // instead of erroring out, so the user still gets a fact-check.
-          if (/busy|rate.?limit|quota|429|503|high demand|overload/i.test(String(e && e.message)) && window.claudeFactCheck) {
+          // Gemini busy / rate-limited / quota / timeout -> fall back to Claude.
+          if ((/busy|rate.?limit|quota|429|503|high demand|overload|timeout/i.test(String(e && e.message))) && window.claudeFactCheck) {
             data = await window.claudeFactCheck(text, lang); engine = 'claude-fb';
           } else throw e;
         }
@@ -454,16 +462,18 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   // Results are cached in sessionStorage so clicking "Regenerate" on an unchanged
   // script doesn't burn another 2000+ tokens.
   const PKG_CACHE_KEY = 'ci_pkg_cache';
+  const pkgSnappedText = React.useRef('');
   async function runPackaging() {
     if (!text.trim()) { setPkg({ state: 'error', data: null, err: 'Paste or generate a script first.' }); return; }
     const ckey = JSON.stringify({ t: text.trim().slice(0, 200), lang, kind, who });
     try {
       const cached = JSON.parse(sessionStorage.getItem(PKG_CACHE_KEY) || '{}');
-      if (cached[ckey]) { setPkg({ state: 'done', data: cached[ckey], err: '' }); return; }
+      if (cached[ckey]) { pkgSnappedText.current = text.trim(); setPkg({ state: 'done', data: cached[ckey], err: '' }); return; }
     } catch (e) {}
     setPkg({ state: 'loading', data: null, err: '' });
     try {
-      const data = await window.packageScript(text, lang, { niche: kind, audience: who });
+      const data = await window.packageScript(text, lang, { niche: kind, audience: who, sources: cgen.sources || [] });
+      pkgSnappedText.current = text.trim();
       setPkg({ state: 'done', data, err: '' });
       try {
         const cached = JSON.parse(sessionStorage.getItem(PKG_CACHE_KEY) || '{}');
@@ -483,6 +493,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
     const ytTitle = (d.youtube && d.youtube.titles && d.youtube.titles[0] && d.youtube.titles[0].text) || '';
     const tt = thumbText || (d.thumbnailText && d.thumbnailText[0] && d.thumbnailText[0].text) || '';
     try { localStorage.setItem('ci_last_create', JSON.stringify({ topic: ytTitle || text.trim().slice(0, 90), title: ytTitle, thumbText: tt, brief: d.thumbnailBrief || '', ts: Date.now() })); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('ci-builder-handoff')); } catch (e) {}
     if (onNav) onNav('builder');
   }
   const pkgColor = v => v >= 75 ? '#8FD86A' : v >= 55 ? '#F0C85A' : '#F06A7E';
@@ -493,7 +504,9 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   ];
 
   const fcUsesGemini = !!(window.getGoogleKey && window.getGoogleKey());
-  const fcEngineLabel = fcUsesGemini ? 'Gemini + Google Search' : 'Claude + Web Search';
+  const fcEngineLabel = fc.data?.engine === 'claude-fb' ? 'Claude + Web Search (fallback)'
+    : fc.data?.engine === 'gemini' ? 'Gemini + Google Search'
+    : fcUsesGemini ? 'Gemini + Google Search' : 'Claude + Web Search';
   const factCheckPanel = (
     <SB mood={mood}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -610,6 +623,11 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       <SRB mood={mood} onClick={runPackaging} loading={pkg.state === 'loading'}>
         {pkg.state === 'done' ? 'Regenerate' : '🏷️ Get titles, tags & thumbnail text'}
       </SRB>
+      {pkg.state === 'done' && pkgSnappedText.current && text.trim() !== pkgSnappedText.current && (
+        <div style={{ fontSize: 12, color: '#F0C85A', marginTop: 10, padding: '7px 11px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)' }}>
+          Script changed since last packaging — regenerate to get up-to-date titles and tags.
+        </div>
+      )}
       {pkg.state === 'error' && <div style={{ fontSize: 12.5, color: '#f5788c', marginTop: 10 }}>{pkg.err}</div>}
       {pkg.state === 'done' && pkg.data && (
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -745,6 +763,11 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           {cgen.script && (
             <div style={{ marginTop: 18 }}>
               <Eyebrow mood={mood} glow>Draft script</Eyebrow>
+              {cgen.warnRaw && (
+                <div style={{ fontSize: 12, color: '#F0C85A', marginTop: 6, marginBottom: 4 }}>
+                  Script returned as plain text (JSON parse failed) — content is intact but hook scores are unavailable.
+                </div>
+              )}
               <div style={{ marginTop: 8 }}><SCB text={cgen.script} label="Copy script" /></div>
               {cgen.sources && cgen.sources.length > 0 && (
                 <div style={{ marginTop: 14 }}>
@@ -813,6 +836,12 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           <span style={{ color: 'var(--text-5)' }}>·</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: lengthOk ? '#8FD86A' : '#F0C85A' }}>
             <span className={'ci-dot ' + (lengthOk ? 'green' : 'yellow')} /> {lengthOk ? `Good length for ${where}` : `A bit long for ${where} — consider trimming`}
+            {!lengthOk && (
+              <button className="ci-copybtn" style={{ height: 22, padding: '0 9px', fontSize: 11, marginLeft: 4 }}
+                onClick={() => { setRewrite(r => ({ ...r, dir: `Trim to under ${where === 'Reels' || where === 'Shorts' ? '35' : '60'} seconds` })); document.querySelector('.ci-scroll')?.scrollTo({ top: 9999, behavior: 'smooth' }); }}>
+                Trim it →
+              </button>
+            )}
           </span>
         </div>
 

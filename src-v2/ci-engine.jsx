@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r10";
+window.CI_BUILD = "2026-06-16-r11";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -138,6 +138,7 @@ function loadLocalResearch() {
 function saveLocalResearch(obj) {
   try { localStorage.setItem(LS_RESEARCH, JSON.stringify(obj)); } catch (e) {}
   window.__CI_RESEARCH_OVERRIDE = obj;
+  try { window.dispatchEvent(new CustomEvent('ci-research-update')); } catch (e) {}
 }
 function clearLocalResearch() {
   try { localStorage.removeItem(LS_RESEARCH); } catch (e) {}
@@ -153,7 +154,7 @@ function saveHistory(rec) {
   try {
     // Strip base64 image data from input before storing — thumbnail analyses can
     // embed 300KB+ base64 strings that quickly exhaust the localStorage quota.
-    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '[image]').slice(0, 600) };
+    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:[^,]*,[A-Za-z0-9+/=]{100,}/g, '[image]').slice(0, 600) };
     const arr = loadHistory();
     arr.unshift(rec);
     let keep = arr.slice(0, 30);
@@ -427,7 +428,8 @@ async function packageScript(script, lang, opts = {}) {
       + ' "thumbnailText":[{"text":"2-4 words","why":""}], "thumbnailBrief":"1-2 sentence visual concept for the image" }\n'
       + "EXACTLY 3 titles per platform and EXACTLY 3 thumbnailText options.",
   ].filter(Boolean).join("\n\n");
-  const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "");
+  const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "")
+    + (opts.sources && opts.sources.length ? `SCRIPT SOURCES:\n${opts.sources.map(s => `- ${s.title}: ${s.url}`).join('\n')}\n` : "");
   const { text } = await callClaude({ system: sys, userText: ctx + "\nSCRIPT:\n" + script, maxTokens: 2300, temperature: 0.8 });
   const json = (window.parseReport || (x => null))(text);
   if (!json || (!json.youtube && !json.instagram && !json.linkedin)) throw new Error("Could not generate packaging -- try again.");
@@ -1015,6 +1017,8 @@ function useAnalysis(type, opts = {}) {
   const [usage, setUsage] = React.useState((boot && boot.usage) || null);
   const [sources, setSources] = React.useState((boot && boot.sources) || null);
   const [err, setErr] = React.useState("");
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   React.useEffect(() => {
     if (!pk) return;
     try {
@@ -1025,8 +1029,8 @@ function useAnalysis(type, opts = {}) {
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setSources(null); setState("loading");
     if (!canRun()) { // sample mode -- no key and not in a Claude preview
-      setTimeout(() => setState("done"), 850);
-      return;
+      const tid = setTimeout(() => { if (mountedRef.current) setState("done"); }, 850);
+      return () => clearTimeout(tid);
     }
     try {
       const { text, usage, sources: rawSources } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
@@ -1056,7 +1060,7 @@ function useAnalysis(type, opts = {}) {
           report: json });
       } catch (e) {}
     } catch (e) {
-      if (String(e.message) === "NO_KEY") { setTimeout(() => setState("done"), 600); return; }
+      if (String(e.message) === "NO_KEY") { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
