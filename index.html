@@ -2178,7 +2178,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r10";
+window.CI_BUILD = "2026-06-16-r11";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2310,6 +2310,7 @@ function loadLocalResearch() {
 function saveLocalResearch(obj) {
   try { localStorage.setItem(LS_RESEARCH, JSON.stringify(obj)); } catch (e) {}
   window.__CI_RESEARCH_OVERRIDE = obj;
+  try { window.dispatchEvent(new CustomEvent('ci-research-update')); } catch (e) {}
 }
 function clearLocalResearch() {
   try { localStorage.removeItem(LS_RESEARCH); } catch (e) {}
@@ -2325,7 +2326,7 @@ function saveHistory(rec) {
   try {
     // Strip base64 image data from input before storing — thumbnail analyses can
     // embed 300KB+ base64 strings that quickly exhaust the localStorage quota.
-    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '[image]').slice(0, 600) };
+    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:[^,]*,[A-Za-z0-9+/=]{100,}/g, '[image]').slice(0, 600) };
     const arr = loadHistory();
     arr.unshift(rec);
     let keep = arr.slice(0, 30);
@@ -2599,7 +2600,8 @@ async function packageScript(script, lang, opts = {}) {
       + ' "thumbnailText":[{"text":"2-4 words","why":""}], "thumbnailBrief":"1-2 sentence visual concept for the image" }\n'
       + "EXACTLY 3 titles per platform and EXACTLY 3 thumbnailText options.",
   ].filter(Boolean).join("\n\n");
-  const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "");
+  const ctx = (opts.niche ? `NICHE: ${opts.niche}\n` : "") + (opts.audience ? `AUDIENCE: ${opts.audience}\n` : "")
+    + (opts.sources && opts.sources.length ? `SCRIPT SOURCES:\n${opts.sources.map(s => `- ${s.title}: ${s.url}`).join('\n')}\n` : "");
   const { text } = await callClaude({ system: sys, userText: ctx + "\nSCRIPT:\n" + script, maxTokens: 2300, temperature: 0.8 });
   const json = (window.parseReport || (x => null))(text);
   if (!json || (!json.youtube && !json.instagram && !json.linkedin)) throw new Error("Could not generate packaging -- try again.");
@@ -3187,6 +3189,8 @@ function useAnalysis(type, opts = {}) {
   const [usage, setUsage] = React.useState((boot && boot.usage) || null);
   const [sources, setSources] = React.useState((boot && boot.sources) || null);
   const [err, setErr] = React.useState("");
+  const mountedRef = React.useRef(true);
+  React.useEffect(() => { return () => { mountedRef.current = false; }; }, []);
   React.useEffect(() => {
     if (!pk) return;
     try {
@@ -3197,8 +3201,8 @@ function useAnalysis(type, opts = {}) {
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setSources(null); setState("loading");
     if (!canRun()) { // sample mode -- no key and not in a Claude preview
-      setTimeout(() => setState("done"), 850);
-      return;
+      const tid = setTimeout(() => { if (mountedRef.current) setState("done"); }, 850);
+      return () => clearTimeout(tid);
     }
     try {
       const { text, usage, sources: rawSources } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
@@ -3228,7 +3232,7 @@ function useAnalysis(type, opts = {}) {
           report: json });
       } catch (e) {}
     } catch (e) {
-      if (String(e.message) === "NO_KEY") { setTimeout(() => setState("done"), 600); return; }
+      if (String(e.message) === "NO_KEY") { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
@@ -4559,6 +4563,11 @@ function ScriptTab({ onOpenKey, onNav }) {
   // Receive a draft sent from the Create tab ("Refine in Script checker").
   React.useEffect(() => {
     if (window.__ciPrefillScript) { setText(window.__ciPrefillScript); window.__ciPrefillScript = null; }
+    // Receive a topic sent from the Builder tab ("Write a script").
+    if (window.__ciScriptTopic) {
+      setTopic(window.__ciScriptTopic); setScrMode('create');
+      window.__ciScriptTopic = null;
+    }
   }, []);
   const [textB, setTextB] = React.useState(snap.textB || '');
   const [compare, setCompare] = React.useState(!!snap.compare);
@@ -4700,8 +4709,8 @@ function ScriptTab({ onOpenKey, onNav }) {
       const sources = modelSrc.length ? modelSrc : cleanSrc(webSrc);
       // Carry this topic to the thumbnail builder ("suggest text" prefills from it).
       try { localStorage.setItem('ci_last_create', JSON.stringify({ topic: topic.trim(), ts: Date.now() })); } catch (e) {}
-      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', sources, sel: -1, err: '' });
-      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), sources, sel: -1, err: '' }); // fallback: use raw text as the script
+      if (j && (j.script || j.hooks)) setCgen({ loading: false, hooks: j.hooks || null, script: j.script || '', sources, sel: -1, err: '', warnRaw: false });
+      else setCgen({ loading: false, hooks: null, script: (raw || '').trim(), sources, sel: -1, err: '', warnRaw: true }); // fallback: use raw text as the script
     } catch (e) {
       setCgen({ loading: false, hooks: null, script: null, sources: null, err: String(e.message) === 'NO_KEY' ? 'Sign in to generate.' : (e.message || 'Could not generate — try again.') });
     }
@@ -4760,7 +4769,7 @@ function ScriptTab({ onOpenKey, onNav }) {
   function useAndRecheck() {
     const newText = rewrite.out;
     setText(newText);
-    setRewrite({ dir: '', loading: false, out: null });
+    setRewrite({ dir: rewrite.dir, loading: false, out: null }); // preserve direction for next rewrite
     const nw = newText.trim().split(/\s+/).length;
     const ns = Math.round(nw / 2.5);
     const newUserText =
@@ -4903,11 +4912,14 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       const useGemini = !!(window.getGoogleKey && window.getGoogleKey());
       let data, engine;
       if (useGemini) {
-        try { data = await window.geminiFactCheck(text, lang); engine = 'gemini'; }
+        try {
+          const geminiTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('rate-limit timeout')), 12000));
+          data = await Promise.race([window.geminiFactCheck(text, lang), geminiTimeout]);
+          engine = 'gemini';
+        }
         catch (e) {
-          // Gemini busy / rate-limited / quota -> automatically fall back to Claude
-          // instead of erroring out, so the user still gets a fact-check.
-          if (/busy|rate.?limit|quota|429|503|high demand|overload/i.test(String(e && e.message)) && window.claudeFactCheck) {
+          // Gemini busy / rate-limited / quota / timeout -> fall back to Claude.
+          if ((/busy|rate.?limit|quota|429|503|high demand|overload|timeout/i.test(String(e && e.message))) && window.claudeFactCheck) {
             data = await window.claudeFactCheck(text, lang); engine = 'claude-fb';
           } else throw e;
         }
@@ -4962,16 +4974,18 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   // Results are cached in sessionStorage so clicking "Regenerate" on an unchanged
   // script doesn't burn another 2000+ tokens.
   const PKG_CACHE_KEY = 'ci_pkg_cache';
+  const pkgSnappedText = React.useRef('');
   async function runPackaging() {
     if (!text.trim()) { setPkg({ state: 'error', data: null, err: 'Paste or generate a script first.' }); return; }
     const ckey = JSON.stringify({ t: text.trim().slice(0, 200), lang, kind, who });
     try {
       const cached = JSON.parse(sessionStorage.getItem(PKG_CACHE_KEY) || '{}');
-      if (cached[ckey]) { setPkg({ state: 'done', data: cached[ckey], err: '' }); return; }
+      if (cached[ckey]) { pkgSnappedText.current = text.trim(); setPkg({ state: 'done', data: cached[ckey], err: '' }); return; }
     } catch (e) {}
     setPkg({ state: 'loading', data: null, err: '' });
     try {
-      const data = await window.packageScript(text, lang, { niche: kind, audience: who });
+      const data = await window.packageScript(text, lang, { niche: kind, audience: who, sources: cgen.sources || [] });
+      pkgSnappedText.current = text.trim();
       setPkg({ state: 'done', data, err: '' });
       try {
         const cached = JSON.parse(sessionStorage.getItem(PKG_CACHE_KEY) || '{}');
@@ -4991,6 +5005,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
     const ytTitle = (d.youtube && d.youtube.titles && d.youtube.titles[0] && d.youtube.titles[0].text) || '';
     const tt = thumbText || (d.thumbnailText && d.thumbnailText[0] && d.thumbnailText[0].text) || '';
     try { localStorage.setItem('ci_last_create', JSON.stringify({ topic: ytTitle || text.trim().slice(0, 90), title: ytTitle, thumbText: tt, brief: d.thumbnailBrief || '', ts: Date.now() })); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('ci-builder-handoff')); } catch (e) {}
     if (onNav) onNav('builder');
   }
   const pkgColor = v => v >= 75 ? '#8FD86A' : v >= 55 ? '#F0C85A' : '#F06A7E';
@@ -5001,7 +5016,9 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   ];
 
   const fcUsesGemini = !!(window.getGoogleKey && window.getGoogleKey());
-  const fcEngineLabel = fcUsesGemini ? 'Gemini + Google Search' : 'Claude + Web Search';
+  const fcEngineLabel = fc.data?.engine === 'claude-fb' ? 'Claude + Web Search (fallback)'
+    : fc.data?.engine === 'gemini' ? 'Gemini + Google Search'
+    : fcUsesGemini ? 'Gemini + Google Search' : 'Claude + Web Search';
   const factCheckPanel = (
     <SB mood={mood}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -5118,6 +5135,11 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       <SRB mood={mood} onClick={runPackaging} loading={pkg.state === 'loading'}>
         {pkg.state === 'done' ? 'Regenerate' : '🏷️ Get titles, tags & thumbnail text'}
       </SRB>
+      {pkg.state === 'done' && pkgSnappedText.current && text.trim() !== pkgSnappedText.current && (
+        <div style={{ fontSize: 12, color: '#F0C85A', marginTop: 10, padding: '7px 11px', borderRadius: 9, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.2)' }}>
+          Script changed since last packaging — regenerate to get up-to-date titles and tags.
+        </div>
+      )}
       {pkg.state === 'error' && <div style={{ fontSize: 12.5, color: '#f5788c', marginTop: 10 }}>{pkg.err}</div>}
       {pkg.state === 'done' && pkg.data && (
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -5253,6 +5275,11 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           {cgen.script && (
             <div style={{ marginTop: 18 }}>
               <Eyebrow mood={mood} glow>Draft script</Eyebrow>
+              {cgen.warnRaw && (
+                <div style={{ fontSize: 12, color: '#F0C85A', marginTop: 6, marginBottom: 4 }}>
+                  Script returned as plain text (JSON parse failed) — content is intact but hook scores are unavailable.
+                </div>
+              )}
               <div style={{ marginTop: 8 }}><SCB text={cgen.script} label="Copy script" /></div>
               {cgen.sources && cgen.sources.length > 0 && (
                 <div style={{ marginTop: 14 }}>
@@ -5321,6 +5348,12 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           <span style={{ color: 'var(--text-5)' }}>·</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: lengthOk ? '#8FD86A' : '#F0C85A' }}>
             <span className={'ci-dot ' + (lengthOk ? 'green' : 'yellow')} /> {lengthOk ? `Good length for ${where}` : `A bit long for ${where} — consider trimming`}
+            {!lengthOk && (
+              <button className="ci-copybtn" style={{ height: 22, padding: '0 9px', fontSize: 11, marginLeft: 4 }}
+                onClick={() => { setRewrite(r => ({ ...r, dir: `Trim to under ${where === 'Reels' || where === 'Shorts' ? '35' : '60'} seconds` })); document.querySelector('.ci-scroll')?.scrollTo({ top: 9999, behavior: 'smooth' }); }}>
+                Trim it →
+              </button>
+            )}
           </span>
         </div>
 
@@ -5462,8 +5495,8 @@ function AskTab({ onOpenKey }) {
     if (!text || state === 'loading') return;
     setQ(''); setErr(''); setState('loading');
     try {
-      // Prepend up to 2 prior Q/A turns as context for follow-up questions.
-      const ctx = thread.slice(-2).map(t => `Q: ${t.q}\nA: ${typeof t.out.answer === 'string' ? t.out.answer.slice(0, 280) : ''}...`).join('\n\n');
+      // Prepend up to 4 prior Q/A turns as context for follow-up questions.
+      const ctx = thread.slice(-4).map(t => `Q: ${t.q}\nA: ${typeof t.out.answer === 'string' ? t.out.answer.slice(0, 700) : ''}...`).join('\n\n');
       const userText = ctx ? `PREVIOUS CONTEXT:\n${ctx}\n\nQUESTION: ${text}` : `QUESTION: ${text}`;
       const { text: raw } = await window.callClaude({
         system: buildAskSystem(),
@@ -5530,6 +5563,12 @@ function AskTab({ onOpenKey }) {
         <div className="ci-block" style={{ marginTop: 14, border: '1px solid rgba(245,120,140,0.3)' }}>
           <div style={{ fontSize: 13.5, color: 'var(--text-2)', lineHeight: 1.6 }}>{err}</div>
           <button className="ci-copybtn" style={{ height: 32, marginTop: 12 }} onClick={onOpenKey}>Open Settings</button>
+          <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-4)' }}>Or try one of these:</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+            {ASK_SUGGESTIONS.slice(0, 4).map(s => (
+              <button key={s} className="pill" style={{ height: 30, fontSize: 12 }} onClick={() => { setState('idle'); setErr(''); ask(s); }}>{s}</button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -6006,7 +6045,7 @@ function ThumbnailTab({ onOpenKey }) {
         </details>
 
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={count === 3 ? 5500 : count === 2 ? 4500 : 3200} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
-          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail OR type a description below — nothing to check yet.'} /></div>
+          disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a written description (at least 12 characters) before comparing.' : 'Upload your thumbnail — or type a description at least 12 characters long below.'} /></div>
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={4} /></div>}
@@ -6015,6 +6054,23 @@ function ThumbnailTab({ onOpenKey }) {
       {state === 'done' && report && (
         <div>
           <window.UsageBadge usage={usage} />
+          {compare && report.winner && (
+            <div className="ci-block" style={{ marginBottom: 14, padding: 18, background: `linear-gradient(135deg, ${m.orbB}33, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>Winner</div>
+              <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 22, color: 'var(--text-1)' }}>{report.winner.label || report.winner.pick}</div>
+              {report.winner.why && <div style={{ fontSize: 13.5, color: 'var(--text-2)', marginTop: 6, lineHeight: 1.55 }}>{report.winner.why}</div>}
+              {Array.isArray(report.scores) && report.scores.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                  {report.scores.map((s, i) => (
+                    <div key={i} style={{ padding: '6px 11px', borderRadius: 9, background: 'var(--inset)', border: '1px solid var(--stroke-1)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 15, color: s.score >= 75 ? '#8FD86A' : s.score >= 55 ? '#F0C85A' : '#F06A7E' }}>{s.score}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{s.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <window.ReportView report={report} mood={mood} sources={sources} />
           {!compare && imgA && (
             <div className="ci-block" style={{ marginTop: 14, background: `linear-gradient(135deg, ${m.orbB}44, var(--surface-1))`, border: `1px solid ${m.accentGlow}` }}>
@@ -6300,7 +6356,18 @@ function AdsTab({ onOpenKey }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div><label className="ci-label">Headlines (one per line — max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} value={gHeadlines} onChange={e => setGHeadlines(e.target.value)} /></div>
-            <div><label className="ci-label">Descriptions (one per line — max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} value={gDescriptions} onChange={e => setGDescriptions(e.target.value)} /></div>
+            <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <label className="ci-label">Descriptions (one per line — max 90 characters each)</label>
+              {gDescriptions.split('\n').some(l => l.length > 90) && (
+                <span style={{ fontSize: 11.5, color: '#F06A7E', fontWeight: 600 }}>Over limit on {gDescriptions.split('\n').filter(l => l.length > 90).length} line{gDescriptions.split('\n').filter(l => l.length > 90).length !== 1 ? 's' : ''}</span>
+              )}
+            </div>
+            <textarea className="ci-textarea" style={{ minHeight: 70 }} value={gDescriptions} onChange={e => setGDescriptions(e.target.value)} />
+            {gDescriptions.split('\n').map((l, i) => l.length > 90 ? (
+              <div key={i} style={{ fontSize: 11.5, color: '#F06A7E', marginTop: 3 }}>Line {i + 1}: {l.length}/90 chars ({l.length - 90} over)</div>
+            ) : null)}
+          </div>
             <div><label className="ci-label">Keywords you're targeting</label><input className="ci-input" value={gKeywords} onChange={e => setGKeywords(e.target.value)} /></div>
           </div>
         )}
@@ -6494,6 +6561,25 @@ function HistoryTab() {
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 6 }}>
+                      <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                        onClick={() => { try { window.copyText(JSON.stringify(it.report, null, 2)); } catch(e){} }}>
+                        ⧉ Copy report JSON
+                      </button>
+                      {it.report?.verdict && (
+                        <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                          onClick={() => {
+                            const r = it.report;
+                            const lines = [`Score: ${r.overall ?? '--'} — ${r.verdict?.title ?? ''}`];
+                            if (r.bottomLine) lines.push(`Bottom line: ${r.bottomLine}`);
+                            (r.scores || []).forEach(s => lines.push(`${s.name}: ${s.score} — ${s.why}`));
+                            (r.sections || []).forEach(s => { if (s.body) lines.push(`\n${s.title}:\n${s.body}`); });
+                            try { window.copyText(lines.join('\n')); } catch(e) {}
+                          }}>
+                          ⧉ Copy as text
+                        </button>
+                      )}
+                    </div>
                     <HistoryResults it={it} mood={tmoodOf[it.type] || 'navy'} onSaved={() => setItems(window.loadHistory())} />
                   </div>
                 )}
@@ -6706,7 +6792,7 @@ async function bCopyImageToClipboard(dataUrl, mime) {
   await navigator.clipboard.write([new ClipboardItem({ [blob.type || mime || 'image/png']: blob })]);
 }
 
-function BuilderTab() {
+function BuilderTab({ onNav }) {
   const mood = 'ember';
   const m = BM[mood];
 
@@ -6720,6 +6806,25 @@ function BuilderTab() {
   function setPersonExpr(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, expression: v } : p)); }
   function setPersonDesc(i, v) { setPeople(ps => ps.map((p, j) => j === i ? { ...p, desc: v } : p)); }
   function removePerson(i) { setPeople(ps => ps.filter((_, j) => j !== i)); }
+  async function autoDescribePerson(i) {
+    const p = people[i]; if (!p || !p.photo) return;
+    setAutoDescState(s => ({ ...s, [i]: 'loading' }));
+    try {
+      const { text } = await window.callClaude({
+        system: 'Describe the person in this photo in one short sentence suitable for an AI image generator. Focus on: approximate age, gender, notable features, clothing, and skin tone. Keep it under 30 words. Return ONLY the description.',
+        userText: 'Describe this person for a thumbnail image generator.',
+        image: p.photo,
+        maxTokens: 80,
+        temperature: 0.2,
+      });
+      const desc = (text || '').trim().replace(/^["']|["']$/g, '');
+      if (desc) setPersonDesc(i, desc);
+      setAutoDescState(s => ({ ...s, [i]: 'done' }));
+      setTimeout(() => setAutoDescState(s => ({ ...s, [i]: 'idle' })), 2000);
+    } catch (e) {
+      setAutoDescState(s => ({ ...s, [i]: 'idle' }));
+    }
+  }
 
   // Prefill from a "Build this thumbnail" handoff from the Script tab (text + brief).
   // Only prefill when the handoff is < 1 hour old — stale data from yesterday is confusing.
@@ -6727,6 +6832,21 @@ function BuilderTab() {
   const bootFresh = Date.now() - (bootCreate.ts || 0) < 3600000;
   const [headline, setHeadline] = React.useState(bootFresh ? (bootCreate.thumbText || '') : '');
   const [subline, setSubline] = React.useState('');
+
+  // Live bridge: when the Script tab fires a packaging handoff while Builder is mounted,
+  // update headline and extraNote without requiring a remount.
+  React.useEffect(() => {
+    function onHandoff() {
+      try {
+        const d = JSON.parse(localStorage.getItem('ci_last_create') || '{}');
+        if (!d || !d.ts || Date.now() - d.ts > 5000) return; // ignore old entries
+        if (d.thumbText) setHeadline(d.thumbText);
+        if (d.brief) setExtraNote('Scene context from the script: ' + d.brief);
+      } catch (e) {}
+    }
+    window.addEventListener('ci-builder-handoff', onHandoff);
+    return () => window.removeEventListener('ci-builder-handoff', onHandoff);
+  }, []);
   const [elements, setElements] = React.useState([]);
   const toggleEl = el => setElements(es => es.includes(el) ? es.filter(x => x !== el) : [...es, el]);
 
@@ -6750,7 +6870,9 @@ function BuilderTab() {
   const [prompt, setPrompt] = React.useState('');
   const [built, setBuilt] = React.useState(false);
   const [building, setBuilding] = React.useState(false);
+  const [groundingFailed, setGroundingFailed] = React.useState(false);
   const [copyFeedback, setCopyFeedback] = React.useState('');
+  const [autoDescState, setAutoDescState] = React.useState({});
 
   // AI thumbnail-text suggestions. Prefills the topic from the last Create result
   // (the "carry the script's topic into the thumbnail" thread) -- but the field is
@@ -6863,8 +6985,15 @@ function BuilderTab() {
         maxTokens: 350,
         temperature: 0.2,
       });
-      const parsed = JSON.parse((raw || '').match(/\{[\s\S]*\}/)?.[0] || 'null');
-      if (parsed) setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
+      let parsed = null;
+      try { parsed = JSON.parse((raw || '').match(/\{[\s\S]*\}/)?.[0] || 'null'); } catch (pe) {}
+      if (parsed && typeof parsed === 'object') {
+        setRefAnalysis(Object.entries(parsed).map(([k, v]) => `${k}: ${v}`).join('\n'));
+      } else {
+        // Model returned prose instead of JSON — use it verbatim as style notes.
+        const prose = (raw || '').trim().slice(0, 500);
+        if (prose) setRefAnalysis(prose);
+      }
       setRefState('done');
     } catch (e) {
       if (String(e?.message) === 'NO_KEY') setRefState('idle');
@@ -6922,8 +7051,8 @@ function BuilderTab() {
     if (window.canRun && window.canRun() && window.groundThumbPrompt) {
       setPrompt(brief); setBuilding(true);
       window.groundThumbPrompt(brief, { ratio: currentRatio })
-        .then(g => setPrompt((g && g.length > 40) ? g : brief))
-        .catch(() => setPrompt(brief))
+        .then(g => { setPrompt((g && g.length > 40) ? g : brief); })
+        .catch(() => { setPrompt(brief); setGroundingFailed(true); })
         .finally(() => { setBuilding(false); setBuilt(true); setTimeout(() => document.getElementById('builder-output')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80); });
     } else {
       setPrompt(brief);
@@ -7051,8 +7180,16 @@ function BuilderTab() {
               </div>
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Person {i + 1}</div>
-                <input className="ci-input" style={{ fontSize: 12 }} value={p.desc} onChange={e => setPersonDesc(i, e.target.value)}
-                  placeholder="Describe appearance -- e.g. man in 30s, brown hair, glasses" />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input className="ci-input" style={{ fontSize: 12, flex: 1 }} value={p.desc} onChange={e => setPersonDesc(i, e.target.value)}
+                    placeholder="Describe appearance -- e.g. man in 30s, brown hair, glasses" />
+                  {p.photo && (
+                    <button className="ci-copybtn" style={{ height: 40, padding: '0 10px', fontSize: 11.5, whiteSpace: 'nowrap', flexShrink: 0 }}
+                      onClick={() => autoDescribePerson(i)} disabled={autoDescState[i] === 'loading'}>
+                      {autoDescState[i] === 'loading' ? '…' : autoDescState[i] === 'done' ? '✓' : '✦ Auto'}
+                    </button>
+                  )}
+                </div>
                 <select className="ci-input" style={{ fontSize: 12, height: 30, padding: '0 6px', appearance: 'auto' }}
                   value={p.expression} onChange={e => setPersonExpr(i, e.target.value)}>
                   {BUILDER_EXPRESSIONS.map(ex => <option key={ex.id} value={ex.id}>{ex.emoji} {ex.label}</option>)}
@@ -7151,10 +7288,11 @@ function BuilderTab() {
       </BB>
 
       <div style={{ marginTop: 6 }}>
-        <window.GlowButton mood={mood} size="lg" onClick={buildPrompt} style={{ width: '100%', opacity: building ? 0.7 : 1 }}>
+        <window.GlowButton mood={mood} size="lg" onClick={() => { setGroundingFailed(false); buildPrompt(); }} style={{ width: '100%', opacity: building ? 0.7 : 1 }}>
           {building ? 'Art-directing your prompt…' : 'Build my prompt'}
         </window.GlowButton>
-        {(window.canRun?.() && window.groundThumbPrompt) && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6, textAlign: 'center' }}>Claude writes a research-grounded prompt (best-fit layout + colour scheme) before you generate.</div>}
+        {(window.canRun?.() && window.groundThumbPrompt) && !groundingFailed && <div style={{ fontSize: 11.5, color: 'var(--text-5)', marginTop: 6, textAlign: 'center' }}>Claude writes a research-grounded prompt (best-fit layout + colour scheme) before you generate.</div>}
+        {groundingFailed && <div style={{ fontSize: 11.5, color: '#F0C85A', marginTop: 6, textAlign: 'center' }}>Grounding failed — using your raw brief (still works, but not research-enhanced). Try again if you have an API key.</div>}
       </div>
 
       {built && prompt && (
@@ -7233,6 +7371,21 @@ function BuilderTab() {
               ))}
             </div>
           </div>
+
+          {onNav && (headline.trim() || txtTopic.trim()) && (
+            <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: `${m.orbB || m.accentFrom}14`, border: `1px solid ${m.accentGlow}40` }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)', marginBottom: 4 }}>Need a script for this video?</div>
+              <div style={{ fontSize: 12, color: 'var(--text-4)', marginBottom: 10 }}>Take this topic straight to the Script tab — starts in Create mode with the topic prefilled.</div>
+              <button className="ci-copybtn" style={{ height: 36, padding: '0 16px', fontSize: 13, background: `${m.accentFrom}20`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700 }}
+                onClick={() => {
+                  const t = (headline.trim() || txtTopic.trim());
+                  try { window.__ciScriptTopic = t; } catch (e) {}
+                  onNav('script');
+                }}>
+                ✦ Write a script →
+              </button>
+            </div>
+          )}
 
         </div>
       )}
@@ -9386,7 +9539,11 @@ function CIApp() {
 
   function openKey() { setKeyOpen(true); }
   function closeKey(changed) { setKeyOpen(false); if (changed) setHasKey(!!window.getKey()); }
-  function onAdmin() { nav('research'); }
+  async function onAdmin() {
+    if (admin) { nav('research'); return; }
+    const ok = await window.promptAdmin();
+    if (ok) { setAdmin(true); nav('research'); }
+  }
   function exitResearch() { setAdmin(window.isAdmin()); nav('home'); }
 
   // If unlocked via ?admin=... on this browser, jump straight to the editor.
@@ -9395,6 +9552,11 @@ function CIApp() {
       if (window.isAdmin() && new URLSearchParams(location.search).get('admin')) { setAdmin(true); setTab('research'); }
     } catch (e) {}
   }, []);
+
+  // Auto-prompt for passphrase when navigating to a protected tab while not admin.
+  React.useEffect(() => {
+    if (!admin && (tab === 'research' || tab === 'train')) { onAdmin(); }
+  }, [tab]);
 
   let View = null;
   if (tab === 'home') View = <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
@@ -9405,7 +9567,7 @@ function CIApp() {
   else if (tab === 'ask') View = <AskTab onOpenKey={openKey} />;
   else if (tab === 'pricing') View = <PricingTab onNav={nav} />;
   else if (tab === 'more') View = <MoreHub onNav={nav} />;
-  else if (tab === 'builder') View = <BuilderTab />;
+  else if (tab === 'builder') View = <BuilderTab onNav={nav} />;
   else if (tab === 'platform') View = <PlatformTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;
