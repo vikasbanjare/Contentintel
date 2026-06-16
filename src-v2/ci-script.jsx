@@ -441,12 +441,26 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   const fcLabel = s => s === 'verified' ? 'Verified' : s === 'false' ? 'False' : 'Unverified';
 
   // Titles + SEO tags + thumbnail text, per platform, grounded in the research.
+  // Results are cached in sessionStorage so clicking "Regenerate" on an unchanged
+  // script doesn't burn another 2000+ tokens.
+  const PKG_CACHE_KEY = 'ci_pkg_cache';
   async function runPackaging() {
     if (!text.trim()) { setPkg({ state: 'error', data: null, err: 'Paste or generate a script first.' }); return; }
+    const ckey = JSON.stringify({ t: text.trim().slice(0, 200), lang, kind, who });
+    try {
+      const cached = JSON.parse(sessionStorage.getItem(PKG_CACHE_KEY) || '{}');
+      if (cached[ckey]) { setPkg({ state: 'done', data: cached[ckey], err: '' }); return; }
+    } catch (e) {}
     setPkg({ state: 'loading', data: null, err: '' });
     try {
       const data = await window.packageScript(text, lang, { niche: kind, audience: who });
       setPkg({ state: 'done', data, err: '' });
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(PKG_CACHE_KEY) || '{}');
+        const keys = Object.keys(cached);
+        if (keys.length >= 3) delete cached[keys[0]];
+        sessionStorage.setItem(PKG_CACHE_KEY, JSON.stringify({ ...cached, [ckey]: data }));
+      } catch (e) {}
     } catch (e) {
       const msg = String(e.message) === 'NO_KEY' ? 'Sign in (or add an API key) to generate titles & tags.' : (e.message || 'Could not generate packaging — try again.');
       setPkg({ state: 'error', data: null, err: msg });
@@ -535,7 +549,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
     </SB>
   );
 
-  const rewritePanel = (
+  const rewritePanel = report ? (
     <SB mood={mood}>
       <div style={{ fontSize: 15, fontWeight: 600 }}>Rewrite from analysis</div>
       <div style={{ fontSize: 12.5, color: 'var(--text-3)', margin: '6px 0 12px' }}>
@@ -564,6 +578,13 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           </div>
         </div>
       )}
+    </SB>
+  ) : (
+    <SB mood={mood}>
+      <div style={{ fontSize: 15, fontWeight: 600 }}>Rewrite from analysis</div>
+      <div style={{ fontSize: 13, color: 'var(--text-4)', marginTop: 6, lineHeight: 1.55 }}>
+        Run an analysis first — the rewrite uses your actual dimension scores to target the real weak spots, not generic feedback.
+      </div>
     </SB>
   );
 
@@ -786,7 +807,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my script"
+          <window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={8000} label="Check my script"
             disabled={!ready} disabledHint={text.trim() ? 'Script is too short to analyze — paste the full script (10+ words).' : 'Paste your script first — nothing to check yet.'} />
         </div>
       </SB>

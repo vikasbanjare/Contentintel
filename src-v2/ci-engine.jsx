@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r8";
+window.CI_BUILD = "2026-06-16-r9";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -140,6 +140,9 @@ const LS_HISTORY = "ci_history";
 function loadHistory() { try { return JSON.parse(localStorage.getItem(LS_HISTORY)) || []; } catch (e) { return []; } }
 function saveHistory(rec) {
   try {
+    // Strip base64 image data from input before storing — thumbnail analyses can
+    // embed 300KB+ base64 strings that quickly exhaust the localStorage quota.
+    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '[image]').slice(0, 600) };
     const arr = loadHistory();
     arr.unshift(rec);
     let keep = arr.slice(0, 30);
@@ -335,6 +338,9 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
 // The model returns a transient 529 "overloaded" / "high demand" when busy. That's
 // not a real failure -- retry a couple of times with backoff before surfacing it,
 // and show a friendly message rather than the raw API error.
+// Session-wide token accumulator — fires a custom event so any UI component
+// (e.g. nav token meter) can re-render without a React context.
+window.CI_SESSION_USAGE = window.CI_SESSION_USAGE || { in: 0, out: 0 };
 const isOverloaded = (e) => /overloaded|high demand|529|503|temporarily unavailable|please try again later/i.test(String(e && e.message || ""));
 async function callClaude(args) {
   const MAX = 3;
@@ -342,6 +348,11 @@ async function callClaude(args) {
     try {
       const out = await callClaudeOnce(args);
       if (out && typeof out.text === "string") out.text = stripToolNoise(out.text);
+      if (out && out.usage) {
+        window.CI_SESSION_USAGE.in  += out.usage.input_tokens  || 0;
+        window.CI_SESSION_USAGE.out += out.usage.output_tokens || 0;
+        try { window.dispatchEvent(new Event('ci-usage-update')); } catch (e) {}
+      }
       return out;
     } catch (e) {
       if (isOverloaded(e) && attempt < MAX - 1) {
@@ -1043,10 +1054,11 @@ function useAnalysis(type, opts = {}) {
 }
 
 // ── AnalyzeButton -- Run button that shows the token estimate ─────────────────
-function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model, disabled, disabledHint }) {
+function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze", model, disabled, disabledHint }) {
   const inTok = estIn + 0;
-  const total = inTok + CI_OUTPUT_GUESS;
-  const cost = estCost(inTok, CI_OUTPUT_GUESS, model);
+  const outTok = estOut != null ? estOut : CI_OUTPUT_GUESS;
+  const total = inTok + outTok;
+  const cost = estCost(inTok, outTok, model);
   const hasKey = !!getKey();
   const free = !hasKey && hasSandbox(); // free Claude preview AI
   return (
@@ -1065,7 +1077,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, label = "Analyze", model
         )}
       </GlowButton>
       <span className="ci-est">
-        {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(CI_OUTPUT_GUESS)} out · ~{fmtCost(cost)}</>}
+        {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(outTok)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · live</span>}
         {!hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
       </span>

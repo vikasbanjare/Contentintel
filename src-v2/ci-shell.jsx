@@ -97,6 +97,15 @@ window.ThemeToggle = ThemeToggle;
 
 function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
+  const [sessionTok, setSessionTok] = React.useState(0);
+  React.useEffect(() => {
+    const update = () => {
+      const u = window.CI_SESSION_USAGE || { in: 0, out: 0 };
+      setSessionTok(u.in + u.out);
+    };
+    window.addEventListener('ci-usage-update', update);
+    return () => window.removeEventListener('ci-usage-update', update);
+  }, []);
   return (
     <nav className="ci-nav">
       <div className="ci-logo" onClick={() => onNav('home')} style={{ cursor: 'pointer' }}>
@@ -122,6 +131,12 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {sessionTok > 0 && (
+        <span style={{ fontSize: 11, color: 'var(--text-5)', marginRight: 4, whiteSpace: 'nowrap' }} title="Tokens used this session">
+          {window.fmtTokens ? window.fmtTokens(sessionTok) : sessionTok} tokens
+        </span>
+      )}
 
       {(() => {
         // In hosted mode the worker holds the Claude key, so this opens the
@@ -389,36 +404,28 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
 }
 window.HomeView = HomeView;
 
-// Placeholder testimonials -- swap the text/handles for real ones later.
-const CI_TESTIMONIALS = [
-  { q: "I stopped guessing which hook to use. My last three Reels all crossed 100K — the script tool called the weak opener every time.", n: "Aarav Mehta", r: "Finance creator · 240K", a: "AM" },
-  { q: "We run thumbnails for 12 clients. The A/B/C check settles arguments in seconds and the redesign prompts are genuinely good.", n: "Studio Nine", r: "Content agency · Mumbai", a: "S9" },
-  { q: "The Hinglish hook rewrites actually sound like me. First tool that didn't feel built only for English creators.", n: "Priya Sharma", r: "Lifestyle · 88K", a: "PS" },
+const CI_USE_CASES = [
+  { icon: '🎯', title: 'Hook diagnosis', body: 'Paste a script and see exactly which line loses viewers — with a stronger rewrite that targets the real weak spot, not a generic tip.' },
+  { icon: '🖼️', title: 'Thumbnail A/B test', body: 'Upload two or three thumbnails and get a side-by-side breakdown of click chance, face, text and contrast — with a redesign prompt ready for ChatGPT.' },
+  { icon: '📝', title: 'Title scoring', body: 'Check your title against 60-char mobile truncation, curiosity triggers and SEO patterns — and get 10 click-optimised alternatives in seconds.' },
 ];
 function TestimonialsSection({ mood }) {
   const m = MOODS[mood];
   return (
     <section style={{ maxWidth: 1140, margin: '0 auto', padding: '10px 32px 96px' }}>
       <div className="ci-rise" style={{ textAlign: 'center', marginBottom: 30 }}>
-        <Eyebrow mood={mood} glow>Loved by creators & agencies</Eyebrow>
-        <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 42, margin: '10px 0 0', letterSpacing: '-0.01em' }}>People ship with more confidence.</h2>
+        <Eyebrow mood={mood} glow>What creators use it for</Eyebrow>
+        <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 42, margin: '10px 0 0', letterSpacing: '-0.01em' }}>Catch the problems before you post.</h2>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18 }}>
-        {CI_TESTIMONIALS.map((t, i) => (
-          <div key={i} className={'ci-block ci-rise rd' + (i % 3)} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ color: m.accentFrom, fontSize: 26, lineHeight: 1, fontFamily: "'Instrument Serif', Georgia, serif" }}>&ldquo;</div>
-            <div style={{ fontSize: 14.5, color: 'var(--text-1)', lineHeight: 1.6, flex: 1 }}>{t.q}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: `linear-gradient(135deg, ${m.accentFrom}, ${m.accentTo})`, display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 12.5 }}>{t.a}</div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-1)' }}>{t.n}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-4)' }}>{t.r}</div>
-              </div>
-            </div>
+        {CI_USE_CASES.map((t, i) => (
+          <div key={i} className={'ci-block ci-rise rd' + (i % 3)} style={{ padding: 26, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 32, lineHeight: 1 }}>{t.icon}</div>
+            <div style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 22, color: 'var(--text-1)' }}>{t.title}</div>
+            <div style={{ fontSize: 14.5, color: 'var(--text-2)', lineHeight: 1.65, flex: 1 }}>{t.body}</div>
           </div>
         ))}
       </div>
-      <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11.5, color: 'var(--text-5)' }}>Example results — real creator stories coming as we launch.</div>
     </section>
   );
 }

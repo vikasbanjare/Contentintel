@@ -414,7 +414,7 @@ function ThumbnailTab({ onOpenKey }) {
           </div>
         </details>
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={count === 3 ? 5500 : count === 2 ? 4500 : 3200} label={count === 3 ? 'Compare A / B / C' : count === 2 ? 'Compare A / B' : 'Check my thumbnail'}
           disabled={!slotsReady} disabledHint={compare ? 'Each slot needs an image or a short description first.' : 'Upload your thumbnail (or describe it) first — nothing to check yet.'} /></div>
       </TB>
 
@@ -576,7 +576,7 @@ function TitleTab({ onOpenKey }) {
             <span className={'ci-dot ' + (chars <= 60 ? 'green' : 'yellow')} />{chars <= 60 ? 'Good -- under 60' : 'Long -- may truncate'}
           </span>
         </div>
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my title"
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2800} label="Check my title"
           disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
       </TB>
 
@@ -658,16 +658,20 @@ function AdsTab({ onOpenKey }) {
   const [headline, setHeadline] = React.useState('Built to Outlast Your PR');
   const [cta, setCta] = React.useState('Shop Now');
   const [goal, setGoal] = React.useState('Conversions');
+  // Google Ads controlled state (was uncontrolled defaultValue — data never reached Claude)
+  const [gHeadlines, setGHeadlines] = React.useState('Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days');
+  const [gDescriptions, setGDescriptions] = React.useState('The $90 trainer that beat the $200 ones in a real half-marathon. Try risk-free.');
+  const [gKeywords, setGKeywords] = React.useState('running shoes, marathon trainer, cushioned running shoe');
   const { state, report, usage, sources, err, run } = window.useAnalysis('ads');
 
   const META_PRIMARY = 125, META_HEAD = 27;
   const pOver = primary.length > META_PRIMARY, hOver = headline.length > META_HEAD;
 
-  const userText = `Platform: ${platform}\nObjective: ${goal}\nCTA button: ${cta}\n\n` +
-    `Primary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\n` +
-    `Check character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`;
+  const userText = platform === 'Meta'
+    ? `Platform: Meta\nObjective: ${goal}\nCTA button: ${cta}\n\nPrimary/main text (${primary.length} chars): ${primary}\nHeadline (${headline.length} chars): ${headline}\n\nCheck character limits, "See More" truncation, scroll-stopping power and compliance. Show what people actually see, and give stronger rewrites.`
+    : `Platform: Google Ads\nObjective: ${goal}\n\nHeadlines (max 30 chars each):\n${gHeadlines}\n\nDescriptions (max 90 chars each):\n${gDescriptions}\n\nKeywords: ${gKeywords}\n\nCheck headline character limits, description limits, ad strength score, keyword relevance, and quality. Flag any truncations and give stronger alternatives.`;
   const estIn = window.estTokens(window.buildSystem('ads'), userText);
-  const adReady = primary.trim().length >= 12;
+  const adReady = platform === 'Meta' ? primary.trim().length >= 12 : gHeadlines.trim().length >= 5;
   function check() { if (!adReady) return; run({ userText, maxTokens: 2200 }); }
 
   return (
@@ -703,13 +707,13 @@ function AdsTab({ onOpenKey }) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div><label className="ci-label">Headlines (one per line -- max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} defaultValue={'Atlas Mach Running Shoe\nLasts 800km Guaranteed\nFree Returns, 30 Days'} /></div>
-            <div><label className="ci-label">Descriptions (one per line -- max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} defaultValue={'The $90 trainer that beat the $200 ones in a real half-marathon. Try risk-free.'} /></div>
-            <div><label className="ci-label">Keywords you're targeting</label><input className="ci-input" defaultValue="running shoes, marathon trainer, cushioned running shoe" /></div>
+            <div><label className="ci-label">Headlines (one per line — max 30 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 90 }} value={gHeadlines} onChange={e => setGHeadlines(e.target.value)} /></div>
+            <div><label className="ci-label">Descriptions (one per line — max 90 characters each)</label><textarea className="ci-textarea" style={{ minHeight: 70 }} value={gDescriptions} onChange={e => setGDescriptions(e.target.value)} /></div>
+            <div><label className="ci-label">Keywords you're targeting</label><input className="ci-input" value={gKeywords} onChange={e => setGKeywords(e.target.value)} /></div>
           </div>
         )}
 
-        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} label="Check my ad"
+        <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2200} label="Check my ad"
           disabled={!adReady} disabledHint="Write your ad's main text first — nothing to check yet." /></div>
       </TB>
 
