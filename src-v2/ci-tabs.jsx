@@ -927,7 +927,7 @@ function HistoryTab() {
                     {it.input && (
                       <div className="ci-block" style={{ padding: '12px 16px', marginBottom: 12 }}>
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-4)', marginBottom: 6 }}>What was checked</div>
-                        <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{it.input}{it.input.length >= 600 ? '…' : ''}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{it.input}{it.input.length >= 2000 ? '…' : ''}</div>
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />

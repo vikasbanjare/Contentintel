@@ -154,7 +154,7 @@ function saveHistory(rec) {
   try {
     // Strip base64 image data from input before storing — thumbnail analyses can
     // embed 300KB+ base64 strings that quickly exhaust the localStorage quota.
-    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:[^,]*,[A-Za-z0-9+/=]{100,}/g, '[image]').slice(0, 600) };
+    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:[^,]*,[A-Za-z0-9+/=]{100,}/g, '[image]').slice(0, 2000) };
     const arr = loadHistory();
     arr.unshift(rec);
     let keep = arr.slice(0, 30);
@@ -1056,7 +1056,14 @@ function useAnalysis(type, opts = {}) {
         saveHistory({ type, t: Date.now(), level: vd.level || "yellow",
           score: typeof json.overall === "number" ? Math.round(json.overall) : null,
           title: vd.title || (json.winner && json.winner.label) || "Analysis",
-          input: String(userText || "").slice(0, 600),
+          input: (() => {
+            // Strip metadata preamble and hookUpgradeAsk boilerplate so history shows
+            // the actual script/content, not headers. For all tab types.
+            let s = String(userText || "");
+            const scriptBody = s.match(/SCRIPT \(Version [AB]\):\n([\s\S]*?)(?:\n\nALSO:|$)/);
+            if (scriptBody) s = scriptBody[1].trim();
+            return s.slice(0, 2000);
+          })(),
           report: json });
       } catch (e) {}
     } catch (e) {

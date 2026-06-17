@@ -2326,7 +2326,7 @@ function saveHistory(rec) {
   try {
     // Strip base64 image data from input before storing — thumbnail analyses can
     // embed 300KB+ base64 strings that quickly exhaust the localStorage quota.
-    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:[^,]*,[A-Za-z0-9+/=]{100,}/g, '[image]').slice(0, 600) };
+    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:[^,]*,[A-Za-z0-9+/=]{100,}/g, '[image]').slice(0, 2000) };
     const arr = loadHistory();
     arr.unshift(rec);
     let keep = arr.slice(0, 30);
@@ -3228,7 +3228,14 @@ function useAnalysis(type, opts = {}) {
         saveHistory({ type, t: Date.now(), level: vd.level || "yellow",
           score: typeof json.overall === "number" ? Math.round(json.overall) : null,
           title: vd.title || (json.winner && json.winner.label) || "Analysis",
-          input: String(userText || "").slice(0, 600),
+          input: (() => {
+            // Strip metadata preamble and hookUpgradeAsk boilerplate so history shows
+            // the actual script/content, not headers. For all tab types.
+            let s = String(userText || "");
+            const scriptBody = s.match(/SCRIPT \(Version [AB]\):\n([\s\S]*?)(?:\n\nALSO:|$)/);
+            if (scriptBody) s = scriptBody[1].trim();
+            return s.slice(0, 2000);
+          })(),
           report: json });
       } catch (e) {}
     } catch (e) {
@@ -6557,7 +6564,7 @@ function HistoryTab() {
                     {it.input && (
                       <div className="ci-block" style={{ padding: '12px 16px', marginBottom: 12 }}>
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-4)', marginBottom: 6 }}>What was checked</div>
-                        <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{it.input}{it.input.length >= 600 ? '…' : ''}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{it.input}{it.input.length >= 2000 ? '…' : ''}</div>
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
