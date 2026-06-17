@@ -2326,7 +2326,7 @@ function saveHistory(rec) {
   try {
     // Strip base64 image data from input before storing — thumbnail analyses can
     // embed 300KB+ base64 strings that quickly exhaust the localStorage quota.
-    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:[^,]*,[A-Za-z0-9+/=]{100,}/g, '[image]').slice(0, 600) };
+    if (rec.input) rec = { ...rec, input: String(rec.input).replace(/data:[^,]*,[A-Za-z0-9+/=]{100,}/g, '[image]').slice(0, 2000) };
     const arr = loadHistory();
     arr.unshift(rec);
     let keep = arr.slice(0, 30);
@@ -2386,17 +2386,58 @@ function extractSourcesBYO(blocks) {
   return out.slice(0, 8);
 }
 
+// ── Image compression (client-side, before API) ───────────────────────────────
+// Resize to ≤1024px on the longest side and re-encode as JPEG 85%.
+// Anthropic's server would resize a 1920×1080 image to ~1568px (~1845 tokens);
+// we send 1024×576 instead (~786 tokens) — a ~57% saving per image.
+// The preview stored in the app is NOT affected — only the bytes sent to Claude.
+async function compressForApi(im, maxPx = 1024, quality = 0.85) {
+  if (!im || !im.data) return im;
+  try {
+    const dataUrl = `data:${im.mime || 'image/jpeg'};base64,${im.data}`;
+    const compressed = await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        const scale = Math.min(1, maxPx / Math.max(w || maxPx, h || maxPx));
+        if (scale >= 0.98 && (im.mime || '').includes('jpeg')) { resolve(dataUrl); return; }
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        const ctx = canvas.getContext('2d');
+        // Composite over white so transparent PNGs don't turn black as JPEG.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+    const [header, b64] = compressed.split(',');
+    const mime = (header.match(/:(.*?);/) || [])[1] || 'image/jpeg';
+    return { ...im, data: b64 || im.data, mime };
+  } catch (e) {
+    return im; // fallback: send original
+  }
+}
+
 // ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
 async function callClaudeOnce({ system, userText, image, images, model, maxTokens = 1800, temperature, forceJson }) {
+  // Compress all images once here so both the SaaS and BYO paths use the
+  // smaller versions — no duplication and no change to stored previews.
+  const rawImgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
+  const imgs = await Promise.all(rawImgs.map(im => compressForApi(im)));
+
   // SaaS mode: signed-in users run through the ContentIntel worker (owner's
   // key, plan limits enforced server-side) — no personal key needed.
   const saas = (typeof window !== 'undefined' && window.CI_SAAS) || {};
   if (saas.workerUrl && window.CI_SESSION) {
-    const imgsS = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
-    const contentS = imgsS.length
+    const contentS = imgs.length
       ? [
-          ...imgsS.flatMap((im, i) => [
-            ...(imgsS.length > 1 ? [{ type: "text", text: `Image ${i + 1}:` }] : []),
+          ...imgs.flatMap((im, i) => [
+            ...(imgs.length > 1 ? [{ type: "text", text: `Image ${i + 1}:` }] : []),
             { type: "image", source: { type: "base64", media_type: im.mime, data: im.data } },
           ]),
           { type: "text", text: userText },
@@ -2436,8 +2477,7 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
   const webOn = getWebSearch() && !(model || getModel()).includes("haiku");
   const NO_TOOL_NOTE = "\n\nEXECUTION NOTE (highest priority): You have NO web_search tool and NO external tools in this session. Ignore any instruction above about searching the web or 'search first'. NEVER output tool-call or function-call syntax of any kind -- no <function_calls>, <invoke>, <function_results> or similar; such text is NOT executed and leaks to the user. Do not narrate searching. Answer only from your own knowledge; if a topic is recent or unverifiable, treat it as the user's stated premise and proceed. Output only the final answer in the exact format requested.";
   if (!webOn && typeof system === "string") system = system + NO_TOOL_NOTE;
-  // Normalise to an array so single- and multi-image (compare) paths share code.
-  const imgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
+  // imgs is already compressed above (shared with SaaS path).
   // No personal key? If we're inside a Claude preview/artifact, use its free AI.
   if (!key) {
     if (hasSandbox()) {
@@ -3228,7 +3268,14 @@ function useAnalysis(type, opts = {}) {
         saveHistory({ type, t: Date.now(), level: vd.level || "yellow",
           score: typeof json.overall === "number" ? Math.round(json.overall) : null,
           title: vd.title || (json.winner && json.winner.label) || "Analysis",
-          input: String(userText || "").slice(0, 600),
+          input: (() => {
+            // Strip metadata preamble and hookUpgradeAsk boilerplate so history shows
+            // the actual script/content, not headers. For all tab types.
+            let s = String(userText || "");
+            const scriptBody = s.match(/SCRIPT \(Version [AB]\):\n([\s\S]*?)(?:\n\nALSO:|$)/);
+            if (scriptBody) s = scriptBody[1].trim();
+            return s.slice(0, 2000);
+          })(),
           report: json });
       } catch (e) {}
     } catch (e) {
@@ -6557,7 +6604,7 @@ function HistoryTab() {
                     {it.input && (
                       <div className="ci-block" style={{ padding: '12px 16px', marginBottom: 12 }}>
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--text-4)', marginBottom: 6 }}>What was checked</div>
-                        <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{it.input}{it.input.length >= 600 ? '…' : ''}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{it.input}{it.input.length >= 2000 ? '…' : ''}</div>
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
