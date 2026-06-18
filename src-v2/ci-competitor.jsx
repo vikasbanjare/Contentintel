@@ -1,31 +1,56 @@
-// ContentIntel — Competitor Breakdown
+// ContentIntel — Competitor Breakdown (with YouTube auto-fetch)
 
 const COMPETITOR_SYSTEM = [
-  "You are ContentIntel's competitive intelligence analyst. Break down a competitor's video with tactical precision — what's working, why it works, and how to beat it.",
-  "LANGUAGE LAW: match the language of the submitted title.",
+  "You are ContentIntel's competitive intelligence analyst. Break down a competitor's channel with tactical precision.",
+  "LANGUAGE LAW: match the language of the submitted titles.",
   "Analyse:",
-  "• Title hook: what psychological trigger it uses (curiosity gap, social proof, fear, aspiration, numbers)",
-  "• Thumbnail strategy: what visual pattern they used (if image provided)",
-  "• Audience targeting: exactly who this was made for and why it resonates",
-  "• Content gaps they left open: what angle they missed that YOU could own",
-  "• Replication opportunities: what you can borrow ethically and improve on",
-  "Score dimensions 0-100: Title Hook Strength, Audience Targeting Clarity, Content Gap Score (higher = more opportunity for you), Overall Threat Level.",
-  "Bottom line: the single highest-leverage move to outperform this specific video.",
-  "Sections: What's working (checklist), How to outperform (copy blocks — write 3 alternative titles that beat theirs + a thumbnail concept that beats theirs), Content gaps to exploit (kv list with gap + your angle).",
+  "• Title hook: what psychological trigger they use (curiosity gap, social proof, fear, aspiration, numbers, controversy)",
+  "• Content strategy: what formats, angles and niches they consistently win in",
+  "• Audience targeting: exactly who this is made for and why it resonates",
+  "• Content gaps: what angles they missed that YOU could own",
+  "• Replication opportunities: what to borrow ethically and improve on",
+  "Score 0-100: Title Hook Strength, Audience Targeting Clarity, Content Variety, Gap Opportunity (higher = more opening for you), Overall Threat Level.",
+  "Bottom line: the single highest-leverage move to outperform this competitor.",
+  "Required sections:",
+  "1. What's working — checklist of their winning patterns",
+  "2. How to beat them — copy blocks: write 3 titles that outperform their best + 1 thumbnail concept that beats theirs",
+  "3. Content gaps to exploit — kv list: Gap / Your angle for each opportunity",
+  "4. Title patterns to steal — copy block listing their most effective formulas you can adapt",
 ].join("\n");
 
 function CompetitorTab({ onOpenKey }) {
   const mood = 'navy';
   const m = MOODS[mood] || MOODS.burgundy;
-  const [title, setTitle] = React.useState('');
-  const [channel, setChannel] = React.useState('');
-  const [recent, setRecent] = React.useState('');
-  const [thumb, setThumb] = React.useState(null);
+
+  const [mode, setMode]       = React.useState(window.getYouTubeKey ? (window.getYouTubeKey() ? 'auto' : 'manual') : 'manual');
+  const [handle, setHandle]   = React.useState('');
+  const [title, setTitle]     = React.useState('');
+  const [recent, setRecent]   = React.useState('');
+  const [thumb, setThumb]     = React.useState(null);
+  const [fetchState, setFetchState] = React.useState('idle');
+  const [fetchErr, setFetchErr]     = React.useState('');
+  const [channelInfo, setChannelInfo] = React.useState(null);
   const fileRef = React.useRef(null);
 
   const { state, report, usage, err, run, reset } = useAnalysis('competitor');
   const loading = state === 'loading';
-  const estIn = estTokens(COMPETITOR_SYSTEM, title, channel, recent);
+  const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';
+
+  async function fetchChannel() {
+    if (!handle.trim()) return;
+    setFetchState('fetching'); setFetchErr(''); setChannelInfo(null); setRecent(''); reset();
+    try {
+      const ch   = await window.fetchYTChannel(handle.trim(), ytKey);
+      const vids = await window.fetchYTVideos(ch.id, ytKey, 20);
+      setChannelInfo({ name: ch.snippet.title, subs: ch.statistics.subscriberCount, videoCount: ch.statistics.videoCount });
+      setRecent(vids.map(v => v.title).join('\n'));
+      if (!title.trim() && vids.length) setTitle(vids[0].title);
+      setFetchState('fetched');
+    } catch (e) {
+      setFetchErr(e.message || 'Could not fetch channel data.');
+      setFetchState('error');
+    }
+  }
 
   function readThumb(file) {
     if (!file) return;
@@ -48,20 +73,26 @@ function CompetitorTab({ onOpenKey }) {
   }
 
   function generate() {
-    if (!title.trim()) return;
+    if (!title.trim() && !recent.trim()) return;
     const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
+    const chName = channelInfo ? channelInfo.name : handle.trim();
     run({
-      system: COMPETITOR_SYSTEM + (profileCtx ? '\n\nYour channel context (for tailored counter-strategy):\n' + profileCtx : ''),
+      system: COMPETITOR_SYSTEM + (profileCtx ? '\n\nYour channel context (counter-strategy must be tailored to this):\n' + profileCtx : ''),
       userText: [
-        `Competitor title: ${title.trim()}`,
-        channel.trim() ? `Competitor channel: ${channel.trim()}` : '',
-        recent.trim() ? `Their other recent titles:\n${recent.trim()}` : '',
-        thumb ? '(Their thumbnail image is attached — analyse it visually.)' : '',
+        title.trim() ? `Competitor's standout title: ${title.trim()}` : '',
+        chName ? `Competitor channel: ${chName}` : '',
+        channelInfo ? `Subscribers: ${Number(channelInfo.subs || 0).toLocaleString()} | Videos: ${channelInfo.videoCount}` : '',
+        recent.trim() ? `Their recent titles:\n${recent.trim()}` : '',
+        thumb ? '(Their thumbnail is attached — analyse it visually.)' : '',
       ].filter(Boolean).join('\n'),
       images: thumb ? [thumb] : [],
       maxTokens: 2400,
     });
   }
+
+  const fmt = (n) => { const v = parseInt(n || 0); return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : String(v); };
+  const videoCount = recent.trim() ? recent.trim().split('\n').filter(l => l.trim()).length : 0;
+  const canAnalyze = title.trim() || recent.trim();
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -69,58 +100,109 @@ function CompetitorTab({ onOpenKey }) {
         <Eyebrow mood={mood} glow>Competitor Analysis</Eyebrow>
         <h2 className="ci-h2">Competitor Breakdown</h2>
         <p className="ci-sub" style={{ marginTop: 6 }}>
-          Paste a competitor's title and thumbnail — get a tactical breakdown of what they did right, 3 titles that beat theirs, and the gaps you can own.
+          Auto-fetch a competitor's YouTube channel or paste their titles — get a tactical breakdown, counter-titles, and the gaps you can own.
         </p>
       </div>
 
       <div className="ci-block" style={{ padding: 24, marginTop: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Competitor's video title *</span>
-            <input className="ci-input" style={{ fontSize: 15 }}
-              placeholder="e.g. I Made ₹10 Lakhs From YouTube in 2024 — Here's Exactly How"
-              value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
-          </label>
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          {[{ id: 'auto', label: '⚡ Auto-fetch from YouTube' }, { id: 'manual', label: '✎ Enter manually' }].map(opt => (
+            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setRecent(''); setTitle(''); }}
+              style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${mode === opt.id ? m.accentFrom : 'var(--stroke-2)'}`,
+                background: mode === opt.id ? m.accentFrom + '18' : 'transparent',
+                color: mode === opt.id ? m.accentFrom : 'var(--text-3)',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        {mode === 'auto' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {!ytKey && (
+              <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.3)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+                <b style={{ color: '#F0C85A' }}>YouTube API key needed</b> — add it in Settings → Platform Data tab.{' '}
+                <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 12, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>
+              </div>
+            )}
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Their channel</span>
-              <input className="ci-input" placeholder="e.g. @CompetitorName" value={channel} onChange={e => { setChannel(e.target.value); reset(); }} />
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Competitor's channel handle *</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input className="ci-input" placeholder="@CompetitorChannel or youtube.com/@Channel"
+                  value={handle} onChange={e => { setHandle(e.target.value); setFetchState('idle'); setChannelInfo(null); setRecent(''); reset(); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && ytKey) fetchChannel(); }}
+                  style={{ flex: 1 }} />
+                <GlowButton mood={mood} onClick={fetchChannel}
+                  style={{ whiteSpace: 'nowrap', opacity: (!handle.trim() || !ytKey || fetchState === 'fetching') ? 0.5 : 1 }}>
+                  {fetchState === 'fetching' ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      Fetching…
+                    </span>
+                  ) : 'Fetch channel →'}
+                </GlowButton>
+              </div>
+            </label>
+            {fetchState === 'error' && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(240,90,110,0.08)', border: '1px solid rgba(240,90,110,0.25)', fontSize: 13, color: '#F06A7E' }}>{fetchErr}</div>
+            )}
+            {fetchState === 'fetched' && channelInfo && (
+              <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(100,120,220,0.07)', border: '1px solid rgba(100,120,220,0.25)' }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)' }}>{channelInfo.name}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>
+                  {fmt(channelInfo.subs)} subscribers · {videoCount} recent titles fetched
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {mode === 'manual' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Competitor's best / latest title *</span>
+              <input className="ci-input" style={{ fontSize: 15 }}
+                placeholder="e.g. I Made ₹10 Lakhs From YouTube in 2024 — Here's Exactly How"
+                value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
             </label>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Their thumbnail <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></span>
-              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
-                onChange={e => { readThumb(e.target.files[0]); reset(); }} />
-              {thumb
-                ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
-                    <img src={thumb.preview} alt="thumbnail"
-                      style={{ width: 80, height: 45, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--stroke-1)' }} />
-                    <button className="ci-copybtn" style={{ height: 30 }}
-                      onClick={() => { setThumb(null); reset(); }}>Remove</button>
-                  </div>
-                : <button type="button" className="ci-drop"
-                    style={{ minHeight: 42, padding: '8px 14px', width: 'auto', border: '1px solid var(--stroke-1)', marginTop: 2 }}
-                    onClick={() => fileRef.current && fileRef.current.click()}>
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 10.5V3M5 6l3-3 3 3M3 11.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
-                    Upload their thumbnail
-                  </button>}
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Their other recent titles <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(one per line — reveals strategy)</span></span>
+              <textarea className="ci-input" rows={5}
+                placeholder={"I Lost ₹2 Lakh in Stocks — What I Learned\nBest Mutual Funds to Buy in 2025\nWhy 90% of Indians Never Get Rich"}
+                value={recent} onChange={e => { setRecent(e.target.value); reset(); }}
+                style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 13 }} />
             </label>
           </div>
+        )}
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
-              Their other recent titles <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — one per line, reveals their strategy)</span>
-            </span>
-            <textarea className="ci-input" rows={4}
-              placeholder={"I Lost ₹2 Lakh in Stocks — What I Learned\nBest Mutual Funds to Buy in 2025\nWhy 90% of Indians Never Get Rich"}
-              value={recent} onChange={e => { setRecent(e.target.value); reset(); }}
-              style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 13 }} />
-          </label>
+        {/* Thumbnail upload — available in both modes */}
+        <div style={{ marginTop: 14 }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+            Their thumbnail <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — upload for visual analysis)</span>
+          </span>
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+            onChange={e => { readThumb(e.target.files[0]); reset(); }} />
+          <div style={{ marginTop: 8 }}>
+            {thumb
+              ? <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img src={thumb.preview} alt="thumbnail" style={{ width: 120, height: 68, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--stroke-1)' }} />
+                  <button className="ci-copybtn" style={{ height: 30 }} onClick={() => { setThumb(null); reset(); }}>Remove</button>
+                </div>
+              : <button type="button" className="ci-drop"
+                  style={{ minHeight: 44, padding: '10px 16px', width: 'auto', border: '1px solid var(--stroke-1)' }}
+                  onClick={() => fileRef.current && fileRef.current.click()}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 10.5V3M5 6l3-3 3 3M3 11.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
+                  Upload their thumbnail
+                </button>}
+          </div>
         </div>
+
         <div style={{ marginTop: 20 }}>
           <AnalyzeButton mood={mood} label="Break down competitor" loading={loading}
-            estIn={estIn} estOut={1800} onClick={generate}
-            disabled={!title.trim()} disabledHint="Enter a competitor title first" />
+            estIn={estTokens(COMPETITOR_SYSTEM, title, recent)} estOut={1800} onClick={generate}
+            disabled={!canAnalyze}
+            disabledHint={mode === 'auto' ? 'Fetch a channel first' : 'Enter a competitor title first'} />
         </div>
       </div>
 

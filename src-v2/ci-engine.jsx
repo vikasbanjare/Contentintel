@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-18-r13";
+window.CI_BUILD = "2026-06-18-r14";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -95,6 +95,10 @@ const setReveKeyLS = (k) => { try { k ? localStorage.setItem(LS_REVE, k) : local
 const LS_OPENAI = "ci_openai_key";
 const getOpenAIKey   = () => { try { return localStorage.getItem(LS_OPENAI) || ""; } catch (e) { return ""; } };
 const setOpenAIKeyLS = (k) => { try { k ? localStorage.setItem(LS_OPENAI, k) : localStorage.removeItem(LS_OPENAI); } catch (e) {} };
+// YouTube Data API v3 key -- used for auto-fetching channel data in Audit/Competitor tools.
+const LS_YTKEY = "ci_yt_key";
+const getYouTubeKey   = () => { try { return localStorage.getItem(LS_YTKEY) || ""; } catch (e) { return ""; } };
+const setYouTubeKeyLS = (k) => { try { k ? localStorage.setItem(LS_YTKEY, k) : localStorage.removeItem(LS_YTKEY); } catch (e) {} };
 // Optional proxy URL (Cloudflare Worker). When set, image calls go through it
 // so keys stay server-side and browser CORS is bypassed.
 const LS_PROXY = "ci_proxy_url";
@@ -1073,9 +1077,15 @@ function useAnalysis(type, opts = {}) {
 
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setSources(null); setState("loading");
-    if (!canRun()) { // sample mode -- no key and not in a Claude preview
-      const tid = setTimeout(() => { if (mountedRef.current) setState("done"); }, 850);
-      return () => clearTimeout(tid);
+    if (!canRun()) {
+      if (hasSandbox()) {
+        // Inside a Claude artifact — show placeholder after brief delay
+        const tid = setTimeout(() => { if (mountedRef.current) setState("done"); }, 850);
+        return () => clearTimeout(tid);
+      }
+      setErr("No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
+      setState("error");
+      return;
     }
     try {
       const { text, usage, sources: rawSources } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
@@ -1432,6 +1442,38 @@ function ReportView({ report, mood, onApplyText, sources }) {
   );
 }
 
+// ── YouTube Data API v3 helpers ───────────────────────────────────────────────
+// Parse a channel handle from various formats: @handle, youtube.com/@handle, etc.
+function parseYTHandle(input) {
+  const s = (input || '').trim();
+  const m = s.match(/(?:youtube\.com\/@?|^@?)([A-Za-z0-9_.-]{3,})/);
+  return m ? m[1].replace(/^@/, '') : s.replace(/^@/, '');
+}
+
+async function fetchYTChannel(handleOrUrl, key) {
+  const handle = parseYTHandle(handleOrUrl);
+  if (!handle || !key) throw new Error('Need a channel handle and a YouTube API key.');
+  // Try forHandle first (works for @handles), fall back to forUsername (legacy)
+  const url = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle=${encodeURIComponent(handle)}&key=${encodeURIComponent(key)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error('YouTube API: ' + (data.error.message || 'request failed'));
+  if (!data.items || !data.items.length) throw new Error(`Channel "@${handle}" not found. Check the handle and try again.`);
+  return data.items[0];
+}
+
+async function fetchYTVideos(channelId, key, maxResults = 25) {
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}&order=date&type=video&key=${encodeURIComponent(key)}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error('YouTube API: ' + (data.error.message || 'request failed'));
+  return (data.items || []).map(v => ({
+    title: v.snippet.title,
+    description: v.snippet.description,
+    published: v.snippet.publishedAt,
+  }));
+}
+
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey]     = React.useState(getKey());
@@ -1440,18 +1482,17 @@ function KeyModal({ open, onClose }) {
   const [nvkey, setNvkey] = React.useState(getNvidiaKey());
   const [rvkey, setRvkey] = React.useState(getReveKey());
   const [proxy, setProxy] = React.useState(getProxyUrl());
+  const [ytkey, setYtkey] = React.useState(getYouTubeKey());
   const [model, setModel] = React.useState(getModel());
   const [show, setShow]   = React.useState(false);
   const [webSearch, setWebSearch] = React.useState(getWebSearch());
-  // In hosted/SaaS mode the worker holds the Claude key, so the personal Anthropic
-  // key is irrelevant -- open straight to the image/fact-check key and hide that tab.
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
-  const [section, setSection] = React.useState(saasMode ? "image" : "analysis"); // analysis | image
+  const [section, setSection] = React.useState(saasMode ? "image" : "analysis");
   React.useEffect(() => {
-    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); }
+    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setYtkey(getYouTubeKey()); setModel(getModel()); setWebSearch(getWebSearch()); }
   }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setYouTubeKeyLS(ytkey.trim()); setModelLS(model); setWebSearchLS(webSearch); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
 
   const TabBtn = ({ id, label }) => (
@@ -1471,6 +1512,7 @@ function KeyModal({ open, onClose }) {
           <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
             <TabBtn id="analysis" label="Analysis (Claude)" />
             <TabBtn id="image" label="Image Generation" />
+            <TabBtn id="data" label="Platform Data" />
           </div>
         )}
 
@@ -1530,6 +1572,23 @@ function KeyModal({ open, onClose }) {
           </div>
         </>}
 
+        {section === "data" && <>
+          <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 16px" }}>
+            Add a <b>YouTube Data API key</b> to let the Channel Audit and Competitor tools automatically pull real video data from any YouTube channel — no copy-pasting required.
+          </p>
+          <label className="ci-label">YouTube Data API v3 key</label>
+          <input className="ci-input" type="password" value={ytkey} onChange={e => setYtkey(e.target.value)} placeholder="AIza..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8, lineHeight: 1.6 }}>
+            Free — 10,000 queries/day. Get yours at{' '}
+            <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>Google Cloud Console</a>:
+            create a project → enable "YouTube Data API v3" → Credentials → Create API key.
+          </div>
+          <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 10, background: "rgba(143,216,106,0.07)", border: "1px solid rgba(143,216,106,0.2)", fontSize: 12.5, color: "var(--text-3)", lineHeight: 1.6 }}>
+            <b style={{ color: "#8FD86A" }}>What it unlocks:</b> Channel Audit and Competitor Breakdown can auto-fetch any YouTube channel's recent videos by just entering the handle (e.g. @MrBeast).
+            Without this key, those tools still work — just paste titles manually.
+          </div>
+        </>}
+
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
           <GlowButton mood="navy" onClick={save}>Save</GlowButton>
           {getKey() && <button className="ci-copybtn" style={{ height: 38 }} onClick={clear}>Remove Claude key</button>}
@@ -1547,6 +1606,7 @@ Object.assign(window, {
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
+  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
