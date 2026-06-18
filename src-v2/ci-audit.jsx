@@ -1,21 +1,28 @@
 // ContentIntel — Channel Audit (with YouTube auto-fetch)
 
 const AUDIT_SYSTEM = [
-  "You are ContentIntel's channel strategist. Audit a YouTube channel based on its video titles and give blunt, specific, actionable feedback.",
+  "You are ContentIntel's channel strategist. Audit a YouTube channel based on its video data and give blunt, specific, actionable feedback.",
   "LANGUAGE LAW: match the language of the submitted titles.",
+  "You will receive video data in this format: Title | Views | Likes | Comments | Duration | Age",
+  "Use ALL available metrics — not just titles. Identify which videos over- or under-perform vs the channel average.",
   "Score these dimensions 0-100:",
   "• Title CTR Potential — are titles curiosity-driven, specific, with stakes or numbers?",
   "• Niche Consistency — clear focus or scattered content?",
   "• Content Gap Awareness — missing obvious high-traffic angles for this niche?",
   "• Audience Targeting — do titles speak to a specific person or feel generic?",
-  "• Growth Trajectory — based on title progression, is strategy improving over time?",
-  "Be SPECIFIC. Reference exact titles from the list. Name the best and worst performing patterns.",
+  "• Growth Trajectory — is performance improving over time?",
+  "Be SPECIFIC. Reference exact titles and their view counts. Name the best and worst performing videos.",
+  "Calculate average views. Flag any video that is 2× above or below average.",
   "Bottom line: the single most impactful change they should make this week.",
   "Required sections:",
-  "1. Strengths — checklist of what's working",
+  "1. Strengths — checklist of what's working (reference actual numbers)",
   "2. Critical issues — issues list with level (red/yellow) and specific fix for each",
-  "3. Title rewrites — rewrite the 3 weakest titles as copy blocks (show original → rewrite)",
-  "4. 30-day action plan — kv rows: Week 1 / Week 2 / Week 3 / Week 4 + specific action",
+  "3. Top vs bottom performers — copy block comparing the highest and lowest view count videos and WHY",
+  "4. Title rewrites — rewrite the 3 weakest-performing titles as copy blocks (show original → rewrite)",
+  "5. 30-day action plan — kv rows: Week 1 / Week 2 / Week 3 / Week 4 + specific action",
+  "Set verdict.level based on overall score: green=70+, yellow=40-69, red=below 40.",
+  "Set verdict.title to a punchy channel health verdict (e.g. 'Strong niche, weak hooks').",
+  "Set verdict.text to a 2-sentence summary of the biggest strength and the biggest problem.",
 ].join("\n");
 
 function AuditTab({ onOpenKey }) {
@@ -27,6 +34,7 @@ function AuditTab({ onOpenKey }) {
   const [handle, setHandle]   = React.useState('');
   const [about, setAbout]     = React.useState('');
   const [titles, setTitles]   = React.useState('');
+  const [videoData, setVideoData] = React.useState([]);
   const [fetchState, setFetchState] = React.useState('idle'); // idle | fetching | fetched | error
   const [fetchErr, setFetchErr]     = React.useState('');
   const [channelInfo, setChannelInfo] = React.useState(null);
@@ -49,6 +57,7 @@ function AuditTab({ onOpenKey }) {
         videoCount: ch.statistics.videoCount,
         description: ch.snippet.description,
       });
+      setVideoData(vids);
       setTitles(vids.map(v => v.title).join('\n'));
       if (!about.trim() && ch.snippet.description) {
         setAbout(ch.snippet.description.slice(0, 200));
@@ -63,16 +72,22 @@ function AuditTab({ onOpenKey }) {
   const titleCount = titles.trim() ? titles.trim().split('\n').filter(l => l.trim()).length : 0;
 
   function generate() {
-    if (!titles.trim()) return;
+    if (!titles.trim() && !videoData.length) return;
     const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
+    const hasStats = videoData.length > 0 && parseInt(videoData[0].viewCount || 0) > 0;
+    const videoText = videoData.length > 0
+      ? (hasStats
+          ? `Recent videos with analytics (${videoData.length}):\n${window.formatVideoStats(videoData)}`
+          : `Recent video titles (${videoData.length}):\n${videoData.map(v=>v.title).join('\n')}`)
+      : `Recent video titles (${titleCount}):\n${titles.trim()}`;
     run({
       system: AUDIT_SYSTEM + (profileCtx ? '\n\nCreator context:\n' + profileCtx : ''),
       userText: [
         channelInfo ? `Channel: ${channelInfo.name} | Subscribers: ${Number(channelInfo.subs || 0).toLocaleString()} | Total views: ${Number(channelInfo.views || 0).toLocaleString()}` : (handle.trim() ? `Channel: ${handle.trim()}` : ''),
         about.trim() ? `Niche / About: ${about.trim()}` : '',
-        `Recent video titles (${titleCount}):\n${titles.trim()}`,
+        videoText,
       ].filter(Boolean).join('\n\n'),
-      maxTokens: 2800,
+      maxTokens: 3200,
     });
   }
 
@@ -92,7 +107,7 @@ function AuditTab({ onOpenKey }) {
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           {[{ id: 'auto', label: '⚡ Auto-fetch from YouTube' }, { id: 'manual', label: '✎ Paste titles manually' }].map(opt => (
-            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setTitles(''); }}
+            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setTitles(''); setVideoData([]); }}
               style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${mode === opt.id ? m.accentFrom : 'var(--stroke-2)'}`,
                 background: mode === opt.id ? m.accentFrom + '18' : 'transparent',
                 color: mode === opt.id ? m.accentFrom : 'var(--text-3)',

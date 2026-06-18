@@ -9,6 +9,11 @@ const IDEAS_SYSTEM = [
   "Output only the submit_report tool. Use sections of type 'copy' — one per idea, titled 'Idea N — [angle]'. Each section has blocks: Title, Hook, Angle, Thumbnail concept.",
   "In the verdict.text summarise the top 3 angles that will perform best for this niche.",
   "Set overall to the average predicted CTR score.",
+  "Set verdict.level based on idea quality: green=strong batch, yellow=mixed, red=weak.",
+  "Set verdict.title to a punchy summary like '8 high-potential ideas — 3 standouts'.",
+  "Set verdict.text to which 2-3 ideas have the highest viral potential and why.",
+  "Set bottomLine to the single idea you'd film first and why.",
+  "Add 3 scores: Niche Relevance / Format Variety / Average CTR Potential — each 0-100.",
 ].join("\n");
 
 function IdeasTab({ onOpenKey }) {

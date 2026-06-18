@@ -40,6 +40,9 @@ export default {
         const channelId = url.searchParams.get('channelId') || '';
         const maxResults = url.searchParams.get('maxResults') || '25';
         ytUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}&order=date&type=video&key=${encodeURIComponent(env.YOUTUBE_KEY)}`;
+      } else if (action === 'videostats') {
+        const ids = url.searchParams.get('ids') || '';
+        ytUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${encodeURIComponent(ids)}&key=${encodeURIComponent(env.YOUTUBE_KEY)}`;
       } else {
         return json({ error: 'Unknown action.' }, 400, cors);
       }

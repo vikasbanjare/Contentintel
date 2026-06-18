@@ -11,6 +11,9 @@ const COMMENTS_SYSTEM = [
   "• Spam/irrelevant: reply text = 'skip'",
   "Style rules: warm but real — never sound like a bot. Keep replies under 200 chars unless a detailed answer is genuinely needed. Use emojis only if the commenter did first.",
   "Output only the submit_report tool. Use sections of type 'copy' — one per comment. Title each section with a truncated version of the comment. One block per section with label 'Reply'.",
+  "Set verdict.level='green', verdict.title='Replies Ready', verdict.text=one sentence summary (e.g. 'X replies generated, Y skipped').",
+  "Add 2 scores: Community Building Potential / Voice Match — each 0-100.",
+  "Set bottomLine to one tip for improving comment engagement on this type of content.",
 ].join("\n");
 
 function CommentsTab({ onOpenKey }) {

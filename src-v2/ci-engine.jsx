@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-18-r16";
+window.CI_BUILD = "2026-06-18-r17";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -1475,23 +1475,86 @@ async function fetchYTChannel(handleOrUrl, key) {
 }
 
 async function fetchYTVideos(channelId, key, maxResults = 25) {
-  let url;
+  const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
+  // Step 1: search for recent videos
+  let searchUrl;
   if (key === '__proxy__') {
-    const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
     if (!workerUrl) throw new Error('Worker URL not configured.');
-    url = `${workerUrl}/yt?action=videos&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}`;
+    searchUrl = `${workerUrl}/yt?action=videos&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}`;
   } else {
     if (!key) throw new Error('Need a YouTube API key.');
-    url = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}&order=date&type=video&key=${encodeURIComponent(key)}`;
+    searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}&order=date&type=video&key=${encodeURIComponent(key)}`;
   }
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.error) throw new Error('YouTube API: ' + (data.error.message || (typeof data.error === 'string' ? data.error : 'request failed')));
-  return (data.items || []).map(v => ({
-    title: v.snippet.title,
-    description: v.snippet.description,
-    published: v.snippet.publishedAt,
-  }));
+  const searchRes = await fetch(searchUrl);
+  const searchData = await searchRes.json();
+  if (searchData.error) throw new Error('YouTube API: ' + (searchData.error.message || (typeof searchData.error === 'string' ? searchData.error : 'request failed')));
+  const items = searchData.items || [];
+  const videoIds = items.map(v => v.id?.videoId || v.id).filter(Boolean).join(',');
+  // Step 2: fetch statistics + duration for those videos
+  let statsMap = {};
+  if (videoIds) {
+    try {
+      let statsUrl;
+      if (key === '__proxy__') {
+        statsUrl = `${workerUrl}/yt?action=videostats&ids=${encodeURIComponent(videoIds)}`;
+      } else {
+        statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${encodeURIComponent(videoIds)}&key=${encodeURIComponent(key)}`;
+      }
+      const statsRes = await fetch(statsUrl);
+      const statsData = await statsRes.json();
+      for (const v of (statsData.items || [])) {
+        statsMap[v.id] = {
+          viewCount:    v.statistics?.viewCount    || '0',
+          likeCount:    v.statistics?.likeCount    || '0',
+          commentCount: v.statistics?.commentCount || '0',
+          duration:     v.contentDetails?.duration || '',
+        };
+      }
+    } catch (e) { /* stats are bonus — don't fail if this step errors */ }
+  }
+  return items.map(v => {
+    const id = v.id?.videoId || v.id;
+    const st = statsMap[id] || {};
+    return {
+      title:        v.snippet.title,
+      videoId:      id,
+      description:  v.snippet.description,
+      published:    v.snippet.publishedAt,
+      viewCount:    st.viewCount    || '0',
+      likeCount:    st.likeCount    || '0',
+      commentCount: st.commentCount || '0',
+      duration:     st.duration     || '',
+    };
+  });
+}
+
+// Format rich video data for Claude prompts
+function formatVideoStats(videos) {
+  function fmt(n) { const v = parseInt(n||0); return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':String(v); }
+  function age(pub) {
+    if (!pub) return '';
+    const d = Math.floor((Date.now()-new Date(pub))/(86400000));
+    return d<7?`${d}d`:d<30?`${Math.floor(d/7)}w`:d<365?`${Math.floor(d/30)}mo`:`${Math.floor(d/365)}y`;
+  }
+  function dur(iso) {
+    if (!iso) return '';
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return '';
+    const h=parseInt(m[1]||0),mn=parseInt(m[2]||0),s=parseInt(m[3]||0);
+    return h?`${h}:${String(mn).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${mn}:${String(s).padStart(2,'0')}`;
+  }
+  const hasStats = videos.some(v => parseInt(v.viewCount||0) > 0);
+  return videos.map((v,i) => {
+    const parts = [`${i+1}. "${v.title}"`];
+    if (hasStats) {
+      parts.push(`${fmt(v.viewCount)} views`);
+      parts.push(`${fmt(v.likeCount)} likes`);
+      parts.push(`${fmt(v.commentCount)} comments`);
+    }
+    const d = dur(v.duration); if (d) parts.push(d);
+    const a = age(v.published); if (a) parts.push(a+' ago');
+    return parts.join(' | ');
+  }).join('\n');
 }
 
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
@@ -1608,7 +1671,7 @@ Object.assign(window, {
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
-  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos,
+  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, formatVideoStats,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,

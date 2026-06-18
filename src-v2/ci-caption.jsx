@@ -14,6 +14,9 @@ const CAPTION_SYSTEM = [
   "Output ONLY the submit_report tool call. No prose outside the tool.",
   "Use sections of type 'copy' — one section per platform, one final section for Hashtags.",
   "Each copy block should have a short label and the full ready-to-use text.",
+  "Set verdict.level='green', verdict.title='Captions Ready', verdict.text=one sentence summarising what was generated.",
+  "Add 3 scores: Platform Fit (how well captions match each platform's style) / Hook Strength (first line quality) / Hashtag Relevance — each 0-100.",
+  "Set bottomLine to the single most important tip for maximising reach with these captions.",
 ].join("\n");
 
 function CaptionTab({ onOpenKey }) {

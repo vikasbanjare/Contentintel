@@ -11,6 +11,9 @@ const REPURPOSE_SYSTEM = [
   "• YouTube Community post: 2–3 sentences, casual, ends with a question to spark replies.",
   "Rules: preserve the creator's specific examples and numbers. No filler or padding. Each format must stand alone.",
   "Output only the submit_report tool. Use sections of type 'copy' — one per requested format.",
+  "Set verdict.level='green', verdict.title='Content Repurposed', verdict.text=one sentence on the formats generated.",
+  "Add 3 scores: Voice Consistency (how well it matches the original) / Platform Optimisation / Engagement Potential — each 0-100.",
+  "Set bottomLine to the single format most likely to bring new viewers to the original video.",
 ].join("\n");
 
 function RepurposeTab({ onOpenKey }) {

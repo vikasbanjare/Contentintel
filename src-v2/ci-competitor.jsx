@@ -3,19 +3,27 @@
 const COMPETITOR_SYSTEM = [
   "You are ContentIntel's competitive intelligence analyst. Break down a competitor's channel with tactical precision.",
   "LANGUAGE LAW: match the language of the submitted titles.",
+  "You will receive video data in this format: Title | Views | Likes | Comments | Duration | Age",
+  "Use ALL available metrics. Identify their top-performing videos and what makes them work.",
   "Analyse:",
   "• Title hook: what psychological trigger they use (curiosity gap, social proof, fear, aspiration, numbers, controversy)",
   "• Content strategy: what formats, angles and niches they consistently win in",
   "• Audience targeting: exactly who this is made for and why it resonates",
+  "• Top performers: which videos get the most views and why (reference actual numbers)",
   "• Content gaps: what angles they missed that YOU could own",
   "• Replication opportunities: what to borrow ethically and improve on",
   "Score 0-100: Title Hook Strength, Audience Targeting Clarity, Content Variety, Gap Opportunity (higher = more opening for you), Overall Threat Level.",
+  "Calculate their average views. Identify their highest and lowest performers.",
   "Bottom line: the single highest-leverage move to outperform this competitor.",
   "Required sections:",
-  "1. What's working — checklist of their winning patterns",
-  "2. How to beat them — copy blocks: write 3 titles that outperform their best + 1 thumbnail concept that beats theirs",
-  "3. Content gaps to exploit — kv list: Gap / Your angle for each opportunity",
-  "4. Title patterns to steal — copy block listing their most effective formulas you can adapt",
+  "1. What's working — checklist of their winning patterns (with view counts where available)",
+  "2. Their top videos — copy block: list their 3 highest-view videos and what made them work",
+  "3. How to beat them — copy blocks: write 3 titles that outperform their best + 1 thumbnail concept",
+  "4. Content gaps to exploit — kv list: Gap / Your angle for each opportunity",
+  "5. Title patterns to steal — copy block listing their most effective formulas you can adapt",
+  "Set verdict.level to 'yellow' (moderate threat) or 'red' (high threat) based on their strength.",
+  "Set verdict.title to a punchy threat assessment (e.g. 'Strong competitor — beatable on depth').",
+  "Set verdict.text to a 2-sentence summary of their biggest strength and your biggest opportunity.",
 ].join("\n");
 
 function CompetitorTab({ onOpenKey }) {
@@ -26,6 +34,7 @@ function CompetitorTab({ onOpenKey }) {
   const [handle, setHandle]   = React.useState('');
   const [title, setTitle]     = React.useState('');
   const [recent, setRecent]   = React.useState('');
+  const [videoData, setVideoData] = React.useState([]);
   const [thumb, setThumb]     = React.useState(null);
   const [fetchState, setFetchState] = React.useState('idle');
   const [fetchErr, setFetchErr]     = React.useState('');
@@ -43,6 +52,7 @@ function CompetitorTab({ onOpenKey }) {
       const ch   = await window.fetchYTChannel(handle.trim(), ytKey);
       const vids = await window.fetchYTVideos(ch.id, ytKey, 20);
       setChannelInfo({ name: ch.snippet.title, subs: ch.statistics.subscriberCount, videoCount: ch.statistics.videoCount });
+      setVideoData(vids);
       setRecent(vids.map(v => v.title).join('\n'));
       if (!title.trim() && vids.length) setTitle(vids[0].title);
       setFetchState('fetched');
@@ -76,13 +86,19 @@ function CompetitorTab({ onOpenKey }) {
     if (!title.trim() && !recent.trim()) return;
     const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
     const chName = channelInfo ? channelInfo.name : handle.trim();
+    const hasStats = videoData.length > 0 && parseInt(videoData[0].viewCount || 0) > 0;
+    const videoText = videoData.length > 0
+      ? (hasStats
+          ? `Their recent videos with analytics (${videoData.length}):\n${window.formatVideoStats(videoData)}`
+          : `Their recent titles:\n${videoData.map(v=>v.title).join('\n')}`)
+      : (recent.trim() ? `Their recent titles:\n${recent.trim()}` : '');
     run({
       system: COMPETITOR_SYSTEM + (profileCtx ? '\n\nYour channel context (counter-strategy must be tailored to this):\n' + profileCtx : ''),
       userText: [
         title.trim() ? `Competitor's standout title: ${title.trim()}` : '',
         chName ? `Competitor channel: ${chName}` : '',
         channelInfo ? `Subscribers: ${Number(channelInfo.subs || 0).toLocaleString()} | Videos: ${channelInfo.videoCount}` : '',
-        recent.trim() ? `Their recent titles:\n${recent.trim()}` : '',
+        videoText || '',
         thumb ? '(Their thumbnail is attached — analyse it visually.)' : '',
       ].filter(Boolean).join('\n'),
       images: thumb ? [thumb] : [],
@@ -108,7 +124,7 @@ function CompetitorTab({ onOpenKey }) {
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           {[{ id: 'auto', label: '⚡ Auto-fetch from YouTube' }, { id: 'manual', label: '✎ Enter manually' }].map(opt => (
-            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setRecent(''); setTitle(''); }}
+            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setRecent(''); setTitle(''); setVideoData([]); }}
               style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${mode === opt.id ? m.accentFrom : 'var(--stroke-2)'}`,
                 background: mode === opt.id ? m.accentFrom + '18' : 'transparent',
                 color: mode === opt.id ? m.accentFrom : 'var(--text-3)',
