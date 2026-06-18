@@ -1172,6 +1172,19 @@ button:active { transform: scale(0.985); }
   .ci-scroll { padding-bottom: calc(58px + max(8px, env(safe-area-inset-bottom))); }
 }
 
+/* ── Print / Save as PDF ─────────────────────────────────────────────────── */
+@media print {
+  .ci-nav, .ci-tabs, .ci-themeswitch, .ci-keybtn, .ci-iconbtn,
+  .ci-ghostbtn, button:not(.ci-noprint), video,
+  [style*="position: fixed"], [style*="position:fixed"] { display: none !important; }
+  body, .ci-app, .ci-scroll { background: #fff !important; color: #000 !important; }
+  .ci-block { border: 1px solid #ddd !important; box-shadow: none !important; background: #fff !important; break-inside: avoid; }
+  .ci-work { padding: 0 !important; max-width: 100% !important; }
+  details { display: block !important; }
+  details > summary::after { content: '' !important; }
+  a { color: #000 !important; text-decoration: underline; }
+}
+
   </style>
 </head>
 <body>
@@ -2262,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r11";
+window.CI_BUILD = "2026-06-18-r12";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2513,6 +2526,11 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
   // smaller versions — no duplication and no change to stored previews.
   const rawImgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
   const imgs = await Promise.all(rawImgs.map(im => compressForApi(im)));
+
+  // Inject creator profile context when the user has one saved.
+  const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
+  if (profileCtx && typeof system === 'string') system = system + '\n\n' + profileCtx;
+  else if (profileCtx && !system) system = profileCtx;
 
   // SaaS mode: signed-in users run through the ContentIntel worker (owner's
   // key, plan limits enforced server-side) — no personal key needed.
@@ -3855,7 +3873,7 @@ const TABS = [
   { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
 // Tools that live inside the "More" hub (kept, just not in the top bar).
-const MORE_TABS = ['builder', 'platform', 'playbook'];
+const MORE_TABS = ['builder', 'platform', 'playbook', 'caption'];
 window.CI_MORE_TABS = MORE_TABS;
 
 function CITabIcon({ name }) {
@@ -3872,6 +3890,7 @@ function CITabIcon({ name }) {
     case 'home':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     case 'ask':     return <svg {...s} viewBox="0 0 16 16"><path d="M6 6a2 2 0 113.4 1.4C8.7 8.1 8 8.6 8 9.5"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/><circle cx="8" cy="8" r="6"/></svg>;
     case 'create':  return <svg {...s} viewBox="0 0 16 16"><path d="M8 2.5l1.4 3.6L13 7.5l-3.6 1.4L8 12.5 6.6 8.9 3 7.5l3.6-1.4z"/></svg>;
+    case 'caption': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 4h11v8a1 1 0 01-1 1h-9a1 1 0 01-1-1V4z"/><path d="M2.5 4l1.5-1.5h8L13.5 4M5.5 8h5M5.5 10.5h3"/></svg>;
     case 'more':    return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>;
     case 'pricing': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 8.5V3.5a1 1 0 011-1h5l5 5a1 1 0 010 1.4l-4.6 4.6a1 1 0 01-1.4 0l-5-5z"/><circle cx="6" cy="6" r="1"/></svg>;
     default: return null;
@@ -3905,7 +3924,7 @@ function ThemeToggle() {
 }
 window.ThemeToggle = ThemeToggle;
 
-function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
+function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, onOpenProfile, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
   const [sessionTok, setSessionTok] = React.useState(0);
   React.useEffect(() => {
@@ -3970,6 +3989,13 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
         </button>
       )}
 
+      {onOpenProfile && (
+        <button className="ci-keybtn" title="Creator profile — personalise every check" onClick={onOpenProfile}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 13.5a5.2 5.2 0 0110.4 0"/></svg>
+          <span className="ci-keybtn-text">Profile</span>
+          {window.getProfileContext && window.getProfileContext() && <span className="ci-keydot on" />}
+        </button>
+      )}
       {window.CI_SAAS_ON && (
         <button className="ci-keybtn" title="Account" onClick={onAccount}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 13.5a5.2 5.2 0 0110.4 0"/></svg>
@@ -4250,6 +4276,7 @@ function MoreHub({ onNav }) {
     { id: 'builder',  label: 'Studio',      icon: 'studio',   mood: 'lime',   line: 'Build a thumbnail from scratch — research-grade prompts for ChatGPT or Gemini.' },
     { id: 'platform', label: 'Platform IQ', icon: 'platform', mood: 'violet', line: 'Ask anything platform-specific: best length, posting cadence, format calls.' },
     { id: 'playbook', label: 'Playbook',    icon: 'playbook', mood: 'ember',  line: 'The library of proven layouts, hooks and niche patterns behind every score.' },
+    { id: 'caption',  label: 'Captions',    icon: 'caption',  mood: 'cyan',   line: 'One title → platform-ready captions, descriptions and hashtag sets for every channel.' },
   ];
   return (
     <div className="ci-work wide" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -6692,7 +6719,7 @@ function HistoryTab() {
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 6, flexWrap: 'wrap' }}>
                       <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }}
                         onClick={() => { try { window.copyText(JSON.stringify(it.report, null, 2)); } catch(e){} }}>
                         ⧉ Copy report JSON
@@ -6710,6 +6737,10 @@ function HistoryTab() {
                           ⧉ Copy as text
                         </button>
                       )}
+                      <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                        onClick={() => window.print()} title="Save as PDF using your browser's print dialog">
+                        ⬇ Save as PDF
+                      </button>
                     </div>
                     <HistoryResults it={it} mood={tmoodOf[it.type] || 'navy'} onSaved={() => setItems(window.loadHistory())} />
                   </div>
@@ -9584,6 +9615,259 @@ function CreateTab({ onNav }) {
 window.CreateTab = CreateTab;
 </script>
 <script type="text/babel" data-presets="react">
+/* ===== ci-profile.jsx ===== */
+// ContentIntel — Creator Profile: channel memory & context injection
+
+const CI_PROFILE_KEY = 'ci_creator_profile';
+
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(CI_PROFILE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function saveProfile(p) {
+  try { localStorage.setItem(CI_PROFILE_KEY, JSON.stringify(p)); } catch(e) {}
+}
+
+function getProfileContext() {
+  const p = loadProfile();
+  const parts = [];
+  if (p.channel)  parts.push(`creator: ${p.channel}`);
+  if (p.niche)    parts.push(`niche: ${p.niche}`);
+  if (p.audience) parts.push(`audience: ${p.audience}`);
+  if (p.platform) parts.push(`platform: ${p.platform}`);
+  if (p.tone)     parts.push(`tone: ${p.tone}`);
+  if (!parts.length) return '';
+  return `Creator context — ${parts.join(' | ')}. Tailor all analysis, rewrites, and suggestions to this creator's specific niche, audience, and platform.`;
+}
+window.getProfileContext = getProfileContext;
+
+function ProfileModal({ open, onClose }) {
+  const [p, setP] = React.useState(loadProfile);
+  const [saved, setSaved] = React.useState(false);
+
+  if (!open) return null;
+
+  function set(k, v) { setP(prev => ({ ...prev, [k]: v })); setSaved(false); }
+  function save() { saveProfile(p); setSaved(true); setTimeout(() => onClose(true), 650); }
+  function clear() { setP({}); saveProfile({}); setSaved(false); }
+
+  const ctx = (() => {
+    const parts = [];
+    if (p.channel)  parts.push(`creator: ${p.channel}`);
+    if (p.niche)    parts.push(`niche: ${p.niche}`);
+    if (p.audience) parts.push(`audience: ${p.audience}`);
+    if (p.platform) parts.push(`platform: ${p.platform}`);
+    if (p.tone)     parts.push(`tone: ${p.tone}`);
+    return parts.length ? parts.join(' · ') : '';
+  })();
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,9,14,0.82)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ci-block" style={{ width: '100%', maxWidth: 540, padding: 32, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div>
+            <Eyebrow mood="burgundy" glow>Channel Memory</Eyebrow>
+            <h3 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 30, margin: '6px 0 0' }}>Creator Profile</h3>
+          </div>
+          <button className="ci-iconbtn" onClick={() => onClose()} title="Close" style={{ marginTop: 4 }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3l10 10M13 3L3 13"/></svg>
+          </button>
+        </div>
+        <p style={{ fontSize: 13.5, color: 'var(--text-3)', margin: '10px 0 24px', lineHeight: 1.65 }}>
+          Tell ContentIntel about your channel once — every check, rewrite, and caption will automatically tailor its feedback to your niche, audience, and style.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Channel / Creator name</span>
+            <input className="ci-input" placeholder="e.g. TechWithVikas" value={p.channel || ''} onChange={e => set('channel', e.target.value)} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Niche / Topic</span>
+            <input className="ci-input" placeholder="e.g. Personal finance for Indians, AI tutorials, Street food vlogging" value={p.niche || ''} onChange={e => set('niche', e.target.value)} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Target audience</span>
+            <input className="ci-input" placeholder="e.g. Beginners aged 20–35, Working professionals in India" value={p.audience || ''} onChange={e => set('audience', e.target.value)} />
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Primary platform</span>
+              <select className="ci-input" value={p.platform || ''} onChange={e => set('platform', e.target.value)} style={{ cursor: 'pointer' }}>
+                <option value="">Select…</option>
+                <option value="YouTube">YouTube</option>
+                <option value="YouTube Shorts">YouTube Shorts</option>
+                <option value="Instagram Reels">Instagram Reels</option>
+                <option value="TikTok">TikTok</option>
+                <option value="LinkedIn">LinkedIn</option>
+                <option value="Twitter/X">Twitter/X</option>
+              </select>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Content tone</span>
+              <select className="ci-input" value={p.tone || ''} onChange={e => set('tone', e.target.value)} style={{ cursor: 'pointer' }}>
+                <option value="">Select…</option>
+                <option value="Educational">Educational</option>
+                <option value="Entertaining">Entertaining</option>
+                <option value="Motivational">Motivational</option>
+                <option value="Conversational">Conversational</option>
+                <option value="Professional">Professional</option>
+                <option value="Humorous">Humorous</option>
+                <option value="Storytelling">Storytelling</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        {ctx && (
+          <div style={{ marginTop: 18, padding: '12px 14px', borderRadius: 10, background: 'rgba(143,216,106,0.07)', border: '1px solid rgba(143,216,106,0.22)', fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.6 }}>
+            <span style={{ color: '#8FD86A', fontWeight: 700 }}>Active context: </span>{ctx}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+          <GlowButton mood="burgundy" size="lg" style={{ flex: 1, justifyContent: 'center' }} onClick={save}>
+            {saved ? '✓ Saved!' : 'Save profile →'}
+          </GlowButton>
+          <button className="ci-copybtn" style={{ height: 46, padding: '0 16px' }} onClick={clear} title="Clear all profile fields">Clear</button>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-5)', textAlign: 'center', marginTop: 10 }}>Stored only on this device — never sent to our servers.</div>
+      </div>
+    </div>
+  );
+}
+window.ProfileModal = ProfileModal;
+</script>
+<script type="text/babel" data-presets="react">
+/* ===== ci-caption.jsx ===== */
+// ContentIntel — Caption & Description Generator
+
+const CAPTION_SYSTEM = [
+  "You are an expert social media copywriter for video creators.",
+  "Write platform-optimised captions, descriptions and hashtag sets that maximise clicks, saves, watch-time and shares.",
+  "",
+  "Platform rules:",
+  "• YouTube description: 2–3 sentence SEO-optimised opener with the most important keywords in line 1; a short 'What you'll learn' bullet list; a CTA (subscribe / watch next); timestamps line if relevant; links placeholder.",
+  "• Instagram/Reels caption: punchy hook on line 1 (under 125 chars before the fold), 2–3 lines body with emotion + value + CTA, 5–8 relevant emojis scattered naturally.",
+  "• TikTok caption: max 150 chars total, conversational/slang tone, 3–5 relevant trend hashtags inline.",
+  "• LinkedIn post: professional angle, insight or story hook, 3 short paragraphs, 3–5 hashtags at the end.",
+  "• Hashtags block: YouTube (8–12 tags, NO # symbol), Instagram (20–25 tags with #), TikTok (5–7 trend tags with #).",
+  "",
+  "Output ONLY the submit_report tool call. No prose outside the tool.",
+  "Use sections of type 'copy' — one section per platform, one final section for Hashtags.",
+  "Each copy block should have a short label and the full ready-to-use text.",
+].join("\n");
+
+function CaptionTab({ onOpenKey }) {
+  const mood = 'lime';
+  const m = MOODS[mood] || MOODS.burgundy;
+  const [title, setTitle] = React.useState('');
+  const [desc,  setDesc]  = React.useState('');
+  const [plats, setPlats] = React.useState(['youtube', 'instagram', 'tiktok']);
+
+  const { state, report, usage, err, run, reset } = useAnalysis('caption');
+  const loading = state === 'loading';
+  const estIn   = estTokens(CAPTION_SYSTEM, title, desc);
+
+  const PLATFORMS = [
+    { id: 'youtube',   label: 'YouTube',   col: '#FF0000' },
+    { id: 'instagram', label: 'Instagram', col: '#E1306C' },
+    { id: 'tiktok',    label: 'TikTok',    col: '#69C9D0' },
+    { id: 'linkedin',  label: 'LinkedIn',  col: '#0A66C2' },
+  ];
+
+  function toggle(id) {
+    setPlats(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+    reset();
+  }
+
+  function generate() {
+    if (!title.trim()) return;
+    const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
+    const system = CAPTION_SYSTEM + (profileCtx ? '\n\nCreator context (personalise accordingly):\n' + profileCtx : '');
+    const platList = plats.length ? plats.map(id => PLATFORMS.find(p => p.id === id)?.label).filter(Boolean).join(', ') : 'YouTube, Instagram, TikTok';
+    run({
+      system,
+      userText: [
+        `Video title: ${title.trim()}`,
+        desc.trim() ? `Content summary: ${desc.trim()}` : '',
+        `Generate captions for: ${platList}`,
+        'Add a Hashtags section with platform-specific tag sets.',
+      ].filter(Boolean).join('\n'),
+      maxTokens: 2200,
+    });
+  }
+
+  return (
+    <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
+      <div>
+        <Eyebrow mood={mood} glow>Caption Generator</Eyebrow>
+        <h2 className="ci-h2">Captions &amp; Descriptions</h2>
+        <p className="ci-sub" style={{ marginTop: 6 }}>
+          One video title → platform-ready captions, descriptions and hashtag sets for every channel you post on.
+        </p>
+      </div>
+
+      <div className="ci-block" style={{ padding: 24, marginTop: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Video title *</span>
+            <input className="ci-input" style={{ fontSize: 15 }}
+              placeholder="e.g. I invested ₹50,000 in index funds for 1 year — here's what happened"
+              value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>What the video covers <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></span>
+            <textarea className="ci-input" rows={3}
+              placeholder="Key topics, takeaways, moments — the more you give, the better the captions"
+              value={desc} onChange={e => { setDesc(e.target.value); reset(); }}
+              style={{ resize: 'vertical', lineHeight: 1.55 }} />
+          </label>
+          <div>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Platforms</span>
+            <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
+              {PLATFORMS.map(pl => {
+                const on = plats.includes(pl.id);
+                return (
+                  <button key={pl.id} onClick={() => toggle(pl.id)}
+                    style={{ height: 32, padding: '0 14px', borderRadius: 999,
+                      border: `1.5px solid ${on ? pl.col : 'var(--stroke-2)'}`,
+                      background: on ? pl.col + '18' : 'transparent',
+                      color: on ? pl.col : 'var(--text-3)',
+                      fontSize: 12.5, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}>
+                    {pl.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 20 }}>
+          <AnalyzeButton mood={mood} label="Generate captions" loading={loading}
+            estIn={estIn} estOut={1800} onClick={generate}
+            disabled={!title.trim()} disabledHint="Enter a video title first" />
+        </div>
+      </div>
+
+      {state === 'error' && <window.ErrorCard msg={err} onOpenKey={onOpenKey} />}
+
+      {state === 'done' && report && (
+        <div style={{ marginTop: 24 }}>
+          <ReportView report={report} mood={mood} />
+          {usage && <UsageBadge usage={usage} />}
+        </div>
+      )}
+    </div>
+  );
+}
+window.CaptionTab = CaptionTab;
+</script>
+<script type="text/babel" data-presets="react">
 /* ===== ci-app.jsx ===== */
 // ContentIntel -- main app
 
@@ -9600,6 +9884,7 @@ function CIApp() {
   const [tab, setTab] = React.useState('home');
   const [keyOpen, setKeyOpen] = React.useState(false);
   const [accountOpen, setAccountOpen] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
   const [hasKey, setHasKey] = React.useState(!!window.getKey());
   const [admin, setAdmin] = React.useState(window.isAdmin());
   const [researchReady, setResearchReady] = React.useState(() => !((window.CI_SAAS || {}).workerUrl));
@@ -9700,6 +9985,7 @@ function CIApp() {
   else if (tab === 'platform') View = <PlatformTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;
+  else if (tab === 'caption') View = <CaptionTab onOpenKey={openKey} />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
   else if (tab === 'train') View = admin ? <TrainTab onClose={exitResearch} onNav={nav} onOpenKey={openKey} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
 
@@ -9760,8 +10046,10 @@ function CIApp() {
   return (
     <div className="ci-app">
       <TopNav active={tab} onNav={nav} mood={activeMood}
-        onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)} hasKey={hasKey} admin={admin} />
+        onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)}
+        onOpenProfile={() => setProfileOpen(true)} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
+      {window.ProfileModal && <window.ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />}
       {window.FeedbackWidget && <window.FeedbackWidget />}
       {window.AccountModal && <window.AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} onNav={nav} />}
 
