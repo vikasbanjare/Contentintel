@@ -1040,7 +1040,7 @@ body { font-family: var(--font-ui, 'Manrope'), system-ui, sans-serif; -webkit-fo
 @keyframes ciDonutIn { from { stroke-dashoffset: 163.4; } }
 .ci-bar-anim { animation: ciBarIn 1.2s cubic-bezier(0.2,0.7,0.3,1) 0.9s backwards; }
 @keyframes ciBarIn { from { width: 0; } }
-@media (max-width: 1000px) { .ci-float-card { display: none; } .ci-hero-aurora > div[style*="grid"] { grid-template-columns: 1fr !important; } }
+@media (max-width: 1000px) { .ci-float-card { display: none; } .ci-hero-cards { display: none !important; } .ci-hero-aurora > div[style*="grid"] { grid-template-columns: 1fr !important; } }
 
 /* Theme switch — animated track + sliding knob */
 .ci-themeswitch { position: relative; width: 58px; height: 30px; border-radius: 999px; border: 1px solid var(--stroke-2); background: var(--surface-2); cursor: pointer; padding: 0; flex-shrink: 0; transition: background 0.3s, border-color 0.3s; }
@@ -1094,6 +1094,9 @@ button:active { transform: scale(0.985); }
 @media (max-width: 768px) {
   .ci-work, .ci-work.wide { padding: 28px 18px 100px; }
 
+  /* Hero: no forced min-height on tablet+ — content drives height */
+  .ci-hero-aurora { min-height: unset !important; padding-top: 52px; padding-bottom: 44px; }
+
   /* Stats: 4 cols → 2×2 */
   .ci-stats-strip { grid-template-columns: repeat(2, 1fr) !important; }
   .ci-stats-strip > :nth-child(n+3) { border-top: 1px solid var(--stroke-1); }
@@ -1120,8 +1123,7 @@ button:active { transform: scale(0.985); }
   .ci-keybtn span:not(.ci-keydot) { display: none; }
   .ci-keybtn { padding: 0 10px; min-width: 36px; justify-content: center; }
 
-  /* Hero: remove forced height, scale down H1 */
-  .ci-hero-aurora { min-height: unset !important; }
+  /* Hero: scale down H1, tighten padding */
   .ci-hero-content { padding: 0 18px !important; }
   .ci-hero-h1 { font-size: 48px !important; line-height: 1.1 !important; }
   .ci-hero-cta { flex-wrap: wrap; gap: 10px !important; }
@@ -1134,8 +1136,38 @@ button:active { transform: scale(0.985); }
   .ci-work, .ci-work.wide { padding: 16px 14px 80px; }
   .ci-split-grid { padding: 18px !important; gap: 22px !important; }
 
-  /* Safe-area padding for iOS home bar */
-  .ci-scroll { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  /* Bottom nav: move tabs to a fixed bottom bar */
+  .ci-tabs {
+    position: fixed !important;
+    bottom: 0; left: 0; right: 0; top: auto;
+    max-width: 100% !important;
+    flex: none !important;
+    height: 58px;
+    background: var(--nav-bg, rgba(7,9,14,0.94));
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid var(--stroke-1);
+    border-radius: 0;
+    padding: 4px 6px;
+    z-index: 60;
+    justify-content: space-around;
+    gap: 0;
+    overflow: visible;
+  }
+  .ci-tab {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: auto !important;
+    padding: 4px 4px !important;
+    gap: 2px !important;
+    font-size: 10px !important;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Scroll area: clear bottom nav + iOS home indicator */
+  .ci-scroll { padding-bottom: calc(58px + max(8px, env(safe-area-inset-bottom))); }
 }
 
   </style>
@@ -4039,7 +4071,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
             </div>
           </div>
 
-          <div ref={parCards} className="ci-fadeup d4" style={{ position: 'relative', minHeight: 380, transition: 'transform 0.5s cubic-bezier(0.2,0.7,0.3,1)' }} aria-hidden="true">
+          <div ref={parCards} className="ci-hero-cards ci-fadeup d4" style={{ position: 'relative', minHeight: 380, transition: 'transform 0.5s cubic-bezier(0.2,0.7,0.3,1)' }} aria-hidden="true">
             <div className="ci-float-card f1 glass-strong">
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <svg width="64" height="64" viewBox="0 0 64 64">
