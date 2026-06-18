@@ -64,7 +64,7 @@ const REPORT_TOOL = {
 // Admin passphrase is stored as a SHA-256 hash — never plaintext — so it can't be
 // trivially extracted from the bundle. Still "obscurity-level" on a static site,
 // but meaningfully better than shipping the raw passphrase to every browser.
-const ADMIN_PASS_HASH = "f732fcca391394461fdd0ef18a92518930d957eb39ab8e7e9d6d4841c6aab3a0";
+const ADMIN_PASS_HASH = "94408774fb3c624aa2275bec72b335cfa8a46a69cf31b4e2ed7966c2028bac3e";
 async function checkAdminPass(input) {
   try {
     if (!input) return false;
