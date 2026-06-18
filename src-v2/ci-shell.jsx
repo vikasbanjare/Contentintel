@@ -238,20 +238,20 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
           <div className="ci-hero-grid" />
         </div>
 
-        <div style={{ position: 'relative', zIndex: 3, maxWidth: 1180, margin: '0 auto', padding: '0 32px', width: '100%', display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 30, alignItems: 'center' }}>
+        <div className="ci-hero-content" style={{ position: 'relative', zIndex: 3, maxWidth: 1180, margin: '0 auto', padding: '0 32px', width: '100%', display: 'grid', gridTemplateColumns: '1.25fr 0.75fr', gap: 30, alignItems: 'center' }}>
           <div>
             <div className="ci-fadeup d1 eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, color: 'var(--text-3)', letterSpacing: '0.18em', fontSize: 12, textTransform: 'uppercase' }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: m.accentFrom, boxShadow: `0 0 10px ${m.accentGlow}` }} className="pulse-dot" />
               Pre-publish checker
             </div>
-            <h1 className="ci-fadeup d2" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 84, margin: '18px 0 0', lineHeight: 1.04, letterSpacing: '-0.018em', color: 'var(--text-1)' }}>
+            <h1 className="ci-fadeup d2 ci-hero-h1" style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 84, margin: '18px 0 0', lineHeight: 1.04, letterSpacing: '-0.018em', color: 'var(--text-1)' }}>
               Know it&rsquo;ll work<br/>before you{' '}
               <span className="ci-grad-text" style={{ fontStyle: 'italic' }}>hit publish.</span>
             </h1>
             <p className="ci-fadeup d3" style={{ margin: '26px 0 0', fontSize: 18, lineHeight: 1.65, color: 'var(--text-2)', maxWidth: 540 }}>
               Paste a script, drop a thumbnail, test a title or an ad. ContentIntel tells you what&rsquo;s working, what&rsquo;s not, and exactly how to fix it &mdash; in plain language, before it goes live.
             </p>
-            <div className="ci-fadeup d4" style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 32 }}>
+            <div className="ci-fadeup d4 ci-hero-cta" style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 32 }}>
               <GlowButton mood={mood} size="lg" onClick={() => onNav('script')}>Check your content →</GlowButton>
               <button className="btn ghost ci-ghostbtn" style={{ height: 48, padding: '0 22px', fontSize: 14.5 }} onClick={() => onNav('pricing')}>See pricing</button>
             </div>
@@ -309,10 +309,10 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
         </div>
       </div>
 
-      <section className="ci-section-warm" style={{ marginTop: 48, padding: '56px 32px 56px', position: 'relative' }}>
+      <section className="ci-section-warm ci-home-section" style={{ marginTop: 48, padding: '56px 32px 56px', position: 'relative' }}>
         <AmbientBloom mood={mood} intensity={0.35} variant="subtle" />
         <div style={{ maxWidth: 1140, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-          <div className="ci-rise" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32 }}>
+          <div className="ci-rise ci-features-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 32 }}>
             <div>
               <Eyebrow mood={mood} glow>Nine tools · one workflow</Eyebrow>
               <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 50, margin: '10px 0 0', letterSpacing: '-0.01em', color: 'var(--text-1)' }}>Everything you ship, graded first.</h2>
@@ -352,8 +352,8 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
         </div>
       </section>
 
-      <section style={{ maxWidth: 1140, margin: '0 auto', padding: '20px 32px 90px' }}>
-        <div className="glass-strong ci-rise" style={{ borderRadius: 22, padding: 32, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
+      <section className="ci-home-section" style={{ maxWidth: 1140, margin: '0 auto', padding: '20px 32px 90px' }}>
+        <div className="glass-strong ci-rise ci-split-grid" style={{ borderRadius: 22, padding: 32, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 40, alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', left: -80, bottom: -80, width: 320, height: 320, background: `radial-gradient(circle, ${m.orbB}, transparent 70%)`, opacity: 0.25, filter: 'blur(50px)' }} />
           <div style={{ position: 'relative', zIndex: 1 }}>
             <Eyebrow mood={mood} glow>No jargon, just fixes</Eyebrow>
@@ -412,7 +412,7 @@ const CI_USE_CASES = [
 function TestimonialsSection({ mood }) {
   const m = MOODS[mood];
   return (
-    <section style={{ maxWidth: 1140, margin: '0 auto', padding: '10px 32px 96px' }}>
+    <section className="ci-home-section" style={{ maxWidth: 1140, margin: '0 auto', padding: '10px 32px 96px' }}>
       <div className="ci-rise" style={{ textAlign: 'center', marginBottom: 30 }}>
         <Eyebrow mood={mood} glow>What creators use it for</Eyebrow>
         <h2 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontWeight: 400, fontSize: 42, margin: '10px 0 0', letterSpacing: '-0.01em' }}>Catch the problems before you post.</h2>

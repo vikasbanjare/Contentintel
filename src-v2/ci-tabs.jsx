@@ -465,7 +465,7 @@ function ThumbnailTab({ onOpenKey }) {
           <TTL level="yellow" title="Decent, but missing key elements"
             text="Good structure and colors -- but no human face is hurting your click-through rate." />
 
-          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 14 }}>
+          <div className="ci-thumb-sample-grid" style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 14 }}>
             {/* what we see */}
             <TB title="What we see" mood={mood} style={{ padding: 18 }}>
               <div style={{ aspectRatio: '16/9', borderRadius: 12, overflow: 'hidden', position: 'relative', background: `radial-gradient(circle at 50% 60%, ${m.orbB}, ${m.orbA} 55%, #07090E 100%)`, marginBottom: 12 }}>
@@ -902,7 +902,7 @@ function HistoryTab() {
               const isOpen = openIdx === i;
               return (
                 <div key={i}>
-                <div className="ci-block" onClick={() => hasReport && setOpenIdx(isOpen ? -1 : i)}
+                <div className="ci-block ci-history-row" onClick={() => hasReport && setOpenIdx(isOpen ? -1 : i)}
                   style={{ padding: 16, display: 'grid', gridTemplateColumns: '120px 1fr 90px 70px', gap: 16, alignItems: 'center', cursor: hasReport ? 'pointer' : 'default', borderColor: isOpen ? im.accentGlow : undefined }}
                   title={!hasReport ? 'Full report not stored — re-run this check to see the details' : undefined}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

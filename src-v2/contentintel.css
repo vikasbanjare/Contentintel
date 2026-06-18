@@ -750,3 +750,53 @@ button:active { transform: scale(0.985); }
   .ci-fadeup, .ci-rise { animation: none; transition: none; opacity: 1; transform: none; }
   .ci-aurora-orb, .ci-aurora-sweep, .ci-float-card { animation: none; }
 }
+
+/* ── Mobile / responsive ────────────────────────────────────────────────── */
+
+/* Tablet ≤768px */
+@media (max-width: 768px) {
+  .ci-work, .ci-work.wide { padding: 28px 18px 100px; }
+
+  /* Stats: 4 cols → 2×2 */
+  .ci-stats-strip { grid-template-columns: repeat(2, 1fr) !important; }
+  .ci-stats-strip > :nth-child(n+3) { border-top: 1px solid var(--stroke-1); }
+
+  /* Features header: side-by-side → stacked */
+  .ci-features-head { flex-direction: column !important; align-items: flex-start !important; gap: 14px !important; }
+  .ci-features-head > :last-child { text-align: left !important; max-width: none !important; }
+
+  /* No-jargon split: 2-col → 1-col */
+  .ci-split-grid { grid-template-columns: 1fr !important; }
+
+  /* Thumbnail sample grid: fixed widths → fluid */
+  .ci-thumb-sample-grid { grid-template-columns: 1fr !important; }
+
+  /* History rows: 4-col → type+title / score (hide timestamp) */
+  .ci-history-row { grid-template-columns: auto 1fr auto !important; gap: 10px !important; }
+  .ci-history-row > :nth-child(3) { display: none; }
+}
+
+/* Phone ≤480px */
+@media (max-width: 480px) {
+  /* Nav: tighten, hide keybtn text labels */
+  .ci-nav { gap: 5px; padding: 0 10px; }
+  .ci-keybtn span:not(.ci-keydot) { display: none; }
+  .ci-keybtn { padding: 0 10px; min-width: 36px; justify-content: center; }
+
+  /* Hero: remove forced height, scale down H1 */
+  .ci-hero-aurora { min-height: unset !important; }
+  .ci-hero-content { padding: 0 18px !important; }
+  .ci-hero-h1 { font-size: 48px !important; line-height: 1.1 !important; }
+  .ci-hero-cta { flex-wrap: wrap; gap: 10px !important; }
+
+  /* Stats cells: tighter padding */
+  .ci-stat-cell { padding: 14px 12px !important; }
+
+  /* Home sections: reduce side padding */
+  .ci-home-section { padding-left: 16px !important; padding-right: 16px !important; }
+  .ci-work, .ci-work.wide { padding: 16px 14px 80px; }
+  .ci-split-grid { padding: 18px !important; gap: 22px !important; }
+
+  /* Safe-area padding for iOS home bar */
+  .ci-scroll { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+}
