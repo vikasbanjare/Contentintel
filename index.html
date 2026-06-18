@@ -5,6 +5,8 @@
   <title>ContentIntel — Pre-publish checker</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="Pre-publish checker for creators — grade your script, thumbnail, title and ads before you hit publish. Runs free inside Claude (no API key), or on your own Anthropic key when self-hosted." />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23E8396B'/><text x='16' y='23' text-anchor='middle' font-size='20' fill='white' font-family='serif'>◈</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23E8396B'/><text x='16' y='23' text-anchor='middle' font-size='20' fill='white' font-family='serif'>◈</text></svg>">
 
   <!-- Apply saved theme before paint (no flash). Default = dark. -->
   <script>
@@ -2318,7 +2320,7 @@ const REPORT_TOOL = {
 // Admin passphrase is stored as a SHA-256 hash — never plaintext — so it can't be
 // trivially extracted from the bundle. Still "obscurity-level" on a static site,
 // but meaningfully better than shipping the raw passphrase to every browser.
-const ADMIN_PASS_HASH = "f732fcca391394461fdd0ef18a92518930d957eb39ab8e7e9d6d4841c6aab3a0";
+const ADMIN_PASS_HASH = "94408774fb3c624aa2275bec72b335cfa8a46a69cf31b4e2ed7966c2028bac3e";
 async function checkAdminPass(input) {
   try {
     if (!input) return false;
@@ -2791,8 +2793,8 @@ async function generateThumbnail({ instruction, image, model, aspect }) {
   };
   const attempt = (mdl) => {
     const payload = buildPayload(mdl);
-    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent`, {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(payload),
     });
     return fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) })
       .catch(e => { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); });
@@ -2844,8 +2846,8 @@ ${(scriptText || "").slice(0, 6000)}
 """`;
   const payload = { contents: [{ parts: [{ text: sys }] }], tools: [{ google_search: {} }] };
   const doFetch = async () => {
-    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent`, {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(payload),
     });
     if (proxy) {
       try { return await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
@@ -8119,17 +8121,17 @@ Object.assign(window, { PlaybookTab });
 const LS_ADMIN = "ci_admin";
 function isAdmin() {
   try {
-    if (localStorage.getItem(LS_ADMIN) === "1") return true;
+    if (sessionStorage.getItem(LS_ADMIN) === "1") return true;
   } catch (e) {}
   return false;
 }
 async function promptAdmin() {
   const p = window.prompt("Research editor passphrase:");
-  if (p != null && await window.checkAdminPass(p)) { try { localStorage.setItem(LS_ADMIN, "1"); } catch (e) {} return true; }
+  if (p != null && await window.checkAdminPass(p)) { try { sessionStorage.setItem(LS_ADMIN, "1"); } catch (e) {} return true; }
   if (p != null) window.alert("Wrong passphrase.");
   return false;
 }
-function exitAdmin() { try { localStorage.removeItem(LS_ADMIN); } catch (e) {} }
+function exitAdmin() { try { sessionStorage.removeItem(LS_ADMIN); } catch (e) {} }
 
 // current research = override (edited) or the file's window.CI_RESEARCH
 function currentResearch() {
@@ -8709,7 +8711,6 @@ function PricingTab({ onNav, gate, onSkip }) {
   const m = MOODS.burgundy;
 
   function buy(tier) {
-    if (gate) { onSkip && onSkip(); return; }  // payment not wired yet -- let them in
     const link = PAY[tier.id + (annual ? '_y' : '_m')];
     window.open(link || PAY.contact, '_blank', 'noopener');
   }
@@ -9618,7 +9619,6 @@ function CIApp() {
     return () => { window.removeEventListener('ci-auth', f); clearTimeout(t); };
   }, [researchReady]);
   const [gateStep, setGateStep] = React.useState(() => {
-    try { if (new URLSearchParams(location.search).get('admin')) return null; } catch (e) {}
     if (typeof window !== 'undefined' && window.CI_SESSION) return null;
     return (window.ciGateDone && window.ciGateDone()) ? null : 'welcome';
   });
@@ -9678,7 +9678,7 @@ function CIApp() {
   // If unlocked via ?admin=... on this browser, jump straight to the editor.
   React.useEffect(() => {
     try {
-      if (window.isAdmin() && new URLSearchParams(location.search).get('admin')) { setAdmin(true); setTab('research'); }
+      if (window.isAdmin()) { setAdmin(true); setTab('research'); }
     } catch (e) {}
   }, []);
 
