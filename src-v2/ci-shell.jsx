@@ -263,7 +263,7 @@ function HomeView({ onNav, onOpenKey, hasKey }) {
             </div>
           </div>
 
-          <div ref={parCards} className="ci-fadeup d4" style={{ position: 'relative', minHeight: 380, transition: 'transform 0.5s cubic-bezier(0.2,0.7,0.3,1)' }} aria-hidden="true">
+          <div ref={parCards} className="ci-hero-cards ci-fadeup d4" style={{ position: 'relative', minHeight: 380, transition: 'transform 0.5s cubic-bezier(0.2,0.7,0.3,1)' }} aria-hidden="true">
             <div className="ci-float-card f1 glass-strong">
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <svg width="64" height="64" viewBox="0 0 64 64">
