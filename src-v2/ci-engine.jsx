@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-16-r11";
+window.CI_BUILD = "2026-06-18-r12";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -257,6 +257,11 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
   // smaller versions — no duplication and no change to stored previews.
   const rawImgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
   const imgs = await Promise.all(rawImgs.map(im => compressForApi(im)));
+
+  // Inject creator profile context when the user has one saved.
+  const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
+  if (profileCtx && typeof system === 'string') system = system + '\n\n' + profileCtx;
+  else if (profileCtx && !system) system = profileCtx;
 
   // SaaS mode: signed-in users run through the ContentIntel worker (owner's
   // key, plan limits enforced server-side) — no personal key needed.

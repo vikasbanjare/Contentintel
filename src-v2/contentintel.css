@@ -832,3 +832,16 @@ button:active { transform: scale(0.985); }
   /* Scroll area: clear bottom nav + iOS home indicator */
   .ci-scroll { padding-bottom: calc(58px + max(8px, env(safe-area-inset-bottom))); }
 }
+
+/* ── Print / Save as PDF ─────────────────────────────────────────────────── */
+@media print {
+  .ci-nav, .ci-tabs, .ci-themeswitch, .ci-keybtn, .ci-iconbtn,
+  .ci-ghostbtn, button:not(.ci-noprint), video,
+  [style*="position: fixed"], [style*="position:fixed"] { display: none !important; }
+  body, .ci-app, .ci-scroll { background: #fff !important; color: #000 !important; }
+  .ci-block { border: 1px solid #ddd !important; box-shadow: none !important; background: #fff !important; break-inside: avoid; }
+  .ci-work { padding: 0 !important; max-width: 100% !important; }
+  details { display: block !important; }
+  details > summary::after { content: '' !important; }
+  a { color: #000 !important; text-decoration: underline; }
+}

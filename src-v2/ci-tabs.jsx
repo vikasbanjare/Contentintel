@@ -931,7 +931,7 @@ function HistoryTab() {
                       </div>
                     )}
                     <window.ReportView report={it.report} mood={tmoodOf[it.type] || 'navy'} />
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, marginBottom: 6, flexWrap: 'wrap' }}>
                       <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }}
                         onClick={() => { try { window.copyText(JSON.stringify(it.report, null, 2)); } catch(e){} }}>
                         ⧉ Copy report JSON
@@ -949,6 +949,10 @@ function HistoryTab() {
                           ⧉ Copy as text
                         </button>
                       )}
+                      <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }}
+                        onClick={() => window.print()} title="Save as PDF using your browser's print dialog">
+                        ⬇ Save as PDF
+                      </button>
                     </div>
                     <HistoryResults it={it} mood={tmoodOf[it.type] || 'navy'} onSaved={() => setItems(window.loadHistory())} />
                   </div>

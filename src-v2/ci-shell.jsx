@@ -45,7 +45,7 @@ const TABS = [
   { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
 // Tools that live inside the "More" hub (kept, just not in the top bar).
-const MORE_TABS = ['builder', 'platform', 'playbook'];
+const MORE_TABS = ['builder', 'platform', 'playbook', 'caption'];
 window.CI_MORE_TABS = MORE_TABS;
 
 function CITabIcon({ name }) {
@@ -62,6 +62,7 @@ function CITabIcon({ name }) {
     case 'home':     return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 7L8 2.5 13.5 7v6a.5.5 0 01-.5.5h-3v-4h-3v4H3a.5.5 0 01-.5-.5V7z"/></svg>;
     case 'ask':     return <svg {...s} viewBox="0 0 16 16"><path d="M6 6a2 2 0 113.4 1.4C8.7 8.1 8 8.6 8 9.5"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/><circle cx="8" cy="8" r="6"/></svg>;
     case 'create':  return <svg {...s} viewBox="0 0 16 16"><path d="M8 2.5l1.4 3.6L13 7.5l-3.6 1.4L8 12.5 6.6 8.9 3 7.5l3.6-1.4z"/></svg>;
+    case 'caption': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 4h11v8a1 1 0 01-1 1h-9a1 1 0 01-1-1V4z"/><path d="M2.5 4l1.5-1.5h8L13.5 4M5.5 8h5M5.5 10.5h3"/></svg>;
     case 'more':    return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>;
     case 'pricing': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 8.5V3.5a1 1 0 011-1h5l5 5a1 1 0 010 1.4l-4.6 4.6a1 1 0 01-1.4 0l-5-5z"/><circle cx="6" cy="6" r="1"/></svg>;
     default: return null;
@@ -95,7 +96,7 @@ function ThemeToggle() {
 }
 window.ThemeToggle = ThemeToggle;
 
-function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, admin }) {
+function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, onOpenProfile, hasKey, admin }) {
   const m = MOODS[mood] || MOODS.burgundy;
   const [sessionTok, setSessionTok] = React.useState(0);
   React.useEffect(() => {
@@ -160,6 +161,13 @@ function TopNav({ active, onNav, mood, onOpenKey, onAdmin, onAccount, hasKey, ad
         </button>
       )}
 
+      {onOpenProfile && (
+        <button className="ci-keybtn" title="Creator profile — personalise every check" onClick={onOpenProfile}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 13.5a5.2 5.2 0 0110.4 0"/></svg>
+          <span className="ci-keybtn-text">Profile</span>
+          {window.getProfileContext && window.getProfileContext() && <span className="ci-keydot on" />}
+        </button>
+      )}
       {window.CI_SAAS_ON && (
         <button className="ci-keybtn" title="Account" onClick={onAccount}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 13.5a5.2 5.2 0 0110.4 0"/></svg>
@@ -440,6 +448,7 @@ function MoreHub({ onNav }) {
     { id: 'builder',  label: 'Studio',      icon: 'studio',   mood: 'lime',   line: 'Build a thumbnail from scratch — research-grade prompts for ChatGPT or Gemini.' },
     { id: 'platform', label: 'Platform IQ', icon: 'platform', mood: 'violet', line: 'Ask anything platform-specific: best length, posting cadence, format calls.' },
     { id: 'playbook', label: 'Playbook',    icon: 'playbook', mood: 'ember',  line: 'The library of proven layouts, hooks and niche patterns behind every score.' },
+    { id: 'caption',  label: 'Captions',    icon: 'caption',  mood: 'cyan',   line: 'One title → platform-ready captions, descriptions and hashtag sets for every channel.' },
   ];
   return (
     <div className="ci-work wide" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>

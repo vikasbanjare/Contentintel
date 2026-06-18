@@ -13,6 +13,7 @@ function CIApp() {
   const [tab, setTab] = React.useState('home');
   const [keyOpen, setKeyOpen] = React.useState(false);
   const [accountOpen, setAccountOpen] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
   const [hasKey, setHasKey] = React.useState(!!window.getKey());
   const [admin, setAdmin] = React.useState(window.isAdmin());
   const [researchReady, setResearchReady] = React.useState(() => !((window.CI_SAAS || {}).workerUrl));
@@ -113,6 +114,7 @@ function CIApp() {
   else if (tab === 'platform') View = <PlatformTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
   else if (tab === 'history') View = <HistoryTab />;
+  else if (tab === 'caption') View = <CaptionTab onOpenKey={openKey} />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
   else if (tab === 'train') View = admin ? <TrainTab onClose={exitResearch} onNav={nav} onOpenKey={openKey} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
 
@@ -173,8 +175,10 @@ function CIApp() {
   return (
     <div className="ci-app">
       <TopNav active={tab} onNav={nav} mood={activeMood}
-        onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)} hasKey={hasKey} admin={admin} />
+        onOpenKey={openKey} onAdmin={onAdmin} onAccount={() => setAccountOpen(true)}
+        onOpenProfile={() => setProfileOpen(true)} hasKey={hasKey} admin={admin} />
       <KeyModal open={keyOpen} onClose={closeKey} />
+      {window.ProfileModal && <window.ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />}
       {window.FeedbackWidget && <window.FeedbackWidget />}
       {window.AccountModal && <window.AccountModal open={accountOpen} onClose={() => setAccountOpen(false)} onNav={nav} />}
 
