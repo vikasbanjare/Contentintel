@@ -113,8 +113,14 @@ function CIApp() {
   else if (tab === 'builder') View = <BuilderTab onNav={nav} />;
   else if (tab === 'platform') View = <PlatformTab />;
   else if (tab === 'playbook') View = <PlaybookTab />;
-  else if (tab === 'history') View = <HistoryTab />;
-  else if (tab === 'caption') View = <CaptionTab onOpenKey={openKey} />;
+  else if (tab === 'history')    View = <HistoryTab />;
+  else if (tab === 'caption')    View = <CaptionTab onOpenKey={openKey} />;
+  else if (tab === 'create')     View = <CreateTab onNav={nav} />;
+  else if (tab === 'ideas')      View = <IdeasTab onOpenKey={openKey} />;
+  else if (tab === 'repurpose')  View = <RepurposeTab onOpenKey={openKey} />;
+  else if (tab === 'comments')   View = <CommentsTab onOpenKey={openKey} />;
+  else if (tab === 'audit')      View = <AuditTab onOpenKey={openKey} />;
+  else if (tab === 'competitor') View = <CompetitorTab onOpenKey={openKey} />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
   else if (tab === 'train') View = admin ? <TrainTab onClose={exitResearch} onNav={nav} onOpenKey={openKey} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
 
