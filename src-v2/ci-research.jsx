@@ -9,17 +9,17 @@
 const LS_ADMIN = "ci_admin";
 function isAdmin() {
   try {
-    if (localStorage.getItem(LS_ADMIN) === "1") return true;
+    if (sessionStorage.getItem(LS_ADMIN) === "1") return true;
   } catch (e) {}
   return false;
 }
 async function promptAdmin() {
   const p = window.prompt("Research editor passphrase:");
-  if (p != null && await window.checkAdminPass(p)) { try { localStorage.setItem(LS_ADMIN, "1"); } catch (e) {} return true; }
+  if (p != null && await window.checkAdminPass(p)) { try { sessionStorage.setItem(LS_ADMIN, "1"); } catch (e) {} return true; }
   if (p != null) window.alert("Wrong passphrase.");
   return false;
 }
-function exitAdmin() { try { localStorage.removeItem(LS_ADMIN); } catch (e) {} }
+function exitAdmin() { try { sessionStorage.removeItem(LS_ADMIN); } catch (e) {} }
 
 // current research = override (edited) or the file's window.CI_RESEARCH
 function currentResearch() {

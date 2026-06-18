@@ -58,7 +58,6 @@ function PricingTab({ onNav, gate, onSkip }) {
   const m = MOODS.burgundy;
 
   function buy(tier) {
-    if (gate) { onSkip && onSkip(); return; }  // payment not wired yet -- let them in
     const link = PAY[tier.id + (annual ? '_y' : '_m')];
     window.open(link || PAY.contact, '_blank', 'noopener');
   }

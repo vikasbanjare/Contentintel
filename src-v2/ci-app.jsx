@@ -32,7 +32,6 @@ function CIApp() {
     return () => { window.removeEventListener('ci-auth', f); clearTimeout(t); };
   }, [researchReady]);
   const [gateStep, setGateStep] = React.useState(() => {
-    try { if (new URLSearchParams(location.search).get('admin')) return null; } catch (e) {}
     if (typeof window !== 'undefined' && window.CI_SESSION) return null;
     return (window.ciGateDone && window.ciGateDone()) ? null : 'welcome';
   });
@@ -92,7 +91,7 @@ function CIApp() {
   // If unlocked via ?admin=... on this browser, jump straight to the editor.
   React.useEffect(() => {
     try {
-      if (window.isAdmin() && new URLSearchParams(location.search).get('admin')) { setAdmin(true); setTab('research'); }
+      if (window.isAdmin()) { setAdmin(true); setTab('research'); }
     } catch (e) {}
   }, []);
 

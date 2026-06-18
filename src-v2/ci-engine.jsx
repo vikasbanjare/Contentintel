@@ -537,8 +537,8 @@ async function generateThumbnail({ instruction, image, model, aspect }) {
   };
   const attempt = (mdl) => {
     const payload = buildPayload(mdl);
-    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent`, {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(payload),
     });
     return fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) })
       .catch(e => { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); });
@@ -590,8 +590,8 @@ ${(scriptText || "").slice(0, 6000)}
 """`;
   const payload = { contents: [{ parts: [{ text: sys }] }], tools: [{ google_search: {} }] };
   const doFetch = async () => {
-    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${encodeURIComponent(key)}`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
+    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent`, {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(payload),
     });
     if (proxy) {
       try { return await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }

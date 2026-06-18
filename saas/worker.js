@@ -21,7 +21,7 @@ export default {
   async fetch(req, env) {
     const origin = req.headers.get('Origin') || '';
     const cors = {
-      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || origin,
+      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || 'https://contentintel.in',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'content-type, authorization',
     };
@@ -62,10 +62,9 @@ export default {
     // owner's own testing and support. Set OWNER_EMAILS in the Worker settings
     // (comma-separated, lowercase); the default below covers the project owner.
     // Add whatever email you actually sign into the app with.
-    const OWNER_EMAILS_DEFAULT = 'vikasbanjare94@gmail.com';
-    const owners = String(env.OWNER_EMAILS || OWNER_EMAILS_DEFAULT)
+    const owners = String(env.OWNER_EMAILS || '')
       .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-    const isOwner = owners.includes(String(user.email || '').toLowerCase());
+    const isOwner = owners.length > 0 && owners.includes(String(user.email || '').toLowerCase());
     if (isOwner) plan = 'agency';
     // Closed-alpha approval gate. 'pending' (default for new signups) is locked.
     // AUTO-APPROVE: if the user signed up with a valid invite code (set in the
@@ -113,8 +112,16 @@ export default {
     if (hasImages && !isOwner && !VISION_PLANS.includes(plan))
       return json({ error: 'Thumbnail vision needs Creator Pro. Upgrade to analyze images.', upgrade: true }, 402, cors);
 
-    // 4. Simple per-user rate limit (10/min) via Cloudflare cache API
-    // (best-effort; for hard guarantees use Durable Objects later)
+    // 4. Per-user rate limit: 10 requests/min via Cloudflare cache (best-effort)
+    if (!isOwner) {
+      const rlKey = new Request(`https://ci-ratelimit.internal/${user.id}`);
+      const rlCached = await caches.default.match(rlKey);
+      const rlCount = rlCached ? (parseInt(await rlCached.text(), 10) || 0) : 0;
+      if (rlCount >= 10) return json({ error: 'Too many requests — wait a minute and try again.', code: 'rate_limited' }, 429, cors);
+      await caches.default.put(rlKey, new Response(String(rlCount + 1), {
+        headers: { 'Cache-Control': 'max-age=60' }
+      }));
+    }
 
     // 5. Build the Anthropic request. For the Smart/Max engines we attach the
     //    live web_search tool so the model can go online, cross-check facts
@@ -123,6 +130,7 @@ export default {
     //    it decides it needs to (capped by max_uses), so simple checks stay fast.
     const { engine: _e, web: _w, model: _m, ...payload } = body;
     payload.model = engine.id;
+    payload.max_tokens = Math.min(Number(payload.max_tokens) || 1800, 2500);
     // Clamp client-supplied temperature into Anthropic's valid 0..1 range (drop
     // anything invalid so a bad value can never 400 the request).
     if (payload.temperature != null) {
@@ -154,8 +162,11 @@ export default {
         body: JSON.stringify({ ...payload, messages: msgs }),
       });
       if (!aRes.ok) {
-        const errTxt = await aRes.text();
-        return new Response(errTxt, { status: aRes.status, headers: { ...cors, 'content-type': 'application/json' } });
+        // Don't proxy raw Anthropic errors — they may contain key fragments or internal details
+        const safeMsg = aRes.status === 429 ? '{"error":"Rate limit reached — try again shortly."}'
+                      : aRes.status === 401 ? '{"error":"API authentication error."}'
+                      : '{"error":"Analysis failed — please try again."}';
+        return new Response(safeMsg, { status: aRes.status, headers: { ...cors, 'content-type': 'application/json' } });
       }
       data = await aRes.json();
       if (Array.isArray(data.content)) allBlocks.push(...data.content);

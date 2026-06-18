@@ -16,7 +16,7 @@
 
 export default {
   async fetch(request, env) {
-    const origin = env.ALLOW_ORIGIN || "*";
+    const origin = env.ALLOW_ORIGIN || 'https://contentintel.in';
     const cors = {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "POST, OPTIONS",
