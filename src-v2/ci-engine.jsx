@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-18-r15";
+window.CI_BUILD = "2026-06-18-r16";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -1469,7 +1469,7 @@ async function fetchYTChannel(handleOrUrl, key) {
   }
   const res = await fetch(url);
   const data = await res.json();
-  if (data.error) throw new Error('YouTube API: ' + (data.error.message || 'request failed'));
+  if (data.error) throw new Error('YouTube API: ' + (data.error.message || (typeof data.error === 'string' ? data.error : 'request failed')));
   if (!data.items || !data.items.length) throw new Error(`Channel "@${handle}" not found. Check the handle and try again.`);
   return data.items[0];
 }
@@ -1486,7 +1486,7 @@ async function fetchYTVideos(channelId, key, maxResults = 25) {
   }
   const res = await fetch(url);
   const data = await res.json();
-  if (data.error) throw new Error('YouTube API: ' + (data.error.message || 'request failed'));
+  if (data.error) throw new Error('YouTube API: ' + (data.error.message || (typeof data.error === 'string' ? data.error : 'request failed')));
   return (data.items || []).map(v => ({
     title: v.snippet.title,
     description: v.snippet.description,
