@@ -22,10 +22,32 @@ export default {
     const origin = req.headers.get('Origin') || '';
     const cors = {
       'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || 'https://contentintel.in',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'content-type, authorization',
     };
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
+
+    // YouTube proxy: GET /yt?action=channel&handle=... or GET /yt?action=videos&channelId=...
+    const url = new URL(req.url);
+    if (req.method === 'GET' && url.pathname === '/yt') {
+      if (!env.YOUTUBE_KEY) return json({ error: 'YouTube API not configured.' }, 503, cors);
+      const action = url.searchParams.get('action');
+      let ytUrl;
+      if (action === 'channel') {
+        const handle = url.searchParams.get('handle') || '';
+        ytUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&forHandle=${encodeURIComponent(handle)}&key=${encodeURIComponent(env.YOUTUBE_KEY)}`;
+      } else if (action === 'videos') {
+        const channelId = url.searchParams.get('channelId') || '';
+        const maxResults = url.searchParams.get('maxResults') || '25';
+        ytUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}&order=date&type=video&key=${encodeURIComponent(env.YOUTUBE_KEY)}`;
+      } else {
+        return json({ error: 'Unknown action.' }, 400, cors);
+      }
+      const ytRes = await fetch(ytUrl);
+      const ytData = await ytRes.json();
+      return new Response(JSON.stringify(ytData), { status: ytRes.status, headers: { ...cors, 'content-type': 'application/json' } });
+    }
+
     if (req.method !== 'POST') return json({ error: 'POST only' }, 405, cors);
 
     // 1. Verify the user's JWT with Supabase
