@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-18-r16";
+window.CI_BUILD = "2026-06-18-r17";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -3744,23 +3744,86 @@ async function fetchYTChannel(handleOrUrl, key) {
 }
 
 async function fetchYTVideos(channelId, key, maxResults = 25) {
-  let url;
+  const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
+  // Step 1: search for recent videos
+  let searchUrl;
   if (key === '__proxy__') {
-    const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
     if (!workerUrl) throw new Error('Worker URL not configured.');
-    url = `${workerUrl}/yt?action=videos&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}`;
+    searchUrl = `${workerUrl}/yt?action=videos&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}`;
   } else {
     if (!key) throw new Error('Need a YouTube API key.');
-    url = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}&order=date&type=video&key=${encodeURIComponent(key)}`;
+    searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&maxResults=${maxResults}&order=date&type=video&key=${encodeURIComponent(key)}`;
   }
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.error) throw new Error('YouTube API: ' + (data.error.message || (typeof data.error === 'string' ? data.error : 'request failed')));
-  return (data.items || []).map(v => ({
-    title: v.snippet.title,
-    description: v.snippet.description,
-    published: v.snippet.publishedAt,
-  }));
+  const searchRes = await fetch(searchUrl);
+  const searchData = await searchRes.json();
+  if (searchData.error) throw new Error('YouTube API: ' + (searchData.error.message || (typeof searchData.error === 'string' ? searchData.error : 'request failed')));
+  const items = searchData.items || [];
+  const videoIds = items.map(v => v.id?.videoId || v.id).filter(Boolean).join(',');
+  // Step 2: fetch statistics + duration for those videos
+  let statsMap = {};
+  if (videoIds) {
+    try {
+      let statsUrl;
+      if (key === '__proxy__') {
+        statsUrl = `${workerUrl}/yt?action=videostats&ids=${encodeURIComponent(videoIds)}`;
+      } else {
+        statsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${encodeURIComponent(videoIds)}&key=${encodeURIComponent(key)}`;
+      }
+      const statsRes = await fetch(statsUrl);
+      const statsData = await statsRes.json();
+      for (const v of (statsData.items || [])) {
+        statsMap[v.id] = {
+          viewCount:    v.statistics?.viewCount    || '0',
+          likeCount:    v.statistics?.likeCount    || '0',
+          commentCount: v.statistics?.commentCount || '0',
+          duration:     v.contentDetails?.duration || '',
+        };
+      }
+    } catch (e) { /* stats are bonus — don't fail if this step errors */ }
+  }
+  return items.map(v => {
+    const id = v.id?.videoId || v.id;
+    const st = statsMap[id] || {};
+    return {
+      title:        v.snippet.title,
+      videoId:      id,
+      description:  v.snippet.description,
+      published:    v.snippet.publishedAt,
+      viewCount:    st.viewCount    || '0',
+      likeCount:    st.likeCount    || '0',
+      commentCount: st.commentCount || '0',
+      duration:     st.duration     || '',
+    };
+  });
+}
+
+// Format rich video data for Claude prompts
+function formatVideoStats(videos) {
+  function fmt(n) { const v = parseInt(n||0); return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':String(v); }
+  function age(pub) {
+    if (!pub) return '';
+    const d = Math.floor((Date.now()-new Date(pub))/(86400000));
+    return d<7?`${d}d`:d<30?`${Math.floor(d/7)}w`:d<365?`${Math.floor(d/30)}mo`:`${Math.floor(d/365)}y`;
+  }
+  function dur(iso) {
+    if (!iso) return '';
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return '';
+    const h=parseInt(m[1]||0),mn=parseInt(m[2]||0),s=parseInt(m[3]||0);
+    return h?`${h}:${String(mn).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${mn}:${String(s).padStart(2,'0')}`;
+  }
+  const hasStats = videos.some(v => parseInt(v.viewCount||0) > 0);
+  return videos.map((v,i) => {
+    const parts = [`${i+1}. "${v.title}"`];
+    if (hasStats) {
+      parts.push(`${fmt(v.viewCount)} views`);
+      parts.push(`${fmt(v.likeCount)} likes`);
+      parts.push(`${fmt(v.commentCount)} comments`);
+    }
+    const d = dur(v.duration); if (d) parts.push(d);
+    const a = age(v.published); if (a) parts.push(a+' ago');
+    return parts.join(' | ');
+  }).join('\n');
 }
 
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
@@ -3877,7 +3940,7 @@ Object.assign(window, {
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
-  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos,
+  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, formatVideoStats,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
@@ -9858,6 +9921,9 @@ const CAPTION_SYSTEM = [
   "Output ONLY the submit_report tool call. No prose outside the tool.",
   "Use sections of type 'copy' — one section per platform, one final section for Hashtags.",
   "Each copy block should have a short label and the full ready-to-use text.",
+  "Set verdict.level='green', verdict.title='Captions Ready', verdict.text=one sentence summarising what was generated.",
+  "Add 3 scores: Platform Fit (how well captions match each platform's style) / Hook Strength (first line quality) / Hashtag Relevance — each 0-100.",
+  "Set bottomLine to the single most important tip for maximising reach with these captions.",
 ].join("\n");
 
 function CaptionTab({ onOpenKey }) {
@@ -9978,6 +10044,11 @@ const IDEAS_SYSTEM = [
   "Output only the submit_report tool. Use sections of type 'copy' — one per idea, titled 'Idea N — [angle]'. Each section has blocks: Title, Hook, Angle, Thumbnail concept.",
   "In the verdict.text summarise the top 3 angles that will perform best for this niche.",
   "Set overall to the average predicted CTR score.",
+  "Set verdict.level based on idea quality: green=strong batch, yellow=mixed, red=weak.",
+  "Set verdict.title to a punchy summary like '8 high-potential ideas — 3 standouts'.",
+  "Set verdict.text to which 2-3 ideas have the highest viral potential and why.",
+  "Set bottomLine to the single idea you'd film first and why.",
+  "Add 3 scores: Niche Relevance / Format Variety / Average CTR Potential — each 0-100.",
 ].join("\n");
 
 function IdeasTab({ onOpenKey }) {
@@ -10093,6 +10164,9 @@ const REPURPOSE_SYSTEM = [
   "• YouTube Community post: 2–3 sentences, casual, ends with a question to spark replies.",
   "Rules: preserve the creator's specific examples and numbers. No filler or padding. Each format must stand alone.",
   "Output only the submit_report tool. Use sections of type 'copy' — one per requested format.",
+  "Set verdict.level='green', verdict.title='Content Repurposed', verdict.text=one sentence on the formats generated.",
+  "Add 3 scores: Voice Consistency (how well it matches the original) / Platform Optimisation / Engagement Potential — each 0-100.",
+  "Set bottomLine to the single format most likely to bring new viewers to the original video.",
 ].join("\n");
 
 function RepurposeTab({ onOpenKey }) {
@@ -10207,6 +10281,9 @@ const COMMENTS_SYSTEM = [
   "• Spam/irrelevant: reply text = 'skip'",
   "Style rules: warm but real — never sound like a bot. Keep replies under 200 chars unless a detailed answer is genuinely needed. Use emojis only if the commenter did first.",
   "Output only the submit_report tool. Use sections of type 'copy' — one per comment. Title each section with a truncated version of the comment. One block per section with label 'Reply'.",
+  "Set verdict.level='green', verdict.title='Replies Ready', verdict.text=one sentence summary (e.g. 'X replies generated, Y skipped').",
+  "Add 2 scores: Community Building Potential / Voice Match — each 0-100.",
+  "Set bottomLine to one tip for improving comment engagement on this type of content.",
 ].join("\n");
 
 function CommentsTab({ onOpenKey }) {
@@ -10307,21 +10384,28 @@ window.CommentsTab = CommentsTab;
 // ContentIntel — Channel Audit (with YouTube auto-fetch)
 
 const AUDIT_SYSTEM = [
-  "You are ContentIntel's channel strategist. Audit a YouTube channel based on its video titles and give blunt, specific, actionable feedback.",
+  "You are ContentIntel's channel strategist. Audit a YouTube channel based on its video data and give blunt, specific, actionable feedback.",
   "LANGUAGE LAW: match the language of the submitted titles.",
+  "You will receive video data in this format: Title | Views | Likes | Comments | Duration | Age",
+  "Use ALL available metrics — not just titles. Identify which videos over- or under-perform vs the channel average.",
   "Score these dimensions 0-100:",
   "• Title CTR Potential — are titles curiosity-driven, specific, with stakes or numbers?",
   "• Niche Consistency — clear focus or scattered content?",
   "• Content Gap Awareness — missing obvious high-traffic angles for this niche?",
   "• Audience Targeting — do titles speak to a specific person or feel generic?",
-  "• Growth Trajectory — based on title progression, is strategy improving over time?",
-  "Be SPECIFIC. Reference exact titles from the list. Name the best and worst performing patterns.",
+  "• Growth Trajectory — is performance improving over time?",
+  "Be SPECIFIC. Reference exact titles and their view counts. Name the best and worst performing videos.",
+  "Calculate average views. Flag any video that is 2× above or below average.",
   "Bottom line: the single most impactful change they should make this week.",
   "Required sections:",
-  "1. Strengths — checklist of what's working",
+  "1. Strengths — checklist of what's working (reference actual numbers)",
   "2. Critical issues — issues list with level (red/yellow) and specific fix for each",
-  "3. Title rewrites — rewrite the 3 weakest titles as copy blocks (show original → rewrite)",
-  "4. 30-day action plan — kv rows: Week 1 / Week 2 / Week 3 / Week 4 + specific action",
+  "3. Top vs bottom performers — copy block comparing the highest and lowest view count videos and WHY",
+  "4. Title rewrites — rewrite the 3 weakest-performing titles as copy blocks (show original → rewrite)",
+  "5. 30-day action plan — kv rows: Week 1 / Week 2 / Week 3 / Week 4 + specific action",
+  "Set verdict.level based on overall score: green=70+, yellow=40-69, red=below 40.",
+  "Set verdict.title to a punchy channel health verdict (e.g. 'Strong niche, weak hooks').",
+  "Set verdict.text to a 2-sentence summary of the biggest strength and the biggest problem.",
 ].join("\n");
 
 function AuditTab({ onOpenKey }) {
@@ -10333,6 +10417,7 @@ function AuditTab({ onOpenKey }) {
   const [handle, setHandle]   = React.useState('');
   const [about, setAbout]     = React.useState('');
   const [titles, setTitles]   = React.useState('');
+  const [videoData, setVideoData] = React.useState([]);
   const [fetchState, setFetchState] = React.useState('idle'); // idle | fetching | fetched | error
   const [fetchErr, setFetchErr]     = React.useState('');
   const [channelInfo, setChannelInfo] = React.useState(null);
@@ -10355,6 +10440,7 @@ function AuditTab({ onOpenKey }) {
         videoCount: ch.statistics.videoCount,
         description: ch.snippet.description,
       });
+      setVideoData(vids);
       setTitles(vids.map(v => v.title).join('\n'));
       if (!about.trim() && ch.snippet.description) {
         setAbout(ch.snippet.description.slice(0, 200));
@@ -10369,16 +10455,22 @@ function AuditTab({ onOpenKey }) {
   const titleCount = titles.trim() ? titles.trim().split('\n').filter(l => l.trim()).length : 0;
 
   function generate() {
-    if (!titles.trim()) return;
+    if (!titles.trim() && !videoData.length) return;
     const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
+    const hasStats = videoData.length > 0 && parseInt(videoData[0].viewCount || 0) > 0;
+    const videoText = videoData.length > 0
+      ? (hasStats
+          ? `Recent videos with analytics (${videoData.length}):\n${window.formatVideoStats(videoData)}`
+          : `Recent video titles (${videoData.length}):\n${videoData.map(v=>v.title).join('\n')}`)
+      : `Recent video titles (${titleCount}):\n${titles.trim()}`;
     run({
       system: AUDIT_SYSTEM + (profileCtx ? '\n\nCreator context:\n' + profileCtx : ''),
       userText: [
         channelInfo ? `Channel: ${channelInfo.name} | Subscribers: ${Number(channelInfo.subs || 0).toLocaleString()} | Total views: ${Number(channelInfo.views || 0).toLocaleString()}` : (handle.trim() ? `Channel: ${handle.trim()}` : ''),
         about.trim() ? `Niche / About: ${about.trim()}` : '',
-        `Recent video titles (${titleCount}):\n${titles.trim()}`,
+        videoText,
       ].filter(Boolean).join('\n\n'),
-      maxTokens: 2800,
+      maxTokens: 3200,
     });
   }
 
@@ -10398,7 +10490,7 @@ function AuditTab({ onOpenKey }) {
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           {[{ id: 'auto', label: '⚡ Auto-fetch from YouTube' }, { id: 'manual', label: '✎ Paste titles manually' }].map(opt => (
-            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setTitles(''); }}
+            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setTitles(''); setVideoData([]); }}
               style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${mode === opt.id ? m.accentFrom : 'var(--stroke-2)'}`,
                 background: mode === opt.id ? m.accentFrom + '18' : 'transparent',
                 color: mode === opt.id ? m.accentFrom : 'var(--text-3)',
@@ -10510,19 +10602,27 @@ window.AuditTab = AuditTab;
 const COMPETITOR_SYSTEM = [
   "You are ContentIntel's competitive intelligence analyst. Break down a competitor's channel with tactical precision.",
   "LANGUAGE LAW: match the language of the submitted titles.",
+  "You will receive video data in this format: Title | Views | Likes | Comments | Duration | Age",
+  "Use ALL available metrics. Identify their top-performing videos and what makes them work.",
   "Analyse:",
   "• Title hook: what psychological trigger they use (curiosity gap, social proof, fear, aspiration, numbers, controversy)",
   "• Content strategy: what formats, angles and niches they consistently win in",
   "• Audience targeting: exactly who this is made for and why it resonates",
+  "• Top performers: which videos get the most views and why (reference actual numbers)",
   "• Content gaps: what angles they missed that YOU could own",
   "• Replication opportunities: what to borrow ethically and improve on",
   "Score 0-100: Title Hook Strength, Audience Targeting Clarity, Content Variety, Gap Opportunity (higher = more opening for you), Overall Threat Level.",
+  "Calculate their average views. Identify their highest and lowest performers.",
   "Bottom line: the single highest-leverage move to outperform this competitor.",
   "Required sections:",
-  "1. What's working — checklist of their winning patterns",
-  "2. How to beat them — copy blocks: write 3 titles that outperform their best + 1 thumbnail concept that beats theirs",
-  "3. Content gaps to exploit — kv list: Gap / Your angle for each opportunity",
-  "4. Title patterns to steal — copy block listing their most effective formulas you can adapt",
+  "1. What's working — checklist of their winning patterns (with view counts where available)",
+  "2. Their top videos — copy block: list their 3 highest-view videos and what made them work",
+  "3. How to beat them — copy blocks: write 3 titles that outperform their best + 1 thumbnail concept",
+  "4. Content gaps to exploit — kv list: Gap / Your angle for each opportunity",
+  "5. Title patterns to steal — copy block listing their most effective formulas you can adapt",
+  "Set verdict.level to 'yellow' (moderate threat) or 'red' (high threat) based on their strength.",
+  "Set verdict.title to a punchy threat assessment (e.g. 'Strong competitor — beatable on depth').",
+  "Set verdict.text to a 2-sentence summary of their biggest strength and your biggest opportunity.",
 ].join("\n");
 
 function CompetitorTab({ onOpenKey }) {
@@ -10533,6 +10633,7 @@ function CompetitorTab({ onOpenKey }) {
   const [handle, setHandle]   = React.useState('');
   const [title, setTitle]     = React.useState('');
   const [recent, setRecent]   = React.useState('');
+  const [videoData, setVideoData] = React.useState([]);
   const [thumb, setThumb]     = React.useState(null);
   const [fetchState, setFetchState] = React.useState('idle');
   const [fetchErr, setFetchErr]     = React.useState('');
@@ -10550,6 +10651,7 @@ function CompetitorTab({ onOpenKey }) {
       const ch   = await window.fetchYTChannel(handle.trim(), ytKey);
       const vids = await window.fetchYTVideos(ch.id, ytKey, 20);
       setChannelInfo({ name: ch.snippet.title, subs: ch.statistics.subscriberCount, videoCount: ch.statistics.videoCount });
+      setVideoData(vids);
       setRecent(vids.map(v => v.title).join('\n'));
       if (!title.trim() && vids.length) setTitle(vids[0].title);
       setFetchState('fetched');
@@ -10583,13 +10685,19 @@ function CompetitorTab({ onOpenKey }) {
     if (!title.trim() && !recent.trim()) return;
     const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
     const chName = channelInfo ? channelInfo.name : handle.trim();
+    const hasStats = videoData.length > 0 && parseInt(videoData[0].viewCount || 0) > 0;
+    const videoText = videoData.length > 0
+      ? (hasStats
+          ? `Their recent videos with analytics (${videoData.length}):\n${window.formatVideoStats(videoData)}`
+          : `Their recent titles:\n${videoData.map(v=>v.title).join('\n')}`)
+      : (recent.trim() ? `Their recent titles:\n${recent.trim()}` : '');
     run({
       system: COMPETITOR_SYSTEM + (profileCtx ? '\n\nYour channel context (counter-strategy must be tailored to this):\n' + profileCtx : ''),
       userText: [
         title.trim() ? `Competitor's standout title: ${title.trim()}` : '',
         chName ? `Competitor channel: ${chName}` : '',
         channelInfo ? `Subscribers: ${Number(channelInfo.subs || 0).toLocaleString()} | Videos: ${channelInfo.videoCount}` : '',
-        recent.trim() ? `Their recent titles:\n${recent.trim()}` : '',
+        videoText || '',
         thumb ? '(Their thumbnail is attached — analyse it visually.)' : '',
       ].filter(Boolean).join('\n'),
       images: thumb ? [thumb] : [],
@@ -10615,7 +10723,7 @@ function CompetitorTab({ onOpenKey }) {
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           {[{ id: 'auto', label: '⚡ Auto-fetch from YouTube' }, { id: 'manual', label: '✎ Enter manually' }].map(opt => (
-            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setRecent(''); setTitle(''); }}
+            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setRecent(''); setTitle(''); setVideoData([]); }}
               style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${mode === opt.id ? m.accentFrom : 'var(--stroke-2)'}`,
                 background: mode === opt.id ? m.accentFrom + '18' : 'transparent',
                 color: mode === opt.id ? m.accentFrom : 'var(--text-3)',
