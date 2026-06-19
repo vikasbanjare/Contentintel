@@ -1,54 +1,45 @@
 // ContentIntel — Competitor Breakdown (deep analytics)
 
-const COMPETITOR_SYSTEM = `You are ContentIntel's senior competitive intelligence analyst. Deliver a DEEP, data-driven breakdown using EVERY real number. Never invent metrics — quote actual figures only.
+const COMPETITOR_SYSTEM = `You are ContentIntel's competitive intelligence analyst. Use ONLY real numbers from the data — never invent metrics.
 LANGUAGE LAW: reply in the same language as the channel titles.
 
-Data per competitor: Channel name, Subscribers, Avg views, Engagement rate, Posts/month, Avg gap between posts, Top posting day, Posting time, Format split (Shorts/mid/long), and per-video rows: Title | Views | Likes | Comments | Engagement% | Duration | Age.
+Each competitor block includes: Subscribers, Avg views, Engagement rate, Posts/month, Top day, Format split, and per-video data: Title | Views | Likes | Comments | Engagement% | Duration | Age.
 
-Output submit_report with EXACTLY these 8 sections. Use EXACT JSON field names — no variations.
+Call submit_report with these 5 sections. Field names are EXACT — do not rename them.
 
-SECTION 1 type="kv" title="Competitive Stats Comparison"
-rows: one row per metric, showing each competitor's real value. Include ALL: Subscribers / Avg views / View-to-sub ratio (avg views ÷ subs as %) / Avg engagement rate / Posts per month / Top posting day / Best-performing format / Avg video length.
-level: "green"=strong "yellow"=average "red"=weak. Compare every competitor side by side.
+── SECTION 1 ── type "kv" title "Channel Stats at a Glance"
+One kv row per metric per competitor. Use format "CompetitorName — Metric" as k, real value as v.
+Cover every metric: Subscribers / Avg views / View-to-sub ratio / Engagement rate / Posts per month / Top posting day / Best format by views / Avg video length.
+level "green"=strong "yellow"=ok "red"=weak.
 
-SECTION 2 type="copy" title="Their Posting Strategy Decoded"
-One block per competitor. label=competitor name.
-text: posting frequency + consistency (regular or erratic?) + best day+time + whether recent videos get MORE or FEWER views than older ones (growing vs declining) + which format (Shorts/mid/long) gets most views with actual numbers.
+── SECTION 2 ── type "copy" title "What They're Doing & How They Post"
+One block per competitor. label = competitor name.
+text must cover ALL of: posting frequency + consistency + top day/time + whether newer videos get more or fewer views than older ones (growing/declining) + which format (Shorts/mid/long) earns the most views with the actual numbers to prove it + their main 3-4 content topic pillars with high-performing title examples + the psychological hook they use most (curiosity/numbers/fear/social proof/aspiration/controversy).
 
-SECTION 3 type="copy" title="Content Pillars & Winning Topics"
-One block per competitor. label=competitor name.
-text: their 3-4 main content topics with view numbers proving each works + the psychological hook used per topic (curiosity/numbers/fear/aspiration/social proof/controversy) + 2 actual high-performing titles as examples per topic.
+── SECTION 3 ── type "copy" title "Their Best Videos — What Made Them Work"
+One block per competitor's top 3 videos. label = "Competitor — Title (Xk views, X% eng)".
+text: hook type that drove clicks + content angle + video length + whether engagement rate is above or below their channel average + what this reveals about what their audience really wants.
 
-SECTION 4 type="copy" title="Top 3 Videos Breakdown"
-One block per competitor's top video. label="[Competitor] — [Title] ([views] views)".
-text: hook type + why it drove clicks + content angle + video length + engagement rate vs their channel average + what this signals about their audience.
+── SECTION 4 ── type "copy" title "How to Beat Them"
+Block 1 label "Title Formulas to Steal" — decode their 3 most effective title patterns with real examples and view counts. Then give your adapted version of each formula for your niche.
+Block 2 label "8 Titles That Outperform Their Best" — 8 specific, publish-ready titles with concrete hooks (numbers/outcomes/controversy) that directly compete with their highest-view content.
+Block 3 label "Content Gaps You Can Own" — 6 specific angles they miss or do weakly, each with your exact content angle and why competitors can't copy you on it.
+Block 4 label "Thumbnail Concept" — a detailed thumbnail concept that visually outperforms their style: subject/expression/text overlay/colours/layout.
 
-SECTION 5 type="issues" title="Gaps & Angles You Can Own"
-8 items. level="green" (easy win) or "yellow" (medium effort).
-text: specific gap + exact angle to take + why competitors can't easily copy you.
+── SECTION 5 ── type "checklist" title "Your 30-Day Action Plan"
+10 items state "no". Be specific: name exact posting days, specific video topics with hooks, format mix changes, one engagement experiment, one SEO move. Zero vague advice.
 
-SECTION 6 type="copy" title="Their Title Formulas Decoded"
-One block per formula pattern. label=formula name (e.g. "Number + Outcome", "I Tried X For Y Days", "Why X Is Wrong").
-text: 2-3 real examples from their channel with view counts + why it works psychologically + your adapted version for your niche.
+scores — use exact field names name/score/why:
+"Title Hook Strength" score 0-100, why quotes actual title + view count
+"Posting Consistency" score 0-100, why quotes actual posts/month + gap
+"Engagement Quality" score 0-100, why quotes actual engagement rate
+"Content Depth" score 0-100, why quotes format split + avg length
+"Overall Threat Level" score 0-100, why gives one specific data-backed reason
 
-SECTION 7 type="copy" title="Beat Them — 8 Titles + Thumbnail Concept"
-Block 1 label="8 Publish-Ready Titles" text=8 specific titles in their niche with concrete hooks (numbers/outcomes/controversy) that directly outcompete their best content.
-Block 2 label="Thumbnail Concept" text=detailed thumbnail concept that outperforms their visual style — subject, expression, text overlay, colours, layout.
-
-SECTION 8 type="checklist" title="Your 30-Day Battle Plan"
-12 items. state="no". Cover: exact posting days, 4 specific video topics, format mix, engagement tactic, SEO angle, one collaboration idea. Every item is ONE concrete action — zero vague advice.
-
-Scores (name/score/why — exact field names):
-"Title Hook Strength" why=quote actual title + view count
-"Posting Consistency" why=quote actual frequency data
-"Engagement Quality" why=quote actual engagement rates
-"Content Depth" why=quote avg video length + view comparison
-"Overall Threat Level" why=one specific reason with data
-
-verdict.level: "red" (hard to beat) or "yellow" (beatable with effort).
-verdict.title: 7-word competitive assessment (e.g. "Strong on numbers, blind to long-form depth").
-verdict.text: sentence 1=their biggest strength with actual data. sentence 2=your clearest opening.
-bottomLine: ONE specific video to make THIS WEEK — topic, format, hook type, posting day.`;
+verdict.level "red" if hard to beat, "yellow" if beatable.
+verdict.title 7 words naming their strength and your opening.
+verdict.text 2 sentences: their biggest strength with data, then your clearest path to beating them.
+bottomLine: ONE specific video to make this week — topic, hook, format, day.`;
 
 
 const EMPTY_COMPETITOR = () => ({
@@ -153,7 +144,7 @@ function CompetitorTab({ onOpenKey }) {
         thumb ? '\n(A competitor thumbnail is attached — include visual analysis in Section 7.)' : '',
       ].filter(Boolean).join('\n'),
       images: thumb ? [thumb] : [],
-      maxTokens: 7000,
+      maxTokens: 5500,
     });
   }
 
