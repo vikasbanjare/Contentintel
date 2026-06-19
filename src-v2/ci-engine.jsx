@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-19-r18";
+window.CI_BUILD = "2026-06-19-r19";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -1587,11 +1587,110 @@ function formatVideoStats(videos) {
       parts.push(`${fmt(v.viewCount)} views`);
       parts.push(`${fmt(v.likeCount)} likes`);
       parts.push(`${fmt(v.commentCount)} comments`);
+      const views = parseInt(v.viewCount||0);
+      if (views > 0) {
+        const eng = (((parseInt(v.likeCount||0)+parseInt(v.commentCount||0))/views)*100).toFixed(2);
+        parts.push(`${eng}% engagement`);
+      }
     }
     const d = dur(v.duration); if (d) parts.push(d);
     const a = age(v.published); if (a) parts.push(a+' ago');
     return parts.join(' | ');
   }).join('\n');
+}
+
+// Compute deep channel analytics from video array
+function analyzeChannelMetrics(videos) {
+  if (!videos || !videos.length) return null;
+  function durSecs(iso) {
+    if (!iso) return 0;
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return 0;
+    return (parseInt(m[1]||0)*3600)+(parseInt(m[2]||0)*60)+parseInt(m[3]||0);
+  }
+  const DAY = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const sorted = [...videos].sort((a,b) => new Date(b.published)-new Date(a.published));
+  const dates = sorted.map(v => new Date(v.published)).filter(d => !isNaN(d.getTime()));
+  // Posting frequency
+  let avgGapDays = null, postsPerMonth = null, postsPerWeek = null;
+  if (dates.length >= 2) {
+    const spanDays = (dates[0]-dates[dates.length-1])/86400000;
+    avgGapDays = Math.round(spanDays/(dates.length-1));
+    postsPerMonth = spanDays > 0 ? Math.round((dates.length/spanDays)*30*10)/10 : null;
+    postsPerWeek  = spanDays > 0 ? Math.round((dates.length/spanDays)*7*10)/10 : null;
+  }
+  // Day of week
+  const dayCounts = Array(7).fill(0);
+  dates.forEach(d => dayCounts[d.getDay()]++);
+  const topDayIdx = dayCounts.indexOf(Math.max(...dayCounts));
+  const topDay = DAY[topDayIdx];
+  const dayDist = DAY.map((name,i) => dayCounts[i] > 0 ? `${name}(${dayCounts[i]})` : null).filter(Boolean).join(', ');
+  // Hour of day
+  const hourCounts = Array(24).fill(0);
+  dates.forEach(d => hourCounts[d.getHours()]++);
+  const topHour = hourCounts.indexOf(Math.max(...hourCounts));
+  const timeSlot = topHour<6?'Late night (12–6am)':topHour<12?'Morning (6am–12pm)':topHour<18?'Afternoon (12–6pm)':'Evening (6pm–12am)';
+  // Performance
+  const withStats = videos.filter(v => parseInt(v.viewCount||0)>0);
+  let avgViews=0,avgLikes=0,avgComments=0,avgEngRate=0,maxViews=0,minViews=Infinity;
+  let topVideo=null,bottomVideo=null;
+  if (withStats.length) {
+    const byV = [...withStats].sort((a,b)=>parseInt(b.viewCount)-parseInt(a.viewCount));
+    topVideo = byV[0]; bottomVideo = byV[byV.length-1];
+    avgViews = Math.round(withStats.reduce((s,v)=>s+parseInt(v.viewCount||0),0)/withStats.length);
+    avgLikes = Math.round(withStats.reduce((s,v)=>s+parseInt(v.likeCount||0),0)/withStats.length);
+    avgComments = Math.round(withStats.reduce((s,v)=>s+parseInt(v.commentCount||0),0)/withStats.length);
+    const rates = withStats.map(v=>{ const vv=parseInt(v.viewCount||0); return vv?((parseInt(v.likeCount||0)+parseInt(v.commentCount||0))/vv)*100:0; });
+    avgEngRate = Math.round(rates.reduce((s,r)=>s+r,0)/rates.length*100)/100;
+  }
+  // Duration
+  const durs = videos.map(v=>durSecs(v.duration)).filter(d=>d>0);
+  const avgDurSecs = durs.length ? Math.round(durs.reduce((s,d)=>s+d,0)/durs.length) : 0;
+  const shorts = durs.filter(d=>d<=60).length;
+  const mids   = durs.filter(d=>d>60&&d<=600).length;
+  const longs  = durs.filter(d=>d>600).length;
+  return { avgGapDays, postsPerMonth, postsPerWeek, topDay, dayDist, timeSlot, topHour,
+    avgViews, avgLikes, avgComments, avgEngRate, avgDurSecs, shorts, mids, longs,
+    totalVideos: videos.length, withStats: withStats.length, topVideo, bottomVideo };
+}
+
+// Full competitor analytics block for Claude prompt
+function formatCompetitorAnalytics(videos, channelInfo) {
+  function fmt(n) { const v=parseInt(n||0); return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':String(v); }
+  function fmtDur(s) { if(!s)return'?'; const m=Math.floor(s/60),sec=s%60; return `${m}m ${sec}s`; }
+  const mx = analyzeChannelMetrics(videos);
+  const lines = [];
+  if (channelInfo) {
+    lines.push(`Channel: ${channelInfo.name}`);
+    lines.push(`Subscribers: ${fmt(channelInfo.subs)} | Total channel videos: ${channelInfo.videoCount}`);
+  }
+  if (mx) {
+    lines.push('\n=== POSTING BEHAVIOUR ===');
+    if (mx.postsPerMonth !== null) {
+      lines.push(`Frequency: ~${mx.postsPerMonth} videos/month (~${mx.postsPerWeek}/week)`);
+      lines.push(`Avg gap between posts: ${mx.avgGapDays} days`);
+    }
+    lines.push(`Most active day: ${mx.topDay}`);
+    lines.push(`Day distribution: ${mx.dayDist}`);
+    lines.push(`Typical posting time: ${mx.timeSlot}`);
+    lines.push('\n=== PERFORMANCE METRICS ===');
+    if (mx.avgViews > 0) {
+      lines.push(`Avg views/video: ${fmt(mx.avgViews)}`);
+      lines.push(`Avg likes/video: ${fmt(mx.avgLikes)}`);
+      lines.push(`Avg comments/video: ${fmt(mx.avgComments)}`);
+      lines.push(`Avg engagement rate: ${mx.avgEngRate}% (likes+comments/views)`);
+    }
+    if (mx.topVideo) lines.push(`Top performer: "${mx.topVideo.title}" — ${fmt(mx.topVideo.viewCount)} views (${((parseInt(mx.topVideo.likeCount||0)+parseInt(mx.topVideo.commentCount||0))/Math.max(1,parseInt(mx.topVideo.viewCount||1))*100).toFixed(2)}% eng)`);
+    if (mx.bottomVideo) lines.push(`Weakest performer: "${mx.bottomVideo.title}" — ${fmt(mx.bottomVideo.viewCount)} views`);
+    lines.push('\n=== CONTENT FORMAT ===');
+    lines.push(`Avg video length: ${fmtDur(mx.avgDurSecs)}`);
+    if (mx.shorts > 0) lines.push(`Shorts (≤60s): ${mx.shorts}/${mx.totalVideos} videos`);
+    if (mx.mids   > 0) lines.push(`Mid-length (1–10min): ${mx.mids}/${mx.totalVideos} videos`);
+    if (mx.longs  > 0) lines.push(`Long-form (>10min): ${mx.longs}/${mx.totalVideos} videos`);
+  }
+  lines.push('\n=== RECENT VIDEOS (newest first, with per-video metrics) ===');
+  lines.push(formatVideoStats(videos));
+  return lines.join('\n');
 }
 
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
@@ -1708,7 +1807,8 @@ Object.assign(window, {
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
-  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId, formatVideoStats,
+  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
+  formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,

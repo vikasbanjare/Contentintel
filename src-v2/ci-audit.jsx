@@ -1,28 +1,35 @@
-// ContentIntel — Channel Audit (with YouTube auto-fetch)
+// ContentIntel — Channel Audit (with YouTube auto-fetch + deep analytics)
 
 const AUDIT_SYSTEM = [
-  "You are ContentIntel's channel strategist. Audit a YouTube channel based on its video data and give blunt, specific, actionable feedback.",
-  "LANGUAGE LAW: match the language of the submitted titles.",
-  "You will receive video data in this format: Title | Views | Likes | Comments | Duration | Age",
-  "Use ALL available metrics — not just titles. Identify which videos over- or under-perform vs the channel average.",
-  "Score these dimensions 0-100:",
+  "You are ContentIntel's channel strategist. Audit a YouTube channel with full data-driven precision — be blunt, specific, and actionable.",
+  "LANGUAGE LAW: match the language of the submitted content.",
+  "You receive a structured analytics block. Use EVERY metric — never skip numbers.",
+  "",
+  "Analyse these dimensions (score each 0-100):",
   "• Title CTR Potential — are titles curiosity-driven, specific, with stakes or numbers?",
-  "• Niche Consistency — clear focus or scattered content?",
-  "• Content Gap Awareness — missing obvious high-traffic angles for this niche?",
+  "• Niche Consistency — clear focus or scattered topics?",
+  "• Content Gap Awareness — what obvious high-traffic angles are missing?",
   "• Audience Targeting — do titles speak to a specific person or feel generic?",
-  "• Growth Trajectory — is performance improving over time?",
-  "Be SPECIFIC. Reference exact titles and their view counts. Name the best and worst performing videos.",
-  "Calculate average views. Flag any video that is 2× above or below average.",
-  "Bottom line: the single most impactful change they should make this week.",
-  "Required sections:",
-  "1. Strengths — checklist of what's working (reference actual numbers)",
-  "2. Critical issues — issues list with level (red/yellow) and specific fix for each",
-  "3. Top vs bottom performers — copy block comparing the highest and lowest view count videos and WHY",
-  "4. Title rewrites — rewrite the 3 weakest-performing titles as copy blocks (show original → rewrite)",
-  "5. 30-day action plan — kv rows: Week 1 / Week 2 / Week 3 / Week 4 + specific action",
-  "Set verdict.level based on overall score: green=70+, yellow=40-69, red=below 40.",
-  "Set verdict.title to a punchy channel health verdict (e.g. 'Strong niche, weak hooks').",
-  "Set verdict.text to a 2-sentence summary of the biggest strength and the biggest problem.",
+  "• Growth Trajectory — is performance improving, plateauing, or declining over time?",
+  "• Posting Consistency — is the frequency sustainable and strategic?",
+  "• Engagement Quality — is the audience loyal (high eng rate) or passive (view-only)?",
+  "",
+  "Required sections (ALL required):",
+  "1. Channel snapshot — kv list: Avg views / Avg engagement rate / Posts per month / Top posting day / Format split (Shorts/mid/long)",
+  "2. Strengths — checklist of what's genuinely working (cite exact titles + numbers)",
+  "3. Critical issues — issues list with level (red/yellow) and a copy-ready fix for each",
+  "4. Top vs bottom performers — copy block: the highest and lowest view count videos, WHY the gap exists, and what to do about it",
+  "5. Posting strategy analysis — text: frequency, timing, consistency gaps, and what schedule to move to",
+  "6. Engagement audit — text: what the like/comment rates say about audience loyalty vs casual viewers",
+  "7. Title rewrites — rewrite the 3 weakest-performing titles as copy blocks (Original → Rewrite, name the hook type used)",
+  "8. 30-day action plan — kv rows: Week 1–4 with specific, measurable actions",
+  "",
+  "Be SPECIFIC. Reference exact titles, their view counts, and engagement rates.",
+  "Calculate average views. Flag any video 2× above or below average.",
+  "Set verdict.level: green=score 70+, yellow=40-69, red=below 40.",
+  "Set verdict.title to a punchy health verdict (e.g. 'Solid niche — posting inconsistency is killing growth').",
+  "Set verdict.text to a 2-sentence summary: biggest strength + biggest problem.",
+  "Set bottomLine to the single most impactful change they should make this week.",
 ].join("\n");
 
 function AuditTab({ onOpenKey }) {
@@ -35,7 +42,8 @@ function AuditTab({ onOpenKey }) {
   const [about, setAbout]     = React.useState('');
   const [titles, setTitles]   = React.useState('');
   const [videoData, setVideoData] = React.useState([]);
-  const [fetchState, setFetchState] = React.useState('idle'); // idle | fetching | fetched | error
+  const [metrics, setMetrics] = React.useState(null);
+  const [fetchState, setFetchState] = React.useState('idle');
   const [fetchErr, setFetchErr]     = React.useState('');
   const [channelInfo, setChannelInfo] = React.useState(null);
 
@@ -46,19 +54,21 @@ function AuditTab({ onOpenKey }) {
 
   async function fetchChannel() {
     if (!handle.trim()) return;
-    setFetchState('fetching'); setFetchErr(''); setChannelInfo(null); setTitles(''); reset();
+    setFetchState('fetching'); setFetchErr(''); setChannelInfo(null); setTitles(''); setMetrics(null); reset();
     try {
       const ch  = await window.fetchYTChannel(handle.trim(), ytKey);
       const vids = await window.fetchYTVideos(ch.id, ytKey, 25);
-      setChannelInfo({
+      const chInfo = {
         name: ch.snippet.title,
         subs: ch.statistics.subscriberCount,
         views: ch.statistics.viewCount,
         videoCount: ch.statistics.videoCount,
         description: ch.snippet.description,
-      });
+      };
+      setChannelInfo(chInfo);
       setVideoData(vids);
       setTitles(vids.map(v => v.title).join('\n'));
+      setMetrics(window.analyzeChannelMetrics ? window.analyzeChannelMetrics(vids) : null);
       if (!about.trim() && ch.snippet.description) {
         setAbout(ch.snippet.description.slice(0, 200));
       }
@@ -74,20 +84,19 @@ function AuditTab({ onOpenKey }) {
   function generate() {
     if (!titles.trim() && !videoData.length) return;
     const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
-    const hasStats = videoData.length > 0 && parseInt(videoData[0].viewCount || 0) > 0;
-    const videoText = videoData.length > 0
-      ? (hasStats
-          ? `Recent videos with analytics (${videoData.length}):\n${window.formatVideoStats(videoData)}`
-          : `Recent video titles (${videoData.length}):\n${videoData.map(v=>v.title).join('\n')}`)
-      : `Recent video titles (${titleCount}):\n${titles.trim()}`;
+    const videoText = videoData.length > 0 && window.formatCompetitorAnalytics
+      ? window.formatCompetitorAnalytics(videoData, channelInfo)
+      : (titles.trim() ? `Recent video titles (${titleCount}):\n${titles.trim()}` : '');
     run({
       system: AUDIT_SYSTEM + (profileCtx ? '\n\nCreator context:\n' + profileCtx : ''),
       userText: [
-        channelInfo ? `Channel: ${channelInfo.name} | Subscribers: ${Number(channelInfo.subs || 0).toLocaleString()} | Total views: ${Number(channelInfo.views || 0).toLocaleString()}` : (handle.trim() ? `Channel: ${handle.trim()}` : ''),
+        channelInfo
+          ? `Channel: ${channelInfo.name} | Subscribers: ${Number(channelInfo.subs||0).toLocaleString()} | Total channel views: ${Number(channelInfo.views||0).toLocaleString()}`
+          : (handle.trim() ? `Channel: ${handle.trim()}` : ''),
         about.trim() ? `Niche / About: ${about.trim()}` : '',
         videoText,
       ].filter(Boolean).join('\n\n'),
-      maxTokens: 3200,
+      maxTokens: 3500,
     });
   }
 
@@ -147,8 +156,8 @@ function AuditTab({ onOpenKey }) {
               <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(240,90,110,0.08)', border: '1px solid rgba(240,90,110,0.25)', fontSize: 13, color: '#F06A7E' }}>{fetchErr}</div>
             )}
             {fetchState === 'fetched' && channelInfo && (
-              <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(143,216,106,0.07)', border: '1px solid rgba(143,216,106,0.25)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+              <div style={{ borderRadius: 12, background: 'rgba(143,216,106,0.06)', border: '1px solid rgba(143,216,106,0.2)', padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: metrics ? 12 : 0 }}>
                   <span style={{ fontSize: 22 }}>✓</span>
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)' }}>{channelInfo.name}</div>
@@ -157,7 +166,28 @@ function AuditTab({ onOpenKey }) {
                     </div>
                   </div>
                 </div>
-                <div style={{ fontSize: 12.5, color: '#8FD86A', fontWeight: 600 }}>✓ {titleCount} recent titles fetched — ready to analyse</div>
+                {metrics && (
+                  <>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                      {[
+                        { label: 'Avg views', val: fmt(metrics.avgViews) },
+                        { label: 'Engagement', val: metrics.avgEngRate + '%' },
+                        { label: 'Posts/month', val: metrics.postsPerMonth !== null ? `~${metrics.postsPerMonth}` : 'N/A' },
+                        { label: 'Avg length', val: metrics.avgDurSecs ? `${Math.floor(metrics.avgDurSecs/60)}m` : 'N/A' },
+                      ].map(s => (
+                        <div key={s.label} style={{ flex: '1 0 70px', padding: '7px 10px', borderRadius: 8, background: 'var(--surface-2)', textAlign: 'center' }}>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: '#8FD86A' }}>{s.val}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 1 }}>{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {metrics.postsPerWeek !== null && <span style={{ fontSize: 12, color: 'var(--text-3)', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>~{metrics.postsPerWeek}/week · top day: {metrics.topDay}</span>}
+                      {metrics.shorts > 0 && <span style={{ fontSize: 12, color: '#5CD9A0', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>Shorts: {metrics.shorts}</span>}
+                      {metrics.longs > 0 && <span style={{ fontSize: 12, color: '#F0C85A', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>Long-form: {metrics.longs}</span>}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
