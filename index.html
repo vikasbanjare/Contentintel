@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-18-r17";
+window.CI_BUILD = "2026-06-19-r18";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -3743,6 +3743,43 @@ async function fetchYTChannel(handleOrUrl, key) {
   return data.items[0];
 }
 
+// Extract a YouTube video ID from a full URL or bare ID
+function parseYTVideoId(input) {
+  const s = (input || '').trim();
+  const m1 = s.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
+  if (m1) return m1[1];
+  const m2 = s.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+  if (m2) return m2[1];
+  const m3 = s.match(/\/shorts\/([A-Za-z0-9_-]{11})/);
+  if (m3) return m3[1];
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  return null;
+}
+
+async function fetchYTComments(videoId, key, maxResults = 50) {
+  const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
+  let url;
+  if (key === '__proxy__') {
+    if (!workerUrl) throw new Error('Worker URL not configured.');
+    url = `${workerUrl}/yt?action=comments&videoId=${encodeURIComponent(videoId)}&maxResults=${maxResults}`;
+  } else {
+    if (!key) throw new Error('Need a YouTube API key.');
+    url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(videoId)}&maxResults=${maxResults}&order=relevance&key=${encodeURIComponent(key)}`;
+  }
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error('YouTube API: ' + (data.error.message || (typeof data.error === 'string' ? data.error : 'request failed')));
+  return (data.items || []).map(item => {
+    const s = item.snippet.topLevelComment.snippet;
+    return {
+      author: s.authorDisplayName || 'Anonymous',
+      text: s.textDisplay || '',
+      likes: s.likeCount || 0,
+      published: s.publishedAt || '',
+    };
+  });
+}
+
 async function fetchYTVideos(channelId, key, maxResults = 25) {
   const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
   // Step 1: search for recent videos
@@ -3940,7 +3977,7 @@ Object.assign(window, {
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
-  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, formatVideoStats,
+  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId, formatVideoStats,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
@@ -9911,11 +9948,15 @@ const CAPTION_SYSTEM = [
   "You are an expert social media copywriter for video creators.",
   "Write platform-optimised captions, descriptions and hashtag sets that maximise clicks, saves, watch-time and shares.",
   "",
+  "If a transcript or script is provided, extract the key moments, hooks, and value points from it.",
+  "Use the actual content to write specific, grounded captions — not generic ones.",
+  "",
   "Platform rules:",
-  "• YouTube description: 2–3 sentence SEO-optimised opener with the most important keywords in line 1; a short 'What you'll learn' bullet list; a CTA (subscribe / watch next); timestamps line if relevant; links placeholder.",
+  "• YouTube description: 2–3 sentence SEO-optimised opener with the most important keywords in line 1; a short 'What you'll learn' bullet list with actual points from the content; a CTA (subscribe / watch next); timestamps if relevant; links placeholder.",
   "• Instagram/Reels caption: punchy hook on line 1 (under 125 chars before the fold), 2–3 lines body with emotion + value + CTA, 5–8 relevant emojis scattered naturally.",
   "• TikTok caption: max 150 chars total, conversational/slang tone, 3–5 relevant trend hashtags inline.",
   "• LinkedIn post: professional angle, insight or story hook, 3 short paragraphs, 3–5 hashtags at the end.",
+  "• Twitter/X thread: first tweet as a strong hook (under 280 chars), 3–5 follow-up tweets expanding the key point.",
   "• Hashtags block: YouTube (8–12 tags, NO # symbol), Instagram (20–25 tags with #), TikTok (5–7 trend tags with #).",
   "",
   "Output ONLY the submit_report tool call. No prose outside the tool.",
@@ -9931,17 +9972,20 @@ function CaptionTab({ onOpenKey }) {
   const m = MOODS[mood] || MOODS.burgundy;
   const [title, setTitle] = React.useState('');
   const [desc,  setDesc]  = React.useState('');
+  const [transcript, setTranscript] = React.useState('');
+  const [showTranscript, setShowTranscript] = React.useState(false);
   const [plats, setPlats] = React.useState(['youtube', 'instagram', 'tiktok']);
 
   const { state, report, usage, err, run, reset } = useAnalysis('caption');
   const loading = state === 'loading';
-  const estIn   = estTokens(CAPTION_SYSTEM, title, desc);
+  const estIn   = window.estTokens ? window.estTokens(CAPTION_SYSTEM, title, desc, transcript) : 0;
 
   const PLATFORMS = [
     { id: 'youtube',   label: 'YouTube',   col: '#FF0000' },
     { id: 'instagram', label: 'Instagram', col: '#E1306C' },
     { id: 'tiktok',    label: 'TikTok',    col: '#69C9D0' },
     { id: 'linkedin',  label: 'LinkedIn',  col: '#0A66C2' },
+    { id: 'twitter',   label: 'Twitter/X', col: '#1DA1F2' },
   ];
 
   function toggle(id) {
@@ -9958,13 +10002,16 @@ function CaptionTab({ onOpenKey }) {
       system,
       userText: [
         `Video title: ${title.trim()}`,
-        desc.trim() ? `Content summary: ${desc.trim()}` : '',
+        desc.trim() ? `Content summary / key points: ${desc.trim()}` : '',
+        transcript.trim() ? `Video transcript / script:\n\n${transcript.trim()}` : '',
         `Generate captions for: ${platList}`,
         'Add a Hashtags section with platform-specific tag sets.',
-      ].filter(Boolean).join('\n'),
-      maxTokens: 2200,
+      ].filter(Boolean).join('\n\n'),
+      maxTokens: 2800,
     });
   }
+
+  const transcriptWords = transcript.trim() ? transcript.trim().split(/\s+/).length : 0;
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -9972,7 +10019,7 @@ function CaptionTab({ onOpenKey }) {
         <Eyebrow mood={mood} glow>Caption Generator</Eyebrow>
         <h2 className="ci-h2">Captions &amp; Descriptions</h2>
         <p className="ci-sub" style={{ marginTop: 6 }}>
-          One video title → platform-ready captions, descriptions and hashtag sets for every channel you post on.
+          One video title (or full transcript) → platform-ready captions, descriptions and hashtag sets for every channel you post on.
         </p>
       </div>
 
@@ -9984,13 +10031,48 @@ function CaptionTab({ onOpenKey }) {
               placeholder="e.g. I invested ₹50,000 in index funds for 1 year — here's what happened"
               value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
           </label>
+
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>What the video covers <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+              Key points / summary <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+            </span>
             <textarea className="ci-input" rows={3}
               placeholder="Key topics, takeaways, moments — the more you give, the better the captions"
               value={desc} onChange={e => { setDesc(e.target.value); reset(); }}
               style={{ resize: 'vertical', lineHeight: 1.55 }} />
           </label>
+
+          {/* Transcript toggle */}
+          <div>
+            <button
+              onClick={() => setShowTranscript(prev => !prev)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer',
+                color: showTranscript ? m.accentFrom : 'var(--text-3)', fontSize: 13, fontWeight: 600, padding: 0 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${showTranscript ? m.accentFrom : 'var(--stroke-2)'}`,
+                fontSize: 11, transition: 'all 0.15s' }}>
+                {showTranscript ? '▲' : '▼'}
+              </span>
+              {showTranscript ? 'Hide transcript' : '+ Paste video transcript (for deeper, content-specific captions)'}
+              {transcriptWords > 0 && !showTranscript && (
+                <span style={{ fontSize: 11, color: m.accentFrom, fontWeight: 700, marginLeft: 4 }}>({transcriptWords} words added)</span>
+              )}
+            </button>
+            {showTranscript && (
+              <div style={{ marginTop: 10 }}>
+                <textarea className="ci-input" rows={8}
+                  placeholder={"Paste your full video script or transcript here.\n\nClaude will extract real hooks, key moments, and specific points to build captions that match your actual content — not just the title."}
+                  value={transcript} onChange={e => { setTranscript(e.target.value); reset(); }}
+                  style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 12.5 }} />
+                {transcriptWords > 0 && (
+                  <span style={{ fontSize: 11, color: 'var(--text-5)', display: 'block', textAlign: 'right', marginTop: 4 }}>
+                    {transcriptWords} words · Claude will extract key moments from this
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
           <div>
             <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Platforms</span>
             <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
@@ -10013,7 +10095,7 @@ function CaptionTab({ onOpenKey }) {
 
         <div style={{ marginTop: 20 }}>
           <AnalyzeButton mood={mood} label="Generate captions" loading={loading}
-            estIn={estIn} estOut={1800} onClick={generate}
+            estIn={estIn} estOut={2200} onClick={generate}
             disabled={!title.trim()} disabledHint="Enter a video title first" />
         </div>
       </div>
@@ -10289,31 +10371,64 @@ const COMMENTS_SYSTEM = [
 function CommentsTab({ onOpenKey }) {
   const mood = 'cyan';
   const m = MOODS[mood] || MOODS.burgundy;
+  const [mode, setMode] = React.useState('manual');
+  const [videoUrl, setVideoUrl] = React.useState('');
+  const [fetchState, setFetchState] = React.useState('idle'); // idle | fetching | fetched | error
+  const [fetchErr, setFetchErr] = React.useState('');
+  const [fetchedComments, setFetchedComments] = React.useState([]);
   const [comments, setComments] = React.useState('');
   const [tone, setTone] = React.useState('Friendly');
   const [context, setContext] = React.useState('');
 
   const { state, report, usage, err, run, reset } = useAnalysis('comments');
   const loading = state === 'loading';
-  const estIn = estTokens(COMMENTS_SYSTEM, comments, context);
 
+  const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';
+  const hasYT = !!ytKey;
+
+  // Count comments in manual mode
   const commentCount = comments.trim()
     ? comments.split(/\n---\n|\n–––\n/).filter(s => s.trim()).length
     : 0;
 
+  async function fetchComments() {
+    const videoId = window.parseYTVideoId ? window.parseYTVideoId(videoUrl.trim()) : null;
+    if (!videoId) { setFetchErr('Paste a valid YouTube video URL (e.g. youtube.com/watch?v=...).'); setFetchState('error'); return; }
+    setFetchState('fetching'); setFetchErr(''); setFetchedComments([]); reset();
+    try {
+      const items = await window.fetchYTComments(videoId, ytKey, 50);
+      if (!items.length) throw new Error('No comments found on this video (comments may be disabled).');
+      setFetchedComments(items);
+      setFetchState('fetched');
+    } catch (e) {
+      setFetchErr(e.message || 'Could not fetch comments.');
+      setFetchState('error');
+    }
+  }
+
   function generate() {
-    if (!comments.trim()) return;
     const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
+    let commentText = '';
+    if (mode === 'auto' && fetchedComments.length) {
+      commentText = fetchedComments.map(c => `${c.author}: ${c.text}`).join('\n---\n');
+    } else {
+      if (!comments.trim()) return;
+      commentText = comments.trim();
+    }
+    if (!commentText.trim()) return;
     run({
       system: COMMENTS_SYSTEM + (profileCtx ? '\n\nCreator context (match their voice):\n' + profileCtx : ''),
       userText: [
         `Reply tone: ${tone}`,
         context.trim() ? `Video context: ${context.trim()}` : '',
-        `Comments (separated by --- or blank lines):\n\n${comments.trim()}`,
+        `Comments (separated by --- on its own line):\n\n${commentText}`,
       ].filter(Boolean).join('\n\n'),
-      maxTokens: 2000,
+      maxTokens: 2400,
     });
   }
+
+  const canGenerate = mode === 'auto' ? fetchedComments.length > 0 : comments.trim().length > 0;
+  const estIn = window.estTokens ? window.estTokens(COMMENTS_SYSTEM, comments, context) : 0;
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -10321,29 +10436,104 @@ function CommentsTab({ onOpenKey }) {
         <Eyebrow mood={mood} glow>Reply Generator</Eyebrow>
         <h2 className="ci-h2">Comment Replies</h2>
         <p className="ci-sub" style={{ marginTop: 6 }}>
-          Paste your comments — get thoughtful, on-brand replies that build community, boost engagement, and save you time.
+          Auto-fetch real comments from any YouTube video — or paste them manually — and get thoughtful, on-brand replies instantly.
         </p>
       </div>
 
       <div className="ci-block" style={{ padding: 24, marginTop: 24 }}>
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          {[
+            { id: 'auto', label: '⚡ Fetch from YouTube' },
+            { id: 'manual', label: '✎ Paste manually' },
+          ].map(opt => (
+            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setFetchState('idle'); setFetchedComments([]); }}
+              style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${mode === opt.id ? m.accentFrom : 'var(--stroke-2)'}`,
+                background: mode === opt.id ? m.accentFrom + '18' : 'transparent',
+                color: mode === opt.id ? m.accentFrom : 'var(--text-3)',
+                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Video context (both modes) */}
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Video context <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — helps with answers)</span></span>
-            <input className="ci-input" placeholder="e.g. Video about starting a SIP with ₹500/month, posted on finance channel"
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+              Video context <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — helps answer questions accurately)</span>
+            </span>
+            <input className="ci-input" placeholder="e.g. Video about starting a SIP with ₹500/month on a finance channel"
               value={context} onChange={e => { setContext(e.target.value); reset(); }} />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Paste comments *</span>
-            <textarea className="ci-input" rows={8}
-              placeholder={"Separate each comment with --- on its own line:\n\nThis video changed my life! What app do you use for SIP?\n---\nI've been doing this for 6 months and the returns are amazing 🔥\n---\nI don't agree, markets are too risky right now"}
-              value={comments} onChange={e => { setComments(e.target.value); reset(); }}
-              style={{ resize: 'vertical', lineHeight: 1.65, fontFamily: 'var(--font-mono)', fontSize: 13 }} />
-            {commentCount > 0 && (
-              <span style={{ fontSize: 11, color: 'var(--text-5)', textAlign: 'right' }}>
-                {commentCount} comment{commentCount !== 1 ? 's' : ''} detected
-              </span>
-            )}
-          </label>
+
+          {mode === 'auto' && (
+            <>
+              {!hasYT && (
+                <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.3)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+                  <b style={{ color: '#F0C85A' }}>YouTube API key needed</b> — contact support or use manual mode to paste comments.
+                </div>
+              )}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>YouTube video URL *</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="ci-input" placeholder="youtube.com/watch?v=... or youtu.be/..."
+                    value={videoUrl} onChange={e => { setVideoUrl(e.target.value); setFetchState('idle'); setFetchedComments([]); reset(); }}
+                    onKeyDown={e => { if (e.key === 'Enter' && hasYT) fetchComments(); }}
+                    style={{ flex: 1 }} />
+                  <GlowButton mood={mood} onClick={fetchComments}
+                    style={{ whiteSpace: 'nowrap', opacity: (!videoUrl.trim() || !hasYT || fetchState === 'fetching') ? 0.5 : 1 }}>
+                    {fetchState === 'fetching' ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        Fetching…
+                      </span>
+                    ) : 'Fetch comments →'}
+                  </GlowButton>
+                </div>
+              </label>
+              {fetchState === 'error' && (
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(240,90,110,0.08)', border: '1px solid rgba(240,90,110,0.25)', fontSize: 13, color: '#F06A7E' }}>{fetchErr}</div>
+              )}
+              {fetchState === 'fetched' && fetchedComments.length > 0 && (
+                <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(0,200,200,0.06)', border: '1px solid rgba(0,200,200,0.2)' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-1)', marginBottom: 10 }}>
+                    {fetchedComments.length} comments fetched
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
+                    {fetchedComments.slice(0, 10).map((c, i) => (
+                      <div key={i} style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--surface-2)', fontSize: 12.5, lineHeight: 1.5 }}>
+                        <span style={{ fontWeight: 700, color: m.accentFrom }}>{c.author}</span>
+                        <span style={{ color: 'var(--text-3)', marginLeft: 8 }}>{c.text.length > 100 ? c.text.slice(0, 100) + '…' : c.text}</span>
+                        {c.likes > 0 && <span style={{ color: 'var(--text-5)', marginLeft: 8, fontSize: 11 }}>👍 {c.likes}</span>}
+                      </div>
+                    ))}
+                    {fetchedComments.length > 10 && (
+                      <div style={{ fontSize: 12, color: 'var(--text-4)', textAlign: 'center', padding: '4px 0' }}>
+                        +{fetchedComments.length - 10} more comments will be included in the analysis
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {mode === 'manual' && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Paste comments *</span>
+              <textarea className="ci-input" rows={8}
+                placeholder={"Separate each comment with --- on its own line:\n\nThis video changed my life! What app do you use for SIP?\n---\nI've been doing this for 6 months and the returns are amazing 🔥\n---\nI don't agree, markets are too risky right now"}
+                value={comments} onChange={e => { setComments(e.target.value); reset(); }}
+                style={{ resize: 'vertical', lineHeight: 1.65, fontFamily: 'var(--font-mono)', fontSize: 13 }} />
+              {commentCount > 0 && (
+                <span style={{ fontSize: 11, color: 'var(--text-5)', textAlign: 'right' }}>
+                  {commentCount} comment{commentCount !== 1 ? 's' : ''} detected
+                </span>
+              )}
+            </label>
+          )}
+
           <div>
             <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Reply tone</span>
             <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
@@ -10360,10 +10550,12 @@ function CommentsTab({ onOpenKey }) {
             </div>
           </div>
         </div>
+
         <div style={{ marginTop: 20 }}>
           <AnalyzeButton mood={mood} label="Generate replies" loading={loading}
-            estIn={estIn} estOut={1600} onClick={generate}
-            disabled={!comments.trim()} disabledHint="Paste at least one comment" />
+            estIn={estIn} estOut={1800} onClick={generate}
+            disabled={!canGenerate}
+            disabledHint={mode === 'auto' ? 'Fetch comments from a YouTube video first' : 'Paste at least one comment'} />
         </div>
       </div>
 
@@ -10597,67 +10789,87 @@ window.AuditTab = AuditTab;
 </script>
 <script type="text/babel" data-presets="react">
 /* ===== ci-competitor.jsx ===== */
-// ContentIntel — Competitor Breakdown (with YouTube auto-fetch)
+// ContentIntel — Competitor Breakdown (multi-channel)
 
 const COMPETITOR_SYSTEM = [
-  "You are ContentIntel's competitive intelligence analyst. Break down a competitor's channel with tactical precision.",
+  "You are ContentIntel's competitive intelligence analyst. Break down competitor channels with tactical precision.",
   "LANGUAGE LAW: match the language of the submitted titles.",
   "You will receive video data in this format: Title | Views | Likes | Comments | Duration | Age",
-  "Use ALL available metrics. Identify their top-performing videos and what makes them work.",
-  "Analyse:",
+  "Use ALL available metrics. Identify top-performing videos and what makes them work.",
+  "When multiple competitors are provided, compare them against each other AND against your channel.",
+  "Analyse each competitor:",
   "• Title hook: what psychological trigger they use (curiosity gap, social proof, fear, aspiration, numbers, controversy)",
   "• Content strategy: what formats, angles and niches they consistently win in",
   "• Audience targeting: exactly who this is made for and why it resonates",
   "• Top performers: which videos get the most views and why (reference actual numbers)",
   "• Content gaps: what angles they missed that YOU could own",
   "• Replication opportunities: what to borrow ethically and improve on",
-  "Score 0-100: Title Hook Strength, Audience Targeting Clarity, Content Variety, Gap Opportunity (higher = more opening for you), Overall Threat Level.",
-  "Calculate their average views. Identify their highest and lowest performers.",
-  "Bottom line: the single highest-leverage move to outperform this competitor.",
+  "Score 0-100 per competitor: Title Hook Strength, Audience Targeting Clarity, Content Variety, Gap Opportunity, Overall Threat Level.",
+  "Calculate average views per competitor. Identify their highest and lowest performers.",
+  "Bottom line: the single highest-leverage move to outperform all competitors combined.",
   "Required sections:",
-  "1. What's working — checklist of their winning patterns (with view counts where available)",
-  "2. Their top videos — copy block: list their 3 highest-view videos and what made them work",
-  "3. How to beat them — copy blocks: write 3 titles that outperform their best + 1 thumbnail concept",
+  "1. Competitive landscape — checklist of each competitor's winning patterns (with view counts)",
+  "2. Top videos by competitor — copy block: each competitor's 3 highest-view videos and what made them work",
+  "3. How to beat them — copy blocks: write 3 titles that beat their best + 1 thumbnail concept",
   "4. Content gaps to exploit — kv list: Gap / Your angle for each opportunity",
   "5. Title patterns to steal — copy block listing their most effective formulas you can adapt",
-  "Set verdict.level to 'yellow' (moderate threat) or 'red' (high threat) based on their strength.",
-  "Set verdict.title to a punchy threat assessment (e.g. 'Strong competitor — beatable on depth').",
-  "Set verdict.text to a 2-sentence summary of their biggest strength and your biggest opportunity.",
+  "Set verdict.level to 'yellow' (moderate threat) or 'red' (high threat) based on overall competitive strength.",
+  "Set verdict.title to a punchy threat assessment (e.g. 'Strong competition — 3 clear gaps to exploit').",
+  "Set verdict.text to a 2-sentence summary of the biggest competitive threat and your biggest opportunity.",
 ].join("\n");
+
+const EMPTY_COMPETITOR = () => ({
+  id: Math.random().toString(36).slice(2),
+  handle: '',
+  title: '',
+  recent: '',
+  videoData: [],
+  channelInfo: null,
+  fetchState: 'idle',
+  fetchErr: '',
+});
 
 function CompetitorTab({ onOpenKey }) {
   const mood = 'navy';
   const m = MOODS[mood] || MOODS.burgundy;
 
-  const [mode, setMode]       = React.useState(window.getYouTubeKey ? (window.getYouTubeKey() ? 'auto' : 'manual') : 'manual');
-  const [handle, setHandle]   = React.useState('');
-  const [title, setTitle]     = React.useState('');
-  const [recent, setRecent]   = React.useState('');
-  const [videoData, setVideoData] = React.useState([]);
-  const [thumb, setThumb]     = React.useState(null);
-  const [fetchState, setFetchState] = React.useState('idle');
-  const [fetchErr, setFetchErr]     = React.useState('');
-  const [channelInfo, setChannelInfo] = React.useState(null);
+  const [mode, setMode] = React.useState(window.getYouTubeKey ? (window.getYouTubeKey() ? 'auto' : 'manual') : 'manual');
+  const [competitors, setCompetitors] = React.useState([EMPTY_COMPETITOR()]);
+  const [thumb, setThumb] = React.useState(null);
   const fileRef = React.useRef(null);
 
   const { state, report, usage, err, run, reset } = useAnalysis('competitor');
   const loading = state === 'loading';
   const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';
 
-  async function fetchChannel() {
-    if (!handle.trim()) return;
-    setFetchState('fetching'); setFetchErr(''); setChannelInfo(null); setRecent(''); reset();
+  function updateComp(id, patch) {
+    setCompetitors(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+  }
+
+  function addCompetitor() {
+    if (competitors.length >= 4) return;
+    setCompetitors(prev => [...prev, EMPTY_COMPETITOR()]);
+    reset();
+  }
+
+  function removeCompetitor(id) {
+    if (competitors.length <= 1) return;
+    setCompetitors(prev => prev.filter(c => c.id !== id));
+    reset();
+  }
+
+  async function fetchChannel(comp) {
+    if (!comp.handle.trim()) return;
+    updateComp(comp.id, { fetchState: 'fetching', fetchErr: '', channelInfo: null, recent: '', videoData: [] });
+    reset();
     try {
-      const ch   = await window.fetchYTChannel(handle.trim(), ytKey);
+      const ch   = await window.fetchYTChannel(comp.handle.trim(), ytKey);
       const vids = await window.fetchYTVideos(ch.id, ytKey, 20);
-      setChannelInfo({ name: ch.snippet.title, subs: ch.statistics.subscriberCount, videoCount: ch.statistics.videoCount });
-      setVideoData(vids);
-      setRecent(vids.map(v => v.title).join('\n'));
-      if (!title.trim() && vids.length) setTitle(vids[0].title);
-      setFetchState('fetched');
+      const chInfo = { name: ch.snippet.title, subs: ch.statistics.subscriberCount, videoCount: ch.statistics.videoCount };
+      const recentTitles = vids.map(v => v.title).join('\n');
+      updateComp(comp.id, { channelInfo: chInfo, videoData: vids, recent: recentTitles, fetchState: 'fetched' });
     } catch (e) {
-      setFetchErr(e.message || 'Could not fetch channel data.');
-      setFetchState('error');
+      updateComp(comp.id, { fetchErr: e.message || 'Could not fetch channel data.', fetchState: 'error' });
     }
   }
 
@@ -10682,32 +10894,37 @@ function CompetitorTab({ onOpenKey }) {
   }
 
   function generate() {
-    if (!title.trim() && !recent.trim()) return;
     const profileCtx = typeof window.getProfileContext === 'function' ? window.getProfileContext() : '';
-    const chName = channelInfo ? channelInfo.name : handle.trim();
-    const hasStats = videoData.length > 0 && parseInt(videoData[0].viewCount || 0) > 0;
-    const videoText = videoData.length > 0
-      ? (hasStats
-          ? `Their recent videos with analytics (${videoData.length}):\n${window.formatVideoStats(videoData)}`
-          : `Their recent titles:\n${videoData.map(v=>v.title).join('\n')}`)
-      : (recent.trim() ? `Their recent titles:\n${recent.trim()}` : '');
+    const compBlocks = competitors.map((comp, idx) => {
+      const label = `Competitor ${idx + 1}${comp.channelInfo ? ': ' + comp.channelInfo.name : (comp.handle.trim() ? ': ' + comp.handle.trim() : '')}`;
+      const hasStats = comp.videoData.length > 0 && parseInt(comp.videoData[0]?.viewCount || 0) > 0;
+      const videoText = comp.videoData.length > 0
+        ? (hasStats
+            ? `Recent videos with analytics (${comp.videoData.length}):\n${window.formatVideoStats(comp.videoData)}`
+            : `Recent titles:\n${comp.videoData.map(v => v.title).join('\n')}`)
+        : (comp.recent.trim() ? `Recent titles:\n${comp.recent.trim()}` : '');
+      const subLine = comp.channelInfo ? `Subscribers: ${Number(comp.channelInfo.subs||0).toLocaleString()} | Videos: ${comp.channelInfo.videoCount}` : '';
+      const titleLine = comp.title.trim() ? `Standout title: ${comp.title.trim()}` : '';
+      return [label, subLine, titleLine, videoText].filter(Boolean).join('\n');
+    });
+
+    const canAnalyze = competitors.some(c => c.title.trim() || c.recent.trim() || c.videoData.length > 0);
+    if (!canAnalyze) return;
+
     run({
       system: COMPETITOR_SYSTEM + (profileCtx ? '\n\nYour channel context (counter-strategy must be tailored to this):\n' + profileCtx : ''),
       userText: [
-        title.trim() ? `Competitor's standout title: ${title.trim()}` : '',
-        chName ? `Competitor channel: ${chName}` : '',
-        channelInfo ? `Subscribers: ${Number(channelInfo.subs || 0).toLocaleString()} | Videos: ${channelInfo.videoCount}` : '',
-        videoText || '',
-        thumb ? '(Their thumbnail is attached — analyse it visually.)' : '',
-      ].filter(Boolean).join('\n'),
+        `Analysing ${competitors.length} competitor${competitors.length > 1 ? 's' : ''}:`,
+        compBlocks.join('\n\n---\n\n'),
+        thumb ? '(Thumbnail attached — analyse visually.)' : '',
+      ].filter(Boolean).join('\n\n'),
       images: thumb ? [thumb] : [],
-      maxTokens: 2400,
+      maxTokens: 3000,
     });
   }
 
   const fmt = (n) => { const v = parseInt(n || 0); return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'K' : String(v); };
-  const videoCount = recent.trim() ? recent.trim().split('\n').filter(l => l.trim()).length : 0;
-  const canAnalyze = title.trim() || recent.trim();
+  const canAnalyze = competitors.some(c => c.title.trim() || c.recent.trim() || c.videoData.length > 0);
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -10715,7 +10932,7 @@ function CompetitorTab({ onOpenKey }) {
         <Eyebrow mood={mood} glow>Competitor Analysis</Eyebrow>
         <h2 className="ci-h2">Competitor Breakdown</h2>
         <p className="ci-sub" style={{ marginTop: 6 }}>
-          Auto-fetch a competitor's YouTube channel or paste their titles — get a tactical breakdown, counter-titles, and the gaps you can own.
+          Compare up to 4 competitors at once — auto-fetch their channels or enter manually — and get a full tactical breakdown.
         </p>
       </div>
 
@@ -10723,7 +10940,7 @@ function CompetitorTab({ onOpenKey }) {
         {/* Mode toggle */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           {[{ id: 'auto', label: '⚡ Auto-fetch from YouTube' }, { id: 'manual', label: '✎ Enter manually' }].map(opt => (
-            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setRecent(''); setTitle(''); setVideoData([]); }}
+            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setCompetitors([EMPTY_COMPETITOR()]); }}
               style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${mode === opt.id ? m.accentFrom : 'var(--stroke-2)'}`,
                 background: mode === opt.id ? m.accentFrom + '18' : 'transparent',
                 color: mode === opt.id ? m.accentFrom : 'var(--text-3)',
@@ -10733,68 +10950,90 @@ function CompetitorTab({ onOpenKey }) {
           ))}
         </div>
 
-        {mode === 'auto' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {!ytKey && (
-              <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.3)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
-                <b style={{ color: '#F0C85A' }}>YouTube API key needed</b> — add it in Settings → Platform Data tab.{' '}
-                <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 12, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>
+        {/* No YT key warning in auto mode */}
+        {mode === 'auto' && !ytKey && (
+          <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.3)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 16 }}>
+            <b style={{ color: '#F0C85A' }}>YouTube API key needed</b> — add it in Settings → Platform Data tab.{' '}
+            <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 12, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>
+          </div>
+        )}
+
+        {/* Competitor cards */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {competitors.map((comp, idx) => (
+            <div key={comp.id} style={{ padding: '16px 18px', borderRadius: 12, border: '1px solid var(--stroke-1)', background: 'var(--surface-1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: m.accentFrom, textTransform: 'uppercase', letterSpacing: '.07em' }}>
+                  Competitor {idx + 1}
+                </span>
+                {competitors.length > 1 && (
+                  <button onClick={() => removeCompetitor(comp.id)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-4)', cursor: 'pointer', fontSize: 14, padding: '2px 6px', borderRadius: 4 }}>
+                    ✕ Remove
+                  </button>
+                )}
               </div>
-            )}
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Competitor's channel handle *</span>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input className="ci-input" placeholder="@CompetitorChannel or youtube.com/@Channel"
-                  value={handle} onChange={e => { setHandle(e.target.value); setFetchState('idle'); setChannelInfo(null); setRecent(''); reset(); }}
-                  onKeyDown={e => { if (e.key === 'Enter' && ytKey) fetchChannel(); }}
-                  style={{ flex: 1 }} />
-                <GlowButton mood={mood} onClick={fetchChannel}
-                  style={{ whiteSpace: 'nowrap', opacity: (!handle.trim() || !ytKey || fetchState === 'fetching') ? 0.5 : 1 }}>
-                  {fetchState === 'fetching' ? (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                      Fetching…
-                    </span>
-                  ) : 'Fetch channel →'}
-                </GlowButton>
-              </div>
-            </label>
-            {fetchState === 'error' && (
-              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(240,90,110,0.08)', border: '1px solid rgba(240,90,110,0.25)', fontSize: 13, color: '#F06A7E' }}>{fetchErr}</div>
-            )}
-            {fetchState === 'fetched' && channelInfo && (
-              <div style={{ padding: '14px 16px', borderRadius: 12, background: 'rgba(100,120,220,0.07)', border: '1px solid rgba(100,120,220,0.25)' }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)' }}>{channelInfo.name}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 4 }}>
-                  {fmt(channelInfo.subs)} subscribers · {videoCount} recent titles fetched
+
+              {mode === 'auto' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input className="ci-input" placeholder="@CompetitorChannel or youtube.com/@Channel"
+                      value={comp.handle}
+                      onChange={e => { updateComp(comp.id, { handle: e.target.value, fetchState: 'idle', channelInfo: null, recent: '' }); reset(); }}
+                      onKeyDown={e => { if (e.key === 'Enter' && ytKey) fetchChannel(comp); }}
+                      style={{ flex: 1 }} />
+                    <GlowButton mood={mood} onClick={() => fetchChannel(comp)}
+                      style={{ whiteSpace: 'nowrap', opacity: (!comp.handle.trim() || !ytKey || comp.fetchState === 'fetching') ? 0.5 : 1 }}>
+                      {comp.fetchState === 'fetching' ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                          Fetching…
+                        </span>
+                      ) : 'Fetch →'}
+                    </GlowButton>
+                  </div>
+                  {comp.fetchState === 'error' && (
+                    <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(240,90,110,0.08)', border: '1px solid rgba(240,90,110,0.25)', fontSize: 13, color: '#F06A7E' }}>{comp.fetchErr}</div>
+                  )}
+                  {comp.fetchState === 'fetched' && comp.channelInfo && (
+                    <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(100,120,220,0.07)', border: '1px solid rgba(100,120,220,0.2)', fontSize: 13, color: 'var(--text-2)' }}>
+                      <span style={{ fontWeight: 700, color: 'var(--text-1)' }}>{comp.channelInfo.name}</span>
+                      <span style={{ color: 'var(--text-4)', marginLeft: 10 }}>{fmt(comp.channelInfo.subs)} subscribers · {comp.videoData.length} videos fetched</span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+
+              {mode === 'manual' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <input className="ci-input" style={{ fontSize: 14 }}
+                    placeholder="Competitor's best / latest title"
+                    value={comp.title} onChange={e => { updateComp(comp.id, { title: e.target.value }); reset(); }} />
+                  <textarea className="ci-input" rows={4}
+                    placeholder={"Other recent titles (one per line)\n\nI Lost ₹2 Lakh in Stocks — What I Learned\nBest Mutual Funds to Buy in 2025"}
+                    value={comp.recent} onChange={e => { updateComp(comp.id, { recent: e.target.value }); reset(); }}
+                    style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 13 }} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Add competitor button */}
+        {competitors.length < 4 && (
+          <button onClick={addCompetitor}
+            style={{ marginTop: 12, width: '100%', height: 38, borderRadius: 10, border: `1.5px dashed var(--stroke-2)`,
+              background: 'transparent', color: 'var(--text-4)', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = m.accentFrom; e.currentTarget.style.color = m.accentFrom; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--stroke-2)'; e.currentTarget.style.color = 'var(--text-4)'; }}>
+            + Add competitor {competitors.length + 1} of 4
+          </button>
         )}
 
-        {mode === 'manual' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Competitor's best / latest title *</span>
-              <input className="ci-input" style={{ fontSize: 15 }}
-                placeholder="e.g. I Made ₹10 Lakhs From YouTube in 2024 — Here's Exactly How"
-                value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Their other recent titles <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(one per line — reveals strategy)</span></span>
-              <textarea className="ci-input" rows={5}
-                placeholder={"I Lost ₹2 Lakh in Stocks — What I Learned\nBest Mutual Funds to Buy in 2025\nWhy 90% of Indians Never Get Rich"}
-                value={recent} onChange={e => { setRecent(e.target.value); reset(); }}
-                style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 13 }} />
-            </label>
-          </div>
-        )}
-
-        {/* Thumbnail upload — available in both modes */}
-        <div style={{ marginTop: 14 }}>
+        {/* Thumbnail upload */}
+        <div style={{ marginTop: 16 }}>
           <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
-            Their thumbnail <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — upload for visual analysis)</span>
+            Thumbnail <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — upload for visual analysis)</span>
           </span>
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
             onChange={e => { readThumb(e.target.files[0]); reset(); }} />
@@ -10808,16 +11047,16 @@ function CompetitorTab({ onOpenKey }) {
                   style={{ minHeight: 44, padding: '10px 16px', width: 'auto', border: '1px solid var(--stroke-1)' }}
                   onClick={() => fileRef.current && fileRef.current.click()}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 10.5V3M5 6l3-3 3 3M3 11.5v1a1 1 0 001 1h8a1 1 0 001-1v-1"/></svg>
-                  Upload their thumbnail
+                  Upload a thumbnail for visual analysis
                 </button>}
           </div>
         </div>
 
         <div style={{ marginTop: 20 }}>
-          <AnalyzeButton mood={mood} label="Break down competitor" loading={loading}
-            estIn={estTokens(COMPETITOR_SYSTEM, title, recent)} estOut={1800} onClick={generate}
+          <AnalyzeButton mood={mood} label={`Analyse ${competitors.length} competitor${competitors.length > 1 ? 's' : ''}`} loading={loading}
+            estIn={0} estOut={2200} onClick={generate}
             disabled={!canAnalyze}
-            disabledHint={mode === 'auto' ? 'Fetch a channel first' : 'Enter a competitor title first'} />
+            disabledHint={mode === 'auto' ? 'Fetch at least one competitor channel first' : 'Enter at least one competitor title first'} />
         </div>
       </div>
 

@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-18-r17";
+window.CI_BUILD = "2026-06-19-r18";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -1474,6 +1474,43 @@ async function fetchYTChannel(handleOrUrl, key) {
   return data.items[0];
 }
 
+// Extract a YouTube video ID from a full URL or bare ID
+function parseYTVideoId(input) {
+  const s = (input || '').trim();
+  const m1 = s.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
+  if (m1) return m1[1];
+  const m2 = s.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+  if (m2) return m2[1];
+  const m3 = s.match(/\/shorts\/([A-Za-z0-9_-]{11})/);
+  if (m3) return m3[1];
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  return null;
+}
+
+async function fetchYTComments(videoId, key, maxResults = 50) {
+  const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
+  let url;
+  if (key === '__proxy__') {
+    if (!workerUrl) throw new Error('Worker URL not configured.');
+    url = `${workerUrl}/yt?action=comments&videoId=${encodeURIComponent(videoId)}&maxResults=${maxResults}`;
+  } else {
+    if (!key) throw new Error('Need a YouTube API key.');
+    url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(videoId)}&maxResults=${maxResults}&order=relevance&key=${encodeURIComponent(key)}`;
+  }
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error('YouTube API: ' + (data.error.message || (typeof data.error === 'string' ? data.error : 'request failed')));
+  return (data.items || []).map(item => {
+    const s = item.snippet.topLevelComment.snippet;
+    return {
+      author: s.authorDisplayName || 'Anonymous',
+      text: s.textDisplay || '',
+      likes: s.likeCount || 0,
+      published: s.publishedAt || '',
+    };
+  });
+}
+
 async function fetchYTVideos(channelId, key, maxResults = 25) {
   const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
   // Step 1: search for recent videos
@@ -1671,7 +1708,7 @@ Object.assign(window, {
   estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
-  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, formatVideoStats,
+  getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId, formatVideoStats,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,

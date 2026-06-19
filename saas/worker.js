@@ -43,6 +43,10 @@ export default {
       } else if (action === 'videostats') {
         const ids = url.searchParams.get('ids') || '';
         ytUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,contentDetails&id=${encodeURIComponent(ids)}&key=${encodeURIComponent(env.YOUTUBE_KEY)}`;
+      } else if (action === 'comments') {
+        const videoId = url.searchParams.get('videoId') || '';
+        const maxResults = url.searchParams.get('maxResults') || '50';
+        ytUrl = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(videoId)}&maxResults=${maxResults}&order=relevance&key=${encodeURIComponent(env.YOUTUBE_KEY)}`;
       } else {
         return json({ error: 'Unknown action.' }, 400, cors);
       }

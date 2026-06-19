@@ -4,11 +4,15 @@ const CAPTION_SYSTEM = [
   "You are an expert social media copywriter for video creators.",
   "Write platform-optimised captions, descriptions and hashtag sets that maximise clicks, saves, watch-time and shares.",
   "",
+  "If a transcript or script is provided, extract the key moments, hooks, and value points from it.",
+  "Use the actual content to write specific, grounded captions — not generic ones.",
+  "",
   "Platform rules:",
-  "• YouTube description: 2–3 sentence SEO-optimised opener with the most important keywords in line 1; a short 'What you'll learn' bullet list; a CTA (subscribe / watch next); timestamps line if relevant; links placeholder.",
+  "• YouTube description: 2–3 sentence SEO-optimised opener with the most important keywords in line 1; a short 'What you'll learn' bullet list with actual points from the content; a CTA (subscribe / watch next); timestamps if relevant; links placeholder.",
   "• Instagram/Reels caption: punchy hook on line 1 (under 125 chars before the fold), 2–3 lines body with emotion + value + CTA, 5–8 relevant emojis scattered naturally.",
   "• TikTok caption: max 150 chars total, conversational/slang tone, 3–5 relevant trend hashtags inline.",
   "• LinkedIn post: professional angle, insight or story hook, 3 short paragraphs, 3–5 hashtags at the end.",
+  "• Twitter/X thread: first tweet as a strong hook (under 280 chars), 3–5 follow-up tweets expanding the key point.",
   "• Hashtags block: YouTube (8–12 tags, NO # symbol), Instagram (20–25 tags with #), TikTok (5–7 trend tags with #).",
   "",
   "Output ONLY the submit_report tool call. No prose outside the tool.",
@@ -24,17 +28,20 @@ function CaptionTab({ onOpenKey }) {
   const m = MOODS[mood] || MOODS.burgundy;
   const [title, setTitle] = React.useState('');
   const [desc,  setDesc]  = React.useState('');
+  const [transcript, setTranscript] = React.useState('');
+  const [showTranscript, setShowTranscript] = React.useState(false);
   const [plats, setPlats] = React.useState(['youtube', 'instagram', 'tiktok']);
 
   const { state, report, usage, err, run, reset } = useAnalysis('caption');
   const loading = state === 'loading';
-  const estIn   = estTokens(CAPTION_SYSTEM, title, desc);
+  const estIn   = window.estTokens ? window.estTokens(CAPTION_SYSTEM, title, desc, transcript) : 0;
 
   const PLATFORMS = [
     { id: 'youtube',   label: 'YouTube',   col: '#FF0000' },
     { id: 'instagram', label: 'Instagram', col: '#E1306C' },
     { id: 'tiktok',    label: 'TikTok',    col: '#69C9D0' },
     { id: 'linkedin',  label: 'LinkedIn',  col: '#0A66C2' },
+    { id: 'twitter',   label: 'Twitter/X', col: '#1DA1F2' },
   ];
 
   function toggle(id) {
@@ -51,13 +58,16 @@ function CaptionTab({ onOpenKey }) {
       system,
       userText: [
         `Video title: ${title.trim()}`,
-        desc.trim() ? `Content summary: ${desc.trim()}` : '',
+        desc.trim() ? `Content summary / key points: ${desc.trim()}` : '',
+        transcript.trim() ? `Video transcript / script:\n\n${transcript.trim()}` : '',
         `Generate captions for: ${platList}`,
         'Add a Hashtags section with platform-specific tag sets.',
-      ].filter(Boolean).join('\n'),
-      maxTokens: 2200,
+      ].filter(Boolean).join('\n\n'),
+      maxTokens: 2800,
     });
   }
+
+  const transcriptWords = transcript.trim() ? transcript.trim().split(/\s+/).length : 0;
 
   return (
     <div className="ci-work" style={{ '--ci-accent': m.accentFrom, '--ci-glow': m.accentGlow }}>
@@ -65,7 +75,7 @@ function CaptionTab({ onOpenKey }) {
         <Eyebrow mood={mood} glow>Caption Generator</Eyebrow>
         <h2 className="ci-h2">Captions &amp; Descriptions</h2>
         <p className="ci-sub" style={{ marginTop: 6 }}>
-          One video title → platform-ready captions, descriptions and hashtag sets for every channel you post on.
+          One video title (or full transcript) → platform-ready captions, descriptions and hashtag sets for every channel you post on.
         </p>
       </div>
 
@@ -77,13 +87,48 @@ function CaptionTab({ onOpenKey }) {
               placeholder="e.g. I invested ₹50,000 in index funds for 1 year — here's what happened"
               value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
           </label>
+
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>What the video covers <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></span>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+              Key points / summary <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+            </span>
             <textarea className="ci-input" rows={3}
               placeholder="Key topics, takeaways, moments — the more you give, the better the captions"
               value={desc} onChange={e => { setDesc(e.target.value); reset(); }}
               style={{ resize: 'vertical', lineHeight: 1.55 }} />
           </label>
+
+          {/* Transcript toggle */}
+          <div>
+            <button
+              onClick={() => setShowTranscript(prev => !prev)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer',
+                color: showTranscript ? m.accentFrom : 'var(--text-3)', fontSize: 13, fontWeight: 600, padding: 0 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 20, height: 20, borderRadius: '50%', border: `1.5px solid ${showTranscript ? m.accentFrom : 'var(--stroke-2)'}`,
+                fontSize: 11, transition: 'all 0.15s' }}>
+                {showTranscript ? '▲' : '▼'}
+              </span>
+              {showTranscript ? 'Hide transcript' : '+ Paste video transcript (for deeper, content-specific captions)'}
+              {transcriptWords > 0 && !showTranscript && (
+                <span style={{ fontSize: 11, color: m.accentFrom, fontWeight: 700, marginLeft: 4 }}>({transcriptWords} words added)</span>
+              )}
+            </button>
+            {showTranscript && (
+              <div style={{ marginTop: 10 }}>
+                <textarea className="ci-input" rows={8}
+                  placeholder={"Paste your full video script or transcript here.\n\nClaude will extract real hooks, key moments, and specific points to build captions that match your actual content — not just the title."}
+                  value={transcript} onChange={e => { setTranscript(e.target.value); reset(); }}
+                  style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 12.5 }} />
+                {transcriptWords > 0 && (
+                  <span style={{ fontSize: 11, color: 'var(--text-5)', display: 'block', textAlign: 'right', marginTop: 4 }}>
+                    {transcriptWords} words · Claude will extract key moments from this
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
           <div>
             <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Platforms</span>
             <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
@@ -106,7 +151,7 @@ function CaptionTab({ onOpenKey }) {
 
         <div style={{ marginTop: 20 }}>
           <AnalyzeButton mood={mood} label="Generate captions" loading={loading}
-            estIn={estIn} estOut={1800} onClick={generate}
+            estIn={estIn} estOut={2200} onClick={generate}
             disabled={!title.trim()} disabledHint="Enter a video title first" />
         </div>
       </div>
