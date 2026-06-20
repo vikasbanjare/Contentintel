@@ -194,6 +194,32 @@ async function bCopyImageToClipboard(dataUrl, mime) {
   await navigator.clipboard.write([new ClipboardItem({ [blob.type || mime || 'image/png']: blob })]);
 }
 
+async function extractColorPalette(previewUrl) {
+  if (!window.ColorThief) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const ct = new window.ColorThief();
+        const palette = ct.getPalette(img, 8);
+        res(palette.map(([r, g, b]) => ({
+          rgb: `rgb(${r},${g},${b})`,
+          hex: '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join(''),
+        })));
+      } catch (e) { rej(e); }
+    };
+    img.onerror = rej;
+    img.src = previewUrl;
+  });
+}
+
 function BuilderTab({ onNav }) {
   const mood = 'ember';
   const m = BM[mood];
@@ -263,6 +289,14 @@ function BuilderTab({ onNav }) {
   const [analyseSummary, setAnalyseSummary] = React.useState('');
   const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
   const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
+  const [colorPalette, setColorPalette] = React.useState([]);
+
+  React.useEffect(() => {
+    if (!analyseImg) { setColorPalette([]); return; }
+    extractColorPalette(analyseImg.preview)
+      .then(setColorPalette)
+      .catch(() => setColorPalette([]));
+  }, [analyseImg]);
 
   const [extraNote, setExtraNote] = React.useState(bootFresh && bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
   const [brand] = React.useState(bLoadBrand);
@@ -331,7 +365,7 @@ function BuilderTab({ onNav }) {
   function clearForm() {
     setHeadline(''); setSubline(''); setPeople([]); setElements([]);
     setFeedback([]); setUpgrades([]); setPrompt(''); setBuilt(false);
-    setAnalyseSummary(''); setAnalyseDesc('');
+    setAnalyseSummary(''); setAnalyseDesc(''); setColorPalette([]);
   }
 
   // Cloud check: works free inside Claude (text description) OR with an API key
@@ -496,10 +530,29 @@ function BuilderTab({ onNav }) {
       {/* CLOUD CHECK -- free, no API key */}
       <BB mood={mood} title="Check & fix my thumbnail" desc="Runs free inside Claude -- no API key. Describe your current thumbnail (or upload it if you have an API key for image vision). It finds what's wrong using the research and writes the fixed prompt below.">
         {analyseImg && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-            <img src={analyseImg.preview} alt="" style={{ width: 120, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
-            <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
-              onClick={() => { setAnalyseImg(null); clearForm(); setAnalyseState('idle'); }}>Remove image</button>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <img src={analyseImg.preview} alt="" style={{ width: 120, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
+              <div>
+                <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
+                  onClick={() => { setAnalyseImg(null); clearForm(); setAnalyseState('idle'); }}>Remove image</button>
+                {colorPalette.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>Color palette</div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {colorPalette.map((c, i) => (
+                        <div key={i} title={`${c.hex} — click to copy`}
+                          style={{ width: 24, height: 24, borderRadius: 6, background: c.rgb, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', flexShrink: 0, transition: 'transform .1s' }}
+                          onClick={() => window.copyText && window.copyText(c.hex)}
+                          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.15)'}
+                          onMouseLeave={e => e.currentTarget.style.transform = ''} />
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-5)', marginTop: 4 }}>Click a swatch to copy its hex</div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
         {!analyseImg && (

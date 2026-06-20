@@ -1,5 +1,78 @@
 // ContentIntel — Caption & Description Generator
 
+// Real-time title CTR score (no CDN needed — pure heuristic scoring)
+function scoreTitleCTR(title) {
+  const t = (title || '').trim();
+  if (t.length < 5) return null;
+  let score = 45;
+  const factors = [];
+
+  // Character length — ideal 50-70
+  const len = t.length;
+  if (len >= 50 && len <= 70) { score += 10; factors.push({ key: 'len', label: 'Ideal length', col: '#8FD86A' }); }
+  else if (len < 25) { score -= 12; factors.push({ key: 'len', label: 'Too short', col: '#F06A7E' }); }
+  else if (len > 100) { score -= 8; factors.push({ key: 'len', label: 'Very long', col: '#F06A7E' }); }
+
+  // Number (numbers boost CTR ~36%)
+  if (/\d/.test(t)) { score += 9; factors.push({ key: 'num', label: 'Has number', col: '#8FD86A' }); }
+
+  // Question
+  if (/\?/.test(t)) { score += 7; factors.push({ key: 'q', label: 'Question', col: '#8FD86A' }); }
+
+  // Bracket/parens qualifier
+  if (/[\[(].{2,}[\])]/.test(t)) { score += 5; factors.push({ key: 'br', label: 'Qualifier []', col: '#8FD86A' }); }
+
+  // Power words
+  if (/\b(secret|never|always|stop|best|worst|mistake|truth|real|only|revealed|shocking|surprising|proven|ultimate|simple|instant|free)\b/i.test(t)) {
+    score += 8; factors.push({ key: 'pw', label: 'Power word', col: '#F0C85A' });
+  }
+
+  // How/Why/What hooks
+  if (/^(how|why|what|when)\b/i.test(t)) { score += 6; factors.push({ key: 'hw', label: 'How/Why/What', col: '#8FD86A' }); }
+
+  // Negative framing
+  if (/\b(mistake|wrong|fail|worst|stop|never|avoid|don.t)\b/i.test(t)) { score += 5; factors.push({ key: 'neg', label: 'Negative hook', col: '#F0C85A' }); }
+
+  // Year signal
+  if (/20\d\d/.test(t)) { score += 3; factors.push({ key: 'yr', label: 'Year', col: '#8FD86A' }); }
+
+  // Weak openers (penalty)
+  if (/^(hi |hey |hello |welcome |so |today |in this video |this is )/i.test(t)) {
+    score -= 14; factors.push({ key: 'wo', label: 'Weak opener', col: '#F06A7E' });
+  }
+
+  // Excessive ALL CAPS (trust penalty)
+  const capsCount = t.split(/\s+/).filter(w => w.length > 3 && w === w.toUpperCase() && /[A-Z]/.test(w)).length;
+  if (capsCount >= 3) { score -= 8; factors.push({ key: 'caps', label: 'Too many CAPS', col: '#F06A7E' }); }
+
+  // Curiosity / gap framing
+  if (/\b(this is why|the reason|nobody|everyone|truth about|don.t know|hidden|before you)\b/i.test(t)) {
+    score += 6; factors.push({ key: 'cg', label: 'Curiosity gap', col: '#8FD86A' });
+  }
+
+  const final = Math.max(12, Math.min(98, score));
+  return { score: final, factors };
+}
+
+function TitleCTRBadge({ title }) {
+  const result = React.useMemo(() => scoreTitleCTR(title), [title]);
+  if (!result) return null;
+  const { score, factors } = result;
+  const col = score >= 72 ? '#8FD86A' : score >= 50 ? '#F0C85A' : '#F06A7E';
+  const label = score >= 72 ? 'Strong CTR' : score >= 50 ? 'Average CTR' : 'Weak CTR';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: col + '18', border: `1px solid ${col}44` }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14, color: col }}>{score}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: col }}>{label}</span>
+      </div>
+      {factors.map(f => (
+        <span key={f.key} style={{ fontSize: 10.5, padding: '3px 7px', borderRadius: 999, background: f.col + '18', color: f.col, fontWeight: 600, border: `1px solid ${f.col}33` }}>{f.label}</span>
+      ))}
+    </div>
+  );
+}
+
 const CAPTION_SYSTEM = [
   "You are an expert social media copywriter for video creators.",
   "Write platform-optimised captions, descriptions and hashtag sets that maximise clicks, saves, watch-time and shares.",
@@ -186,19 +259,15 @@ function CaptionTab({ onOpenKey }) {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Video title *</span>
               {title.trim() && (
-                <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'var(--surface-2)',
-                    color: title.length > 100 ? '#F06A7E' : title.length > 70 ? '#F0C85A' : '#8FD86A',
-                    fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{title.length}/100</span>
-                  {/\d/.test(title) && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'rgba(143,216,106,0.1)', color: '#8FD86A', fontWeight: 600 }}>✓ number</span>}
-                  {/\?/.test(title) && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'rgba(143,216,106,0.1)', color: '#8FD86A', fontWeight: 600 }}>✓ question</span>}
-                  {/how|why|what|when|secret|never|always|stop|start|best|worst|mistake|truth|real|only|first|last|revealed|shocking|surprising/i.test(title) && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'rgba(240,200,90,0.1)', color: '#F0C85A', fontWeight: 600 }}>power word</span>}
-                </div>
+                <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'var(--surface-2)',
+                  color: title.length > 100 ? '#F06A7E' : title.length > 70 ? '#F0C85A' : '#8FD86A',
+                  fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{title.length}/100 chars</span>
               )}
             </div>
             <input className="ci-input" style={{ fontSize: 15 }}
               placeholder="e.g. I invested ₹50,000 in index funds for 1 year — here's what happened"
               value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
+            <TitleCTRBadge title={title} />
           </label>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
