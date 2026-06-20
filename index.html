@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-19-r22";
+window.CI_BUILD = "2026-06-20-r23";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2364,6 +2364,10 @@ const setReveKeyLS = (k) => { try { k ? localStorage.setItem(LS_REVE, k) : local
 const LS_OPENAI = "ci_openai_key";
 const getOpenAIKey   = () => { try { return localStorage.getItem(LS_OPENAI) || ""; } catch (e) { return ""; } };
 const setOpenAIKeyLS = (k) => { try { k ? localStorage.setItem(LS_OPENAI, k) : localStorage.removeItem(LS_OPENAI); } catch (e) {} };
+// Groq API key -- free LLM inference (Llama 3.3 70B) and Whisper audio transcription (2000 min/day free).
+const LS_GROQ = "ci_groq_key";
+const getGroqKey   = () => { try { return localStorage.getItem(LS_GROQ) || ""; } catch (e) { return ""; } };
+const setGroqKeyLS = (k) => { try { k ? localStorage.setItem(LS_GROQ, k) : localStorage.removeItem(LS_GROQ); } catch (e) {} };
 // YouTube Data API v3 key -- server-side in SaaS mode (proxied via Worker), or local in BYO-key mode.
 const LS_YTKEY = "ci_yt_key";
 // In SaaS mode, return '__proxy__' so Audit/Competitor know to use the Worker proxy instead of a local key.
@@ -3962,6 +3966,36 @@ function formatCompetitorAnalytics(videos, channelInfo) {
   return lines.join('\n');
 }
 
+// Transcribe audio/video using Groq Whisper (free tier: 2000 min/day, 25MB max file).
+// Returns SRT-formatted transcript string.
+async function transcribeWithGroq(file, groqKey) {
+  if (!groqKey) throw new Error("NO_GROQ_KEY");
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('model', 'whisper-large-v3-turbo');
+  formData.append('response_format', 'verbose_json');
+  formData.append('timestamp_granularities[]', 'segment');
+  const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + groqKey },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) throw new Error("Groq key rejected — check it in Settings → Platform Data.");
+    if (res.status === 413) throw new Error("File too large — Groq Whisper accepts up to 25 MB.");
+    throw new Error((err.error && err.error.message) || ("Transcription failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const segments = data.segments || [];
+  if (!segments.length) return data.text || "";
+  function fmtSrt(secs) {
+    const h = Math.floor(secs / 3600), mn = Math.floor((secs % 3600) / 60), s = Math.floor(secs % 60), ms = Math.round((secs % 1) * 1000);
+    return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}:${String(s).padStart(2,'00')},${String(ms).padStart(3,'0')}`;
+  }
+  return segments.map((seg, i) => `${i+1}\n${fmtSrt(seg.start)} --> ${fmtSrt(seg.end)}\n${seg.text.trim()}`).join('\n\n');
+}
+
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey]     = React.useState(getKey());
@@ -3973,13 +4007,15 @@ function KeyModal({ open, onClose }) {
   const [model, setModel] = React.useState(getModel());
   const [show, setShow]   = React.useState(false);
   const [webSearch, setWebSearch] = React.useState(getWebSearch());
+  const [ytKey, setYtKey] = React.useState(() => { const k = getYouTubeKey ? getYouTubeKey() : ''; return k === '__proxy__' ? '' : k; });
+  const [groqKey, setGroqKey] = React.useState(getGroqKey ? getGroqKey() : '');
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
   const [section, setSection] = React.useState(saasMode ? "image" : "analysis");
   React.useEffect(() => {
-    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); }
+    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setGroqKey(getGroqKey ? getGroqKey() : ''); }
   }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setGroqKeyLS(groqKey.trim()); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
 
   const TabBtn = ({ id, label }) => (
@@ -3995,12 +4031,11 @@ function KeyModal({ open, onClose }) {
         </div>
 
         {/* Tab switcher */}
-        {!saasMode && (
-          <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
-            <TabBtn id="analysis" label="Analysis (Claude)" />
-            <TabBtn id="image" label="Image Generation" />
-          </div>
-        )}
+        <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
+          {!saasMode && <TabBtn id="analysis" label="Analysis (Claude)" />}
+          {!saasMode && <TabBtn id="image" label="Image Gen" />}
+          <TabBtn id="platforms" label="Platform Data" />
+        </div>
 
         {section === "analysis" && <>
           <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
@@ -4058,6 +4093,32 @@ function KeyModal({ open, onClose }) {
           </div>
         </>}
 
+        {section === "platforms" && <>
+          <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
+            Connect free platform APIs to unlock auto-fetch features and free AI transcription.
+          </p>
+
+          {!saasMode && <>
+            <label className="ci-label">YouTube Data API v3 key</label>
+            <input className="ci-input" type="password" value={ytKey} onChange={e => setYtKey(e.target.value)} placeholder="AIza..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+            <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+              Enables auto-fetch in Channel Audit and Competitor Analysis. Free quota: ~10,000 units/day. Get one at{" "}
+              <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>Google Cloud Console</a>.
+            </div>
+          </>}
+          {saasMode && (
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(143,216,106,0.08)", border: "1px solid rgba(143,216,106,0.2)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, marginBottom: 16 }}>
+              <b style={{ color: "#8FD86A" }}>YouTube auto-fetch is included</b> — no key needed. It runs through ContentIntel's server.
+            </div>
+          )}
+
+          <label className="ci-label" style={{ marginTop: saasMode ? 0 : 18 }}>Groq API key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(free — Whisper transcription + Llama 3.3)</span></label>
+          <input className="ci-input" type="password" value={groqKey} onChange={e => setGroqKey(e.target.value)} placeholder="gsk_..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+            Enables AI video/audio transcription in the Caption tool — paste a subtitle track in seconds. Free tier: 2,000 min/day of Whisper transcription. Get a free key at{" "}
+            <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.groq.com</a>.
+          </div>
+        </>}
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
           <GlowButton mood="navy" onClick={save}>Save</GlowButton>
@@ -4078,6 +4139,7 @@ Object.assign(window, {
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
+  getGroqKey, setGroqKeyLS, transcribeWithGroq,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
@@ -10074,6 +10136,10 @@ function CaptionTab({ onOpenKey }) {
   const [desc,  setDesc]  = React.useState('');
   const [transcript, setTranscript] = React.useState('');
   const [showTranscript, setShowTranscript] = React.useState(false);
+  const [transFile, setTransFile] = React.useState(null);
+  const [transState, setTransState] = React.useState('idle'); // idle | transcribing | done | error
+  const [transErr, setTransErr] = React.useState('');
+  const groqKey = window.getGroqKey ? window.getGroqKey() : '';
   const [plats, setPlats] = React.useState(['youtube', 'instagram', 'tiktok']);
 
   const { state, report, usage, err, run, reset } = useAnalysis('caption');
@@ -10091,6 +10157,22 @@ function CaptionTab({ onOpenKey }) {
   function toggle(id) {
     setPlats(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
     reset();
+  }
+
+  async function transcribeFile() {
+    if (!transFile || transState === 'transcribing') return;
+    if (!groqKey) { setTransErr('Add a Groq API key in Settings → Platform Data to transcribe.'); setTransState('error'); return; }
+    setTransState('transcribing'); setTransErr('');
+    try {
+      const srt = await window.transcribeWithGroq(transFile, groqKey);
+      setTranscript(srt);
+      setShowTranscript(true);
+      setTransState('done');
+      reset();
+    } catch (e) {
+      setTransErr(e.message || 'Transcription failed.');
+      setTransState('error');
+    }
   }
 
   function generate() {
@@ -10169,6 +10251,48 @@ function CaptionTab({ onOpenKey }) {
                     {transcriptWords} words · Claude will extract key moments from this
                   </span>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Audio/video transcription via Groq Whisper */}
+          <div style={{ borderTop: '1px solid var(--stroke-1)', paddingTop: 14 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>
+              AI Transcription <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(Groq Whisper — free)</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5, margin: '0 0 10px' }}>
+              Upload your video or audio file and get an instant transcript — like Premiere Pro's caption AI, but free. The transcript auto-fills the field above for better captions.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 36, padding: '0 14px', borderRadius: 8,
+                border: '1.5px solid var(--stroke-2)', background: 'var(--surface-2)', cursor: 'pointer', fontSize: 13, color: 'var(--text-2)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {transFile ? `📎 ${transFile.name.slice(0, 28)}${transFile.name.length > 28 ? '…' : ''}` : '📎 Choose file'}
+                <input type="file" accept="audio/*,video/mp4,video/webm,.mp3,.mp4,.wav,.m4a,.webm,.ogg" style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files[0]; if (f) { setTransFile(f); setTransState('idle'); setTransErr(''); } }} />
+              </label>
+              {transFile && (
+                <button onClick={transcribeFile} disabled={transState === 'transcribing'}
+                  style={{ height: 36, padding: '0 16px', borderRadius: 8, border: `1.5px solid ${m.accentFrom}`,
+                    background: m.accentFrom + '18', color: m.accentFrom, fontSize: 13, fontWeight: 700,
+                    cursor: transState === 'transcribing' ? 'not-allowed' : 'pointer', opacity: transState === 'transcribing' ? 0.65 : 1 }}>
+                  {transState === 'transcribing' ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block', width: 11, height: 11, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      Transcribing…
+                    </span>
+                  ) : 'Transcribe →'}
+                </button>
+              )}
+              {transState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A', fontWeight: 600 }}>✓ Done — transcript filled in above</span>}
+            </div>
+            {transState === 'error' && transErr && (
+              <div style={{ marginTop: 8, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>
+                {transErr}{transErr.includes('Groq') && <button className="ci-copybtn" style={{ height: 24, padding: '0 8px', fontSize: 11, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>}
+              </div>
+            )}
+            {!groqKey && (
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)', lineHeight: 1.4 }}>
+                No Groq key — <button style={{ background: 'none', border: 'none', color: m.accentFrom, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }} onClick={onOpenKey}>add one free in Settings → Platform Data</button> to enable transcription.
               </div>
             )}
           </div>
@@ -10724,8 +10848,6 @@ function AuditTab({ onOpenKey }) {
   const mood = 'lime';
   const m = MOODS[mood] || MOODS.burgundy;
 
-  // Mode: 'auto' uses YouTube API, 'manual' accepts pasted titles
-  const [mode, setMode]       = React.useState(window.getYouTubeKey ? (window.getYouTubeKey() ? 'auto' : 'manual') : 'manual');
   const [handle, setHandle]   = React.useState('');
   const [about, setAbout]     = React.useState('');
   const [titles, setTitles]   = React.useState('');
@@ -10796,125 +10918,81 @@ function AuditTab({ onOpenKey }) {
         <Eyebrow mood={mood} glow>Channel Audit</Eyebrow>
         <h2 className="ci-h2">Full Channel Health Check</h2>
         <p className="ci-sub" style={{ marginTop: 6 }}>
-          Enter a YouTube channel handle to auto-fetch their videos, or paste titles manually for any platform.
+          Enter any YouTube channel handle to fetch their recent videos and get a deep performance audit.
         </p>
       </div>
 
       <div className="ci-block" style={{ padding: 24, marginTop: 24 }}>
-        {/* Mode toggle */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {[{ id: 'auto', label: '⚡ Auto-fetch from YouTube' }, { id: 'manual', label: '✎ Paste titles manually' }].map(opt => (
-            <button key={opt.id} onClick={() => { setMode(opt.id); reset(); setChannelInfo(null); setFetchState('idle'); setTitles(''); setVideoData([]); }}
-              style={{ flex: 1, height: 38, borderRadius: 10, border: `1.5px solid ${mode === opt.id ? m.accentFrom : 'var(--stroke-2)'}`,
-                background: mode === opt.id ? m.accentFrom + '18' : 'transparent',
-                color: mode === opt.id ? m.accentFrom : 'var(--text-3)',
-                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {mode === 'auto' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {!ytKey && (
-              <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.3)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
-                <b style={{ color: '#F0C85A' }}>YouTube API key needed</b> — add it in Settings → Platform Data tab to auto-fetch any channel.{' '}
-                <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 12, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>
-              </div>
-            )}
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>YouTube channel handle *</span>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input className="ci-input" placeholder="@YourChannel or youtube.com/@YourChannel"
-                  value={handle} onChange={e => { setHandle(e.target.value); setFetchState('idle'); setChannelInfo(null); setTitles(''); reset(); }}
-                  onKeyDown={e => { if (e.key === 'Enter' && ytKey) fetchChannel(); }}
-                  style={{ flex: 1 }} />
-                <GlowButton mood={mood} onClick={fetchChannel}
-                  style={{ whiteSpace: 'nowrap', opacity: (!handle.trim() || !ytKey || fetchState === 'fetching') ? 0.5 : 1 }}>
-                  {fetchState === 'fetching' ? (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                      Fetching…
-                    </span>
-                  ) : 'Fetch channel →'}
-                </GlowButton>
-              </div>
-            </label>
-            {fetchState === 'error' && (
-              <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(240,90,110,0.08)', border: '1px solid rgba(240,90,110,0.25)', fontSize: 13, color: '#F06A7E' }}>{fetchErr}</div>
-            )}
-            {fetchState === 'fetched' && channelInfo && (
-              <div style={{ borderRadius: 12, background: 'rgba(143,216,106,0.06)', border: '1px solid rgba(143,216,106,0.2)', padding: '14px 16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: metrics ? 12 : 0 }}>
-                  <span style={{ fontSize: 22 }}>✓</span>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)' }}>{channelInfo.name}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 2 }}>
-                      {fmt(channelInfo.subs)} subscribers · {fmt(channelInfo.views)} total views · {fmt(channelInfo.videoCount)} videos
-                    </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {!ytKey && (
+            <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.3)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+              <b style={{ color: '#F0C85A' }}>YouTube API key needed</b> — add it in Settings → Platform Data tab to auto-fetch any channel.{' '}
+              <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 12, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>
+            </div>
+          )}
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>YouTube channel handle *</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className="ci-input" placeholder="@YourChannel or youtube.com/@YourChannel"
+                value={handle} onChange={e => { setHandle(e.target.value); setFetchState('idle'); setChannelInfo(null); setTitles(''); reset(); }}
+                onKeyDown={e => { if (e.key === 'Enter' && ytKey) fetchChannel(); }}
+                style={{ flex: 1 }} />
+              <GlowButton mood={mood} onClick={fetchChannel}
+                style={{ whiteSpace: 'nowrap', opacity: (!handle.trim() || !ytKey || fetchState === 'fetching') ? 0.5 : 1 }}>
+                {fetchState === 'fetching' ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    Fetching…
+                  </span>
+                ) : 'Fetch channel →'}
+              </GlowButton>
+            </div>
+          </label>
+          {fetchState === 'error' && (
+            <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(240,90,110,0.08)', border: '1px solid rgba(240,90,110,0.25)', fontSize: 13, color: '#F06A7E' }}>{fetchErr}</div>
+          )}
+          {fetchState === 'fetched' && channelInfo && (
+            <div style={{ borderRadius: 12, background: 'rgba(143,216,106,0.06)', border: '1px solid rgba(143,216,106,0.2)', padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: metrics ? 12 : 0 }}>
+                <span style={{ fontSize: 22 }}>✓</span>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-1)' }}>{channelInfo.name}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 2 }}>
+                    {fmt(channelInfo.subs)} subscribers · {fmt(channelInfo.views)} total views · {fmt(channelInfo.videoCount)} videos
                   </div>
                 </div>
-                {metrics && (
-                  <>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
-                      {[
-                        { label: 'Avg views', val: fmt(metrics.avgViews) },
-                        { label: 'Engagement', val: metrics.avgEngRate + '%' },
-                        { label: 'Posts/month', val: metrics.postsPerMonth !== null ? `~${metrics.postsPerMonth}` : 'N/A' },
-                        { label: 'Avg length', val: metrics.avgDurSecs ? `${Math.floor(metrics.avgDurSecs/60)}m` : 'N/A' },
-                      ].map(s => (
-                        <div key={s.label} style={{ flex: '1 0 70px', padding: '7px 10px', borderRadius: 8, background: 'var(--surface-2)', textAlign: 'center' }}>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: '#8FD86A' }}>{s.val}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 1 }}>{s.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {metrics.postsPerWeek !== null && <span style={{ fontSize: 12, color: 'var(--text-3)', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>~{metrics.postsPerWeek}/week · top day: {metrics.topDay}</span>}
-                      {metrics.shorts > 0 && <span style={{ fontSize: 12, color: '#5CD9A0', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>Shorts: {metrics.shorts}</span>}
-                      {metrics.longs > 0 && <span style={{ fontSize: 12, color: '#F0C85A', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>Long-form: {metrics.longs}</span>}
-                    </div>
-                  </>
-                )}
               </div>
-            )}
-          </div>
-        )}
-
-        {mode === 'manual' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Channel name</span>
-                <input className="ci-input" placeholder="e.g. @YourChannel" value={handle} onChange={e => { setHandle(e.target.value); reset(); }} />
-              </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Platform / niche</span>
-                <input className="ci-input" placeholder="e.g. YouTube — personal finance" value={about} onChange={e => { setAbout(e.target.value); reset(); }} />
-              </label>
-            </div>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>
-                Video / post titles * <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— paste 10–20 for best results, one per line</span>
-              </span>
-              <textarea className="ci-input" rows={10}
-                placeholder={"One title per line — works for YouTube, Instagram, TikTok, or any platform:\n\nI Invested ₹50,000 in Index Funds — Here's What Happened\nWhy Your SIP Is Not Working (Fix This Now)\n5 Money Mistakes I Made in My 20s"}
-                value={titles} onChange={e => { setTitles(e.target.value); reset(); }}
-                style={{ resize: 'vertical', lineHeight: 1.7, fontFamily: 'var(--font-mono)', fontSize: 13 }} />
-              {titleCount > 0 && (
-                <span style={{ fontSize: 11, color: titleCount >= 10 ? '#8FD86A' : '#F0C85A', textAlign: 'right' }}>
-                  {titleCount} titles {titleCount < 10 ? '— add more for a better audit' : '— good sample'}
-                </span>
+              {metrics && (
+                <>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+                    {[
+                      { label: 'Avg views', val: fmt(metrics.avgViews) },
+                      { label: 'Engagement', val: metrics.avgEngRate + '%' },
+                      { label: 'Posts/month', val: metrics.postsPerMonth !== null ? `~${metrics.postsPerMonth}` : 'N/A' },
+                      { label: 'Avg length', val: metrics.avgDurSecs ? `${Math.floor(metrics.avgDurSecs/60)}m` : 'N/A' },
+                    ].map(s => (
+                      <div key={s.label} style={{ flex: '1 0 70px', padding: '7px 10px', borderRadius: 8, background: 'var(--surface-2)', textAlign: 'center' }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: '#8FD86A' }}>{s.val}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 1 }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {metrics.postsPerWeek !== null && <span style={{ fontSize: 12, color: 'var(--text-3)', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>~{metrics.postsPerWeek}/week · top day: {metrics.topDay}</span>}
+                    {metrics.shorts > 0 && <span style={{ fontSize: 12, color: '#5CD9A0', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>Shorts: {metrics.shorts}</span>}
+                    {metrics.longs > 0 && <span style={{ fontSize: 12, color: '#F0C85A', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>Long-form: {metrics.longs}</span>}
+                  </div>
+                </>
               )}
-            </label>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
         <div style={{ marginTop: 20 }}>
           <AnalyzeButton mood={mood} label="Audit channel" loading={loading}
             estIn={estTokens(AUDIT_SYSTEM, titles, about)} estOut={2200} onClick={generate}
-            disabled={!titles.trim()}
-            disabledHint={mode === 'auto' ? 'Fetch a channel first' : 'Paste video titles first'} />
+            disabled={fetchState !== 'fetched'}
+            disabledHint="Fetch a channel first" />
         </div>
       </div>
 
