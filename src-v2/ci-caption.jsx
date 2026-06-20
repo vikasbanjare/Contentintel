@@ -174,6 +174,51 @@ function SRTViewer({ srt, accentColor }) {
   );
 }
 
+// Extract YouTube video ID from URLs or bare IDs
+function extractYTVideoId(s) {
+  s = (s || '').trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const m = s.match(/(?:[?&]v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+// Parse YouTube timedtext XML (auto-generated or manual CC) into SRT string
+function parseYTTimedText(xml) {
+  const re = /<text[^>]*start="([\d.]+)"[^>]*dur="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
+  const segs = [];
+  let m;
+  while ((m = re.exec(xml)) !== null) {
+    const start = parseFloat(m[1]);
+    const end   = start + parseFloat(m[2]);
+    const text  = m[3].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+                       .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim();
+    if (text) segs.push({ i: segs.length + 1, start, end, text });
+  }
+  if (!segs.length) return '';
+  function ts(s) {
+    const h=Math.floor(s/3600), mm=Math.floor((s%3600)/60), ss=Math.floor(s%60), ms=Math.round((s%1)*1000);
+    return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+  }
+  return segs.map(s => `${s.i}\n${ts(s.start)} --> ${ts(s.end)}\n${s.text}`).join('\n\n');
+}
+
+// Fetch YouTube captions via allorigins.win CORS proxy (no API key).
+// Tries 'en', then 'en-US', then auto-generated 'a.en'.
+async function fetchYTCaptions(videoId) {
+  for (const lang of ['en', 'en-US', 'a.en']) {
+    const ytUrl = `https://www.youtube.com/api/timedtext?lang=${lang}&v=${videoId}`;
+    try {
+      const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(ytUrl)}`, { signal: AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined });
+      if (!res.ok) continue;
+      const xml = await res.text();
+      if (!xml || !xml.includes('<text')) continue;
+      const srt = parseYTTimedText(xml);
+      if (srt && srt.length > 50) return srt;
+    } catch (e) { continue; }
+  }
+  throw new Error('No English captions found for this video. It may not have subtitles, or they may be disabled.');
+}
+
 function CaptionTab({ onOpenKey }) {
   const mood = 'lime';
   const m = MOODS[mood] || MOODS.burgundy;
@@ -185,6 +230,9 @@ function CaptionTab({ onOpenKey }) {
   const [transFile, setTransFile] = React.useState(null);
   const [transState, setTransState] = React.useState('idle'); // idle | transcribing | done | error
   const [transErr, setTransErr] = React.useState('');
+  const [ytUrl, setYtUrl] = React.useState('');
+  const [ytFetchState, setYtFetchState] = React.useState('idle');
+  const [ytFetchErr, setYtFetchErr] = React.useState('');
   const groqKey = window.getGroqKey ? window.getGroqKey() : '';
   const [plats, setPlats] = React.useState(['youtube', 'instagram', 'tiktok']);
 
@@ -220,6 +268,24 @@ function CaptionTab({ onOpenKey }) {
     } catch (e) {
       setTransErr(e.message || 'Transcription failed.');
       setTransState('error');
+    }
+  }
+
+  async function fetchYTTranscriptFromUrl() {
+    const vid = extractYTVideoId(ytUrl);
+    if (!vid) { setYtFetchErr('Enter a valid YouTube URL or video ID.'); setYtFetchState('error'); return; }
+    setYtFetchState('fetching'); setYtFetchErr('');
+    try {
+      const srt = await fetchYTCaptions(vid);
+      const segs = parseSRT(srt);
+      setTranscript(srt);
+      setSrtSegments(segs.length >= 2 ? segs : null);
+      setShowTranscript(true);
+      setYtFetchState('done');
+      reset();
+    } catch (e) {
+      setYtFetchErr(e.message || 'Could not fetch captions.');
+      setYtFetchState('error');
     }
   }
 
@@ -366,6 +432,38 @@ function CaptionTab({ onOpenKey }) {
               <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)', lineHeight: 1.4 }}>
                 No Groq key — <button style={{ background: 'none', border: 'none', color: m.accentFrom, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }} onClick={onOpenKey}>add one free in Settings → Platform Data</button> to enable transcription.
               </div>
+            )}
+          </div>
+
+          {/* YouTube auto-transcript (no key needed) */}
+          <div style={{ borderTop: '1px solid var(--stroke-1)', paddingTop: 14 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>
+              YouTube Auto-Transcript <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(no key needed)</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5, margin: '0 0 10px' }}>
+              Paste any YouTube URL and fetch its captions instantly — works on any video with CC or auto-generated subtitles.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input className="ci-input" style={{ flex: 1, minWidth: 200 }}
+                placeholder="https://youtube.com/watch?v=..."
+                value={ytUrl} onChange={e => { setYtUrl(e.target.value); setYtFetchState('idle'); setYtFetchErr(''); }} />
+              <button onClick={fetchYTTranscriptFromUrl}
+                disabled={ytFetchState === 'fetching' || !ytUrl.trim()}
+                style={{ height: 40, padding: '0 14px', borderRadius: 8, border: `1.5px solid ${m.accentFrom}`,
+                  background: m.accentFrom + '18', color: m.accentFrom, fontSize: 13, fontWeight: 700,
+                  cursor: (ytFetchState === 'fetching' || !ytUrl.trim()) ? 'not-allowed' : 'pointer',
+                  opacity: (ytFetchState === 'fetching' || !ytUrl.trim()) ? 0.65 : 1 }}>
+                {ytFetchState === 'fetching' ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 11, height: 11, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    Fetching…
+                  </span>
+                ) : 'Fetch captions →'}
+              </button>
+              {ytFetchState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A', fontWeight: 600 }}>✓ Captions loaded</span>}
+            </div>
+            {ytFetchState === 'error' && ytFetchErr && (
+              <div style={{ marginTop: 8, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>{ytFetchErr}</div>
             )}
           </div>
 
