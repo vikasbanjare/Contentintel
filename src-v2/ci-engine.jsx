@@ -115,6 +115,31 @@ const getYouTubeKey   = () => {
   try { return localStorage.getItem(LS_YTKEY) || ""; } catch (e) { return ""; }
 };
 const setYouTubeKeyLS = (k) => { try { k ? localStorage.setItem(LS_YTKEY, k) : localStorage.removeItem(LS_YTKEY); } catch (e) {} };
+// Optional RapidAPI key — an alternative YouTube data source that works without
+// a Google Cloud key (RapidAPI's gateway allows browser CORS for youtube-v31).
+const LS_RAPIDAPI = "ci_rapidapi_key";
+const getRapidAPIKey   = () => { try { return localStorage.getItem(LS_RAPIDAPI) || ""; } catch (e) { return ""; } };
+const setRapidAPIKeyLS = (k) => { try { k ? localStorage.setItem(LS_RAPIDAPI, k) : localStorage.removeItem(LS_RAPIDAPI); } catch (e) {} };
+const RAPIDAPI_HOST = 'youtube-v31.p.rapidapi.com';
+async function rapidYTGet(path, params) {
+  const key = getRapidAPIKey();
+  if (!key) throw new Error('No RapidAPI key set.');
+  const qs = new URLSearchParams(params).toString();
+  const res = await fetch(`https://${RAPIDAPI_HOST}/${path}?${qs}`, {
+    headers: { 'X-RapidAPI-Key': key, 'X-RapidAPI-Host': RAPIDAPI_HOST },
+  });
+  const data = await res.json();
+  if (data.error) throw new Error('RapidAPI: ' + (data.error.message || 'request failed'));
+  return data;
+}
+// Resolve an @handle to a channelId via RapidAPI search.
+async function rapidResolveChannelId(handle) {
+  const data = await rapidYTGet('search', { part: 'snippet', q: '@' + handle, type: 'channel', maxResults: '1' });
+  const it = (data.items || [])[0];
+  const id = it && (it.id?.channelId || it.snippet?.channelId);
+  if (!id) throw new Error(`Channel "@${handle}" not found via RapidAPI.`);
+  return id;
+}
 // Optional proxy URL (Cloudflare Worker). When set, image calls go through it
 // so keys stay server-side and browser CORS is bypassed.
 const LS_PROXY = "ci_proxy_url";
@@ -1605,6 +1630,13 @@ function parseYTHandle(input) {
 async function fetchYTChannel(handleOrUrl, key) {
   const handle = parseYTHandle(handleOrUrl);
   if (!handle) throw new Error('Need a channel handle.');
+  // RapidAPI fallback: no Google key but a RapidAPI key is set.
+  if (key !== '__proxy__' && !key && getRapidAPIKey()) {
+    const id = await rapidResolveChannelId(handle);
+    const data = await rapidYTGet('channels', { part: 'snippet,statistics', id });
+    if (!data.items || !data.items.length) throw new Error(`Channel "@${handle}" not found.`);
+    return data.items[0];
+  }
   let url;
   if (key === '__proxy__') {
     // SaaS mode: route through Cloudflare Worker (key stays server-side)
@@ -1636,6 +1668,13 @@ function parseYTVideoId(input) {
 }
 
 async function fetchYTComments(videoId, key, maxResults = 50) {
+  // RapidAPI fallback path.
+  if (key !== '__proxy__' && !key && getRapidAPIKey()) {
+    const data = await rapidYTGet('commentThreads', { part: 'snippet', videoId, maxResults: String(maxResults) });
+    return (data.items || []).map(item => { const s = item.snippet.topLevelComment.snippet; return {
+      author: s.authorDisplayName || 'Anonymous', text: s.textDisplay || '', likes: s.likeCount || 0, published: s.publishedAt || '',
+    }; });
+  }
   const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
   let url;
   if (key === '__proxy__') {
@@ -1660,6 +1699,26 @@ async function fetchYTComments(videoId, key, maxResults = 50) {
 }
 
 async function fetchYTVideos(channelId, key, maxResults = 25) {
+  // RapidAPI fallback path (mirrors Google's response shape).
+  if (key !== '__proxy__' && !key && getRapidAPIKey()) {
+    const searchData = await rapidYTGet('search', { part: 'snippet', channelId, maxResults: String(maxResults), order: 'date', type: 'video' });
+    const items = searchData.items || [];
+    const ids = items.map(v => v.id?.videoId || v.id).filter(Boolean).join(',');
+    let statsMap = {};
+    if (ids) {
+      try {
+        const statsData = await rapidYTGet('videos', { part: 'statistics,contentDetails', id: ids });
+        for (const v of (statsData.items || [])) statsMap[v.id] = {
+          viewCount: v.statistics?.viewCount || '0', likeCount: v.statistics?.likeCount || '0',
+          commentCount: v.statistics?.commentCount || '0', duration: v.contentDetails?.duration || '',
+        };
+      } catch (e) {}
+    }
+    return items.map(v => { const id = v.id?.videoId || v.id; const st = statsMap[id] || {}; return {
+      title: v.snippet.title, videoId: id, description: v.snippet.description, published: v.snippet.publishedAt,
+      viewCount: st.viewCount || '0', likeCount: st.likeCount || '0', commentCount: st.commentCount || '0', duration: st.duration || '',
+    }; });
+  }
   const workerUrl = ((window.CI_SAAS || {}).workerUrl || '').replace(/\/$/, '');
   // Step 1: search for recent videos
   let searchUrl;
@@ -1988,6 +2047,7 @@ function KeyModal({ open, onClose }) {
   const [show, setShow]   = React.useState(false);
   const [webSearch, setWebSearch] = React.useState(getWebSearch());
   const [ytKey, setYtKey] = React.useState(() => { const k = getYouTubeKey ? getYouTubeKey() : ''; return k === '__proxy__' ? '' : k; });
+  const [rapidKey, setRapidKey] = React.useState(getRapidAPIKey ? getRapidAPIKey() : '');
   const [groqKey, setGroqKey] = React.useState(getGroqKey ? getGroqKey() : '');
   const [orKey, setOrKey]     = React.useState(getOpenRouterKey ? getOpenRouterKey() : '');
   const [orModel, setOrModel] = React.useState(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL);
@@ -1995,10 +2055,10 @@ function KeyModal({ open, onClose }) {
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
   const [section, setSection] = React.useState(saasMode ? "image" : "analysis");
   React.useEffect(() => {
-    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setGroqKey(getGroqKey ? getGroqKey() : ''); setOrKey(getOpenRouterKey ? getOpenRouterKey() : ''); setOrModel(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL); setProvider(getProvider()); }
+    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setRapidKey(getRapidAPIKey ? getRapidAPIKey() : ''); setGroqKey(getGroqKey ? getGroqKey() : ''); setOrKey(getOpenRouterKey ? getOpenRouterKey() : ''); setOrModel(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL); setProvider(getProvider()); }
   }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setGroqKeyLS(groqKey.trim()); setOpenRouterKeyLS(orKey.trim()); setOpenRouterModelLS(orModel.trim()); setProviderLS(provider); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setRapidAPIKeyLS(rapidKey.trim()); setGroqKeyLS(groqKey.trim()); setOpenRouterKeyLS(orKey.trim()); setOpenRouterModelLS(orModel.trim()); setProviderLS(provider); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
 
   const TabBtn = ({ id, label }) => (
@@ -2121,6 +2181,13 @@ function KeyModal({ open, onClose }) {
               Enables auto-fetch in Channel Audit and Competitor Analysis. Free quota: ~10,000 units/day. Get one at{" "}
               <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>Google Cloud Console</a>.
             </div>
+
+            <label className="ci-label" style={{ marginTop: 18 }}>RapidAPI key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(alternative — no Google key needed)</span></label>
+            <input className="ci-input" type="password" value={rapidKey} onChange={e => setRapidKey(e.target.value)} placeholder="RapidAPI key…" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+            <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+              Used only if no Google key is set. Routes Channel Audit / Comments through the{" "}
+              <a href="https://rapidapi.com/ytdlfree/api/youtube-v31" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>YouTube v3 (youtube-v31)</a> API. Note: a browser key is visible to anyone using your site — best for personal use.
+            </div>
           </>}
           {saasMode && (
             <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(143,216,106,0.08)", border: "1px solid rgba(143,216,106,0.2)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, marginBottom: 16 }}>
@@ -2167,6 +2234,7 @@ Object.assign(window, {
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
+  getRapidAPIKey, setRapidAPIKeyLS,
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
   getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
   getOpenRouterKey, setOpenRouterKeyLS, getOpenRouterModel, setOpenRouterModelLS, callOpenRouterAnalysis,

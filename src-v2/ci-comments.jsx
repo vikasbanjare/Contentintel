@@ -94,7 +94,8 @@ function CommentsTab({ onOpenKey }) {
   }, [mode, fetchedComments, comments]);
 
   const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';
-  const hasYT = !!ytKey;
+  const rapidKey = window.getRapidAPIKey ? window.getRapidAPIKey() : '';
+  const hasYT = !!ytKey || !!rapidKey;
 
   // Count comments in manual mode
   const commentCount = comments.trim()

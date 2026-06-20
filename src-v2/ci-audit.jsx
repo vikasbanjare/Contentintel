@@ -118,6 +118,8 @@ function AuditTab({ onOpenKey }) {
   const loading = state === 'loading';
 
   const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';
+  const rapidKey = window.getRapidAPIKey ? window.getRapidAPIKey() : '';
+  const canFetch = !!ytKey || !!rapidKey;
 
   async function fetchChannel() {
     if (!handle.trim()) return;
@@ -181,9 +183,9 @@ function AuditTab({ onOpenKey }) {
 
       <div className="ci-block" style={{ padding: 24, marginTop: 24 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {!ytKey && (
+          {!canFetch && (
             <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.3)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
-              <b style={{ color: '#F0C85A' }}>YouTube API key needed</b> — add it in Settings → Platform Data tab to auto-fetch any channel.{' '}
+              <b style={{ color: '#F0C85A' }}>YouTube or RapidAPI key needed</b> — add either in Settings → Platform Data tab to auto-fetch any channel.{' '}
               <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 12, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>
             </div>
           )}
@@ -192,10 +194,10 @@ function AuditTab({ onOpenKey }) {
             <div style={{ display: 'flex', gap: 8 }}>
               <input className="ci-input" placeholder="@YourChannel or youtube.com/@YourChannel"
                 value={handle} onChange={e => { setHandle(e.target.value); setFetchState('idle'); setChannelInfo(null); setTitles(''); reset(); }}
-                onKeyDown={e => { if (e.key === 'Enter' && ytKey) fetchChannel(); }}
+                onKeyDown={e => { if (e.key === 'Enter' && canFetch) fetchChannel(); }}
                 style={{ flex: 1 }} />
               <GlowButton mood={mood} onClick={fetchChannel}
-                style={{ whiteSpace: 'nowrap', opacity: (!handle.trim() || !ytKey || fetchState === 'fetching') ? 0.5 : 1 }}>
+                style={{ whiteSpace: 'nowrap', opacity: (!handle.trim() || !canFetch || fetchState === 'fetching') ? 0.5 : 1 }}>
                 {fetchState === 'fetching' ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
