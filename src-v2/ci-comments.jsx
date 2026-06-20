@@ -16,6 +16,58 @@ const COMMENTS_SYSTEM = [
   "Set bottomLine to one tip for improving comment engagement on this type of content.",
 ].join("\n");
 
+// Browser sentiment via wink-sentiment (AFINN + emoji + negation), lazy ESM import.
+let _winkSent = null;
+async function scoreSentimentBatch(texts) {
+  if (!texts.length) return null;
+  try {
+    if (!_winkSent) {
+      const mod = await import('https://esm.sh/wink-sentiment@5.0.2');
+      _winkSent = mod.default || mod;
+    }
+    let pos = 0, neu = 0, neg = 0, sum = 0;
+    for (const t of texts) {
+      const r = _winkSent(t || '');
+      const n = typeof r.normalizedScore === 'number' ? r.normalizedScore : 0;
+      sum += n;
+      if (n > 0.6) pos++; else if (n < -0.6) neg++; else neu++;
+    }
+    const total = texts.length;
+    return {
+      total, pos, neu, neg,
+      posPct: Math.round((pos / total) * 100),
+      neuPct: Math.round((neu / total) * 100),
+      negPct: Math.round((neg / total) * 100),
+      avg: sum / total,
+    };
+  } catch (e) { return null; }
+}
+
+function SentimentBar({ data, mood }) {
+  if (!data) return null;
+  const m = MOODS[mood] || MOODS.cyan;
+  const overall = data.avg > 0.4 ? 'Positive' : data.avg < -0.4 ? 'Negative' : 'Mixed';
+  const oCol = data.avg > 0.4 ? '#8FD86A' : data.avg < -0.4 ? '#F06A7E' : '#F0C85A';
+  return (
+    <div style={{ padding: '14px 16px', borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--stroke-1)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Audience Mood</span>
+        <span style={{ fontSize: 12.5, fontWeight: 800, color: oCol }}>{overall} · {data.total} analysed</span>
+      </div>
+      <div style={{ display: 'flex', height: 10, borderRadius: 999, overflow: 'hidden', background: 'var(--surface-1)' }}>
+        {data.posPct > 0 && <div style={{ width: data.posPct + '%', background: '#8FD86A' }} />}
+        {data.neuPct > 0 && <div style={{ width: data.neuPct + '%', background: '#F0C85A' }} />}
+        {data.negPct > 0 && <div style={{ width: data.negPct + '%', background: '#F06A7E' }} />}
+      </div>
+      <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 11.5, color: 'var(--text-3)' }}>
+        <span><b style={{ color: '#8FD86A' }}>{data.posPct}%</b> positive</span>
+        <span><b style={{ color: '#F0C85A' }}>{data.neuPct}%</b> neutral</span>
+        <span><b style={{ color: '#F06A7E' }}>{data.negPct}%</b> negative</span>
+      </div>
+    </div>
+  );
+}
+
 function CommentsTab({ onOpenKey }) {
   const mood = 'cyan';
   const m = MOODS[mood] || MOODS.burgundy;
@@ -30,6 +82,16 @@ function CommentsTab({ onOpenKey }) {
 
   const { state, report, usage, err, run, reset } = useAnalysis('comments');
   const loading = state === 'loading';
+  const [sentiment, setSentiment] = React.useState(null);
+
+  React.useEffect(() => {
+    const texts = mode === 'auto' && fetchedComments.length
+      ? fetchedComments.map(c => c.text)
+      : (comments.trim() ? comments.split(/\n---\n|\n–––\n/).map(s => s.trim()).filter(Boolean) : []);
+    if (texts.length < 2) { setSentiment(null); return; }
+    const timer = setTimeout(async () => { setSentiment(await scoreSentimentBatch(texts)); }, 700);
+    return () => clearTimeout(timer);
+  }, [mode, fetchedComments, comments]);
 
   const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';
   const hasYT = !!ytKey;
@@ -198,6 +260,12 @@ function CommentsTab({ onOpenKey }) {
             </div>
           </div>
         </div>
+
+        {sentiment && (
+          <div style={{ marginTop: 16 }}>
+            <SentimentBar data={sentiment} mood={mood} />
+          </div>
+        )}
 
         <div style={{ marginTop: 20 }}>
           <AnalyzeButton mood={mood} label="Generate replies" loading={loading}
