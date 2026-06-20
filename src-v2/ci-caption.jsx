@@ -53,6 +53,7 @@ function scoreTitleCTR(title) {
   const final = Math.max(12, Math.min(98, score));
   return { score: final, factors };
 }
+window.scoreTitleCTR = scoreTitleCTR;
 
 function TitleCTRBadge({ title }) {
   const result = React.useMemo(() => scoreTitleCTR(title), [title]);

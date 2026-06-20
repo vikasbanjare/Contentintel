@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r32";
+window.CI_BUILD = "2026-06-20-r33";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -7166,6 +7166,68 @@ function LocalCTRPredictor({ title, mood }) {
   );
 }
 
+// Batch title ranker — paste several titles, score + rank them instantly with the
+// offline scoreTitleCTR heuristic. No API key, fully client-side.
+function BatchTitleRanker({ mood }) {
+  const m = TM[mood] || TM.cyan;
+  const [open, setOpen] = React.useState(false);
+  const [raw, setRaw] = React.useState('');
+  const scorer = window.scoreTitleCTR;
+  const ranked = React.useMemo(() => {
+    if (!scorer) return [];
+    const lines = raw.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
+    return lines
+      .map(t => { const r = scorer(t); return { title: t, score: r ? r.score : null, factors: r ? r.factors : [] }; })
+      .filter(x => x.score !== null)
+      .sort((a, b) => b.score - a.score);
+  }, [raw, scorer]);
+  const count = raw.split('\n').map(s => s.trim()).filter(Boolean).length;
+
+  return (
+    <div style={{ marginTop: 14, border: '1px solid var(--stroke-1)', borderRadius: 12, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'var(--surface-2)', border: 'none', cursor: 'pointer', color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>
+        <span>🏁 Batch Title Ranker <span style={{ fontWeight: 400, color: 'var(--text-5)' }}>· score & rank up to 8 titles instantly, offline</span></span>
+        <span style={{ color: 'var(--text-5)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: 14 }}>
+          <textarea className="ci-input" rows={5}
+            placeholder={"Paste one title per line (up to 8):\n5 Mistakes Every Beginner Makes\nHow I Saved ₹1 Lakh in 60 Days\nThe Truth About Index Funds Nobody Tells You"}
+            value={raw} onChange={e => setRaw(e.target.value)}
+            style={{ resize: 'vertical', lineHeight: 1.6, fontSize: 13.5 }} />
+          <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 4 }}>{count} title{count !== 1 ? 's' : ''}{count > 8 ? ' (only first 8 ranked)' : ''}</div>
+          {ranked.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              {ranked.map((r, i) => {
+                const col = r.score >= 72 ? '#8FD86A' : r.score >= 50 ? '#F0C85A' : '#F06A7E';
+                const winner = i === 0 && ranked.length > 1;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 10,
+                    background: winner ? m.accentFrom + '12' : 'var(--surface-2)', border: `1px solid ${winner ? m.accentFrom + '44' : 'var(--stroke-1)'}` }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 20, color: col, minWidth: 34, textAlign: 'center' }}>{r.score}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: winner ? 700 : 500, lineHeight: 1.4 }}>
+                        {winner && <span style={{ marginRight: 6 }}>🏆</span>}{r.title}
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 5 }}>
+                        {r.factors.slice(0, 6).map(f => (
+                          <span key={f.key} style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 999, background: f.col + '18', color: f.col, fontWeight: 600 }}>{f.label}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <CopyBlockButton text={r.title} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TitleTab({ onOpenKey }) {
   const mood = 'cyan';
   const m = TM[mood];
@@ -7231,6 +7293,7 @@ function TitleTab({ onOpenKey }) {
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2800} label="Check my title"
           disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
         <LocalCTRPredictor title={title} mood={mood} />
+        <BatchTitleRanker mood={mood} />
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
@@ -10825,6 +10888,7 @@ function scoreTitleCTR(title) {
   const final = Math.max(12, Math.min(98, score));
   return { score: final, factors };
 }
+window.scoreTitleCTR = scoreTitleCTR;
 
 function TitleCTRBadge({ title }) {
   const result = React.useMemo(() => scoreTitleCTR(title), [title]);
