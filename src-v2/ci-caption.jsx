@@ -23,12 +23,91 @@ const CAPTION_SYSTEM = [
   "Set bottomLine to the single most important tip for maximising reach with these captions.",
 ].join("\n");
 
+// Parse SRT string → array of { index, start, end, text }
+function parseSRT(srt) {
+  const segs = [];
+  const blocks = (srt || '').trim().split(/\n\n+/);
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    if (lines.length < 2) continue;
+    const tLine = lines.find(l => /\d{2}:\d{2}:\d{2}[,\.]\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}[,\.]\d{3}/.test(l));
+    if (!tLine) continue;
+    const tm = tLine.match(/(\d{2}:\d{2}:\d{2})[,\.](\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2})[,\.](\d{3})/);
+    if (!tm) continue;
+    const text = lines.slice(lines.indexOf(tLine) + 1).join(' ').trim();
+    if (text) segs.push({ index: segs.length + 1, start: tm[1], end: tm[3], ms_start: tm[2], ms_end: tm[4], text });
+  }
+  return segs;
+}
+
+// Compact "00:00:04" → "0:04", strip leading zeros for readability
+function fmtTime(t) {
+  const p = (t || '').split(':');
+  if (p.length < 3) return t;
+  const h = parseInt(p[0], 10), m = parseInt(p[1], 10), s = parseInt(p[2], 10);
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function SRTViewer({ srt, accentColor }) {
+  const segs = React.useMemo(() => parseSRT(srt), [srt]);
+  const [copied, setCopied] = React.useState(null);
+  const [search, setSearch] = React.useState('');
+  if (!segs.length) return null;
+  function copyOne(i, text) {
+    window.copyText ? window.copyText(text) : navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(i); setTimeout(() => setCopied(c => c === i ? null : c), 1600);
+  }
+  function copyAll() {
+    const plain = segs.map(s => s.text).join(' ');
+    window.copyText ? window.copyText(plain) : navigator.clipboard.writeText(plain).catch(() => {});
+    setCopied('all'); setTimeout(() => setCopied(c => c === 'all' ? null : c), 1600);
+  }
+  const q = search.trim().toLowerCase();
+  const visible = q ? segs.filter(s => s.text.toLowerCase().includes(q)) : segs;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+          {segs.length} segments
+        </span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search transcript…"
+            style={{ height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)', color: 'var(--text-1)', fontSize: 12, outline: 'none', width: 160 }} />
+          <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 11.5 }} onClick={copyAll}>
+            {copied === 'all' ? '✓ Copied' : '⧉ Copy all text'}
+          </button>
+        </div>
+      </div>
+      <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, borderRadius: 10, border: '1px solid var(--stroke-1)', padding: '4px 0' }}>
+        {visible.length === 0 && <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-4)' }}>No results for "{search}"</div>}
+        {visible.map((s, i) => (
+          <div key={s.index} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 12px', transition: 'background 0.1s', cursor: 'default' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: accentColor || '#8FD86A', flexShrink: 0, paddingTop: 2, width: 42 }}>{fmtTime(s.start)}</span>
+            <span style={{ flex: 1, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+              {q ? s.text.split(new RegExp(`(${search.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi')).map((part, pi) =>
+                part.toLowerCase() === q ? <mark key={pi} style={{ background: (accentColor || '#8FD86A') + '33', color: 'var(--text-1)', borderRadius: 2 }}>{part}</mark> : part
+              ) : s.text}
+            </span>
+            <button className="ci-copybtn" style={{ height: 24, padding: '0 8px', fontSize: 11, flexShrink: 0, opacity: 0.7 }}
+              onClick={() => copyOne(s.index, s.text)} title="Copy this line">
+              {copied === s.index ? '✓' : '⧉'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CaptionTab({ onOpenKey }) {
   const mood = 'lime';
   const m = MOODS[mood] || MOODS.burgundy;
   const [title, setTitle] = React.useState('');
   const [desc,  setDesc]  = React.useState('');
   const [transcript, setTranscript] = React.useState('');
+  const [srtSegments, setSrtSegments] = React.useState(null); // parsed SRT segments for viewer
   const [showTranscript, setShowTranscript] = React.useState(false);
   const [transFile, setTransFile] = React.useState(null);
   const [transState, setTransState] = React.useState('idle'); // idle | transcribing | done | error
@@ -59,7 +138,9 @@ function CaptionTab({ onOpenKey }) {
     setTransState('transcribing'); setTransErr('');
     try {
       const srt = await window.transcribeWithGroq(transFile, groqKey);
+      const segs = parseSRT(srt);
       setTranscript(srt);
+      setSrtSegments(segs.length >= 2 ? segs : null);
       setShowTranscript(true);
       setTransState('done');
       reset();
@@ -102,7 +183,19 @@ function CaptionTab({ onOpenKey }) {
       <div className="ci-block" style={{ padding: 24, marginTop: 24 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Video title *</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Video title *</span>
+              {title.trim() && (
+                <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'var(--surface-2)',
+                    color: title.length > 100 ? '#F06A7E' : title.length > 70 ? '#F0C85A' : '#8FD86A',
+                    fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{title.length}/100</span>
+                  {/\d/.test(title) && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'rgba(143,216,106,0.1)', color: '#8FD86A', fontWeight: 600 }}>✓ number</span>}
+                  {/\?/.test(title) && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'rgba(143,216,106,0.1)', color: '#8FD86A', fontWeight: 600 }}>✓ question</span>}
+                  {/how|why|what|when|secret|never|always|stop|start|best|worst|mistake|truth|real|only|first|last|revealed|shocking|surprising/i.test(title) && <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'rgba(240,200,90,0.1)', color: '#F0C85A', fontWeight: 600 }}>power word</span>}
+                </div>
+              )}
+            </div>
             <input className="ci-input" style={{ fontSize: 15 }}
               placeholder="e.g. I invested ₹50,000 in index funds for 1 year — here's what happened"
               value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
@@ -136,14 +229,30 @@ function CaptionTab({ onOpenKey }) {
             </button>
             {showTranscript && (
               <div style={{ marginTop: 10 }}>
-                <textarea className="ci-input" rows={8}
-                  placeholder={"Paste your full video script or transcript here.\n\nClaude will extract real hooks, key moments, and specific points to build captions that match your actual content — not just the title."}
-                  value={transcript} onChange={e => { setTranscript(e.target.value); reset(); }}
-                  style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 12.5 }} />
-                {transcriptWords > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--text-5)', display: 'block', textAlign: 'right', marginTop: 4 }}>
-                    {transcriptWords} words · Claude will extract key moments from this
-                  </span>
+                {srtSegments && srtSegments.length >= 2 ? (
+                  <div>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 6, lineHeight: 1.5 }}>
+                      Click any segment to copy it. Full transcript is used for caption generation.
+                    </div>
+                    <SRTViewer srt={transcript} accentColor={m.accentFrom} />
+                    <div style={{ marginTop: 8, display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-5)' }}>{transcriptWords} words</span>
+                      <button className="ci-copybtn" style={{ height: 24, padding: '0 9px', fontSize: 11 }}
+                        onClick={() => { setSrtSegments(null); }}>Edit as text ↓</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <textarea className="ci-input" rows={8}
+                      placeholder={"Paste your full video script or transcript here.\n\nClaude will extract real hooks, key moments, and specific points to build captions that match your actual content — not just the title."}
+                      value={transcript} onChange={e => { setTranscript(e.target.value); setSrtSegments(null); reset(); }}
+                      style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 12.5 }} />
+                    {transcriptWords > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--text-5)', display: 'block', textAlign: 'right', marginTop: 4 }}>
+                        {transcriptWords} words · Claude will extract key moments from this
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -177,7 +286,7 @@ function CaptionTab({ onOpenKey }) {
                   ) : 'Transcribe →'}
                 </button>
               )}
-              {transState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A', fontWeight: 600 }}>✓ Done — transcript filled in above</span>}
+              {transState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A', fontWeight: 600 }}>✓ Done — {srtSegments ? `${srtSegments.length} segments` : 'transcript filled in'} above</span>}
             </div>
             {transState === 'error' && transErr && (
               <div style={{ marginTop: 8, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>

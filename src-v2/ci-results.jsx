@@ -287,11 +287,12 @@ function ScoreBar({ name, score, why }) {
   );
 }
 
-// Script quality / attention curve over the runtime
+// Script quality / attention curve over the runtime — with hover tooltips
 function QualityGraph({ points = [], mood = 'navy' }) {
   const m = RM[mood] || RM.navy;
   const pts = (points || []).filter(p => p && typeof p.value === 'number').slice(0, 14);
   if (pts.length < 2) return null;
+  const [hov, setHov] = React.useState(null);
   const W = 1000, H = 240, padX = 34, padTop = 18, padBot = 52;
   const innerW = W - padX * 2, innerH = H - padTop - padBot, base = padTop + innerH;
   const xs = i => padX + (innerW * i) / (pts.length - 1);
@@ -301,28 +302,54 @@ function QualityGraph({ points = [], mood = 'navy' }) {
   const accent = m.accentFrom;
   const gid = 'qg-' + mood;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={accent} stopOpacity="0.32" />
-          <stop offset="100%" stopColor={accent} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[25, 50, 75].map(g => (
-        <line key={g} x1={padX} y1={ys(g)} x2={W - padX} y2={ys(g)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4 6" />
-      ))}
-      <path d={area} fill={`url(#${gid})`} />
-      <path d={line} fill="none" stroke={accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${m.accentGlow})` }} />
-      {pts.map((p, i) => {
-        const low = p.value < 42;
-        return (
-          <g key={i}>
-            <circle cx={xs(i)} cy={ys(p.value)} r={low ? 6 : 4.5} fill={low ? '#F06A7E' : accent} stroke="#0b0e15" strokeWidth="2" />
-            <text x={xs(i)} y={H - 28} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="15" fill="var(--text-3)">{p.label || (i + 1)}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div style={{ position: 'relative' }}>
+      {hov !== null && pts[hov] && (
+        <div style={{
+          position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--surface-3)', border: '1px solid var(--stroke-2)',
+          borderRadius: 8, padding: '7px 12px', fontSize: 12.5, zIndex: 10,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)', pointerEvents: 'none',
+          maxWidth: 280, textAlign: 'center', lineHeight: 1.5,
+        }}>
+          <span style={{ fontWeight: 700, color: pts[hov].value < 42 ? '#F06A7E' : pts[hov].value >= 75 ? '#8FD86A' : '#F0C85A' }}>
+            {Math.round(pts[hov].value)}
+          </span>
+          <span style={{ color: 'var(--text-3)', marginLeft: 6 }}>{pts[hov].label || `Segment ${hov + 1}`}</span>
+          {pts[hov].note && <div style={{ color: 'var(--text-4)', fontSize: 11.5, marginTop: 2 }}>{pts[hov].note}</div>}
+        </div>
+      )}
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', cursor: 'crosshair' }}>
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={accent} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={accent} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[25, 50, 75].map(g => (
+          <line key={g} x1={padX} y1={ys(g)} x2={W - padX} y2={ys(g)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4 6" />
+        ))}
+        {[25, 50, 75].map(g => (
+          <text key={'gl'+g} x={padX - 6} y={ys(g) + 4} textAnchor="end" fontFamily="var(--font-mono)" fontSize="12" fill="rgba(255,255,255,0.2)">{g}</text>
+        ))}
+        <path d={area} fill={`url(#${gid})`} />
+        <path d={line} fill="none" stroke={accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${m.accentGlow})` }} />
+        {pts.map((p, i) => {
+          const low = p.value < 42;
+          const isHov = hov === i;
+          const col = low ? '#F06A7E' : accent;
+          return (
+            <g key={i} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} style={{ cursor: 'pointer' }}>
+              <circle cx={xs(i)} cy={ys(p.value)} r={isHov ? 9 : (low ? 6 : 4.5)}
+                fill={col} stroke="#0b0e15" strokeWidth="2"
+                style={{ transition: 'r 0.1s', filter: isHov ? `drop-shadow(0 0 6px ${col})` : 'none' }} />
+              {isHov && <circle cx={xs(i)} cy={ys(p.value)} r={14} fill="transparent" />}
+              <text x={xs(i)} y={H - 28} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="15" fill={isHov ? 'var(--text-1)' : 'var(--text-3)'}>{p.label || (i + 1)}</text>
+            </g>
+          );
+        })}
+        {hov !== null && <line x1={xs(hov)} y1={padTop} x2={xs(hov)} y2={base} stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="3 4" />}
+      </svg>
+    </div>
   );
 }
 
