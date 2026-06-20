@@ -11727,13 +11727,11 @@ function AuditTab({ onOpenKey }) {
           <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
             <button
               onClick={() => {
-                try {
-                  localStorage.setItem('ci_audit_handoff', JSON.stringify({
-                    channel: channelInfo?.name || handle.trim(),
-                    tip: report?.bottomLine || '',
-                    ts: Date.now(),
-                  }));
-                } catch(e) {}
+                const tip = report?.bottomLine || '';
+                const channel = channelInfo?.name || handle.trim();
+                // Seed the Script tab's create mode with the audit's recommended video.
+                // ScriptTab reads window.__ciScriptTopic on mount (same pattern as Builder→Script).
+                if (tip) window.__ciScriptTopic = channel ? `${tip}\n\n(From audit of ${channel})` : tip;
                 if (window.__CI_NAV__) window.__CI_NAV__('script');
               }}
               style={{ height: 44, padding: '0 24px', borderRadius: 10, border: `1.5px solid ${m.accentFrom}`,
