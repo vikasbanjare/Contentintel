@@ -531,6 +531,99 @@ function ThumbnailTab({ onOpenKey }) {
 window.ThumbnailTab = ThumbnailTab;
 
 // ── TITLE ────────────────────────────────────────────────────────────────────
+// Opt-in local AI CTR predictor (WebLLM / MLC AI). Runs a small model fully in
+// the browser via WebGPU. Heavy (~400MB) so it is strictly gated behind an
+// explicit "Load model" click — it never downloads on its own.
+function LocalCTRPredictor({ title, mood }) {
+  const m = TM[mood] || TM.cyan;
+  const [open, setOpen] = React.useState(false);
+  const [status, setStatus] = React.useState('idle'); // idle|loading|ready|predicting|error
+  const [progress, setProgress] = React.useState('');
+  const [result, setResult] = React.useState(null);
+  const [err, setErr] = React.useState('');
+  const engineRef = React.useRef(null);
+  const MODEL = 'Qwen2.5-0.5B-Instruct-q4f32_1-MLC';
+  const hasGPU = typeof navigator !== 'undefined' && !!navigator.gpu;
+
+  async function loadModel() {
+    if (!hasGPU) { setErr('This needs WebGPU — use desktop Chrome or Edge.'); setStatus('error'); return; }
+    setStatus('loading'); setErr(''); setProgress('Starting…');
+    try {
+      const webllm = await import('https://esm.run/@mlc-ai/web-llm');
+      engineRef.current = await webllm.CreateMLCEngine(MODEL, { initProgressCallback: p => setProgress(p.text || '') });
+      setStatus('ready');
+    } catch (e) { setErr(e.message || 'Could not load the local model.'); setStatus('error'); }
+  }
+
+  async function predict() {
+    if (!engineRef.current || !title.trim()) return;
+    setStatus('predicting'); setResult(null); setErr('');
+    try {
+      const reply = await engineRef.current.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'You are a YouTube CTR expert. Given a video title, output ONLY a JSON object {"score": <integer 0-100>, "reason": "<max 12 words>"}. Score = predicted click-through appeal.' },
+          { role: 'user', content: 'Title: ' + title.trim() },
+        ],
+        temperature: 0.3, max_tokens: 80,
+      });
+      const txt = (reply.choices && reply.choices[0] && reply.choices[0].message.content) || '';
+      const mj = txt.match(/\{[\s\S]*\}/);
+      let parsed = null; if (mj) { try { parsed = JSON.parse(mj[0]); } catch (e) {} }
+      if (parsed && parsed.score != null) setResult({ score: Math.max(0, Math.min(100, Math.round(parsed.score))), reason: parsed.reason || '' });
+      else setResult({ score: null, reason: txt.slice(0, 120) });
+      setStatus('ready');
+    } catch (e) { setErr(e.message || 'Prediction failed.'); setStatus('error'); }
+  }
+
+  return (
+    <div style={{ marginTop: 14, border: '1px solid var(--stroke-1)', borderRadius: 12, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'var(--surface-2)', border: 'none', cursor: 'pointer', color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>
+        <span>🧠 Local AI CTR Predictor <span style={{ fontWeight: 400, color: 'var(--text-5)' }}>· runs offline in your browser, no API key</span></span>
+        <span style={{ color: 'var(--text-5)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: 14 }}>
+          {status === 'idle' && (
+            <div>
+              <p style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5, margin: '0 0 10px' }}>
+                Downloads a small AI model (~400&nbsp;MB) <b>once</b> into your browser, then scores titles fully offline — nothing leaves your device. Needs desktop Chrome/Edge (WebGPU).
+              </p>
+              <button onClick={loadModel} disabled={!hasGPU}
+                style={{ height: 38, padding: '0 16px', borderRadius: 8, border: `1.5px solid ${m.accentFrom}`, background: m.accentFrom + '18', color: m.accentFrom, fontSize: 13, fontWeight: 700, cursor: hasGPU ? 'pointer' : 'not-allowed', opacity: hasGPU ? 1 : 0.5 }}>
+                {hasGPU ? 'Load model (~400 MB, one time)' : 'WebGPU not available in this browser'}
+              </button>
+            </div>
+          )}
+          {status === 'loading' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: 'var(--text-3)' }}>
+              <span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ flex: 1 }}>{progress || 'Loading model…'}</span>
+            </div>
+          )}
+          {(status === 'ready' || status === 'predicting') && (
+            <div>
+              <button onClick={predict} disabled={status === 'predicting' || !title.trim()}
+                style={{ height: 38, padding: '0 16px', borderRadius: 8, border: `1.5px solid ${m.accentFrom}`, background: m.accentFrom + '18', color: m.accentFrom, fontSize: 13, fontWeight: 700, cursor: (status === 'predicting' || !title.trim()) ? 'not-allowed' : 'pointer', opacity: (status === 'predicting' || !title.trim()) ? 0.6 : 1 }}>
+                {status === 'predicting' ? 'Predicting…' : '⚡ Predict CTR for this title'}
+              </button>
+              {result && (
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {result.score != null && (
+                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 26, color: result.score >= 70 ? '#8FD86A' : result.score >= 45 ? '#F0C85A' : '#F06A7E' }}>{result.score}</div>
+                  )}
+                  <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.45 }}>{result.reason}</div>
+                </div>
+              )}
+            </div>
+          )}
+          {status === 'error' && <div style={{ fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>{err} <button className="ci-copybtn" style={{ height: 24, padding: '0 8px', fontSize: 11, marginLeft: 6 }} onClick={() => { setStatus('idle'); setErr(''); }}>Retry</button></div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TitleTab({ onOpenKey }) {
   const mood = 'cyan';
   const m = TM[mood];
@@ -595,6 +688,7 @@ function TitleTab({ onOpenKey }) {
         </div>
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2800} label="Check my title"
           disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
+        <LocalCTRPredictor title={title} mood={mood} />
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}
