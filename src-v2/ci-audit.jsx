@@ -202,6 +202,26 @@ function AuditTab({ onOpenKey }) {
         <div style={{ marginTop: 24 }}>
           <ReportView report={report} mood={mood} />
           {usage && <UsageBadge usage={usage} />}
+          <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
+            <button
+              onClick={() => {
+                try {
+                  localStorage.setItem('ci_audit_handoff', JSON.stringify({
+                    channel: channelInfo?.name || handle.trim(),
+                    tip: report?.bottomLine || '',
+                    ts: Date.now(),
+                  }));
+                } catch(e) {}
+                if (window.__CI_NAV__) window.__CI_NAV__('script');
+              }}
+              style={{ height: 44, padding: '0 24px', borderRadius: 10, border: `1.5px solid ${m.accentFrom}`,
+                background: m.accentFrom + '15', color: m.accentFrom, fontSize: 13.5, fontWeight: 700,
+                cursor: 'pointer', letterSpacing: '.01em', transition: 'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = m.accentFrom + '25'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = m.accentFrom + '15'; }}>
+              → Plan Scripts from This Audit
+            </button>
+          </div>
         </div>
       )}
     </div>
