@@ -30,6 +30,10 @@ function CaptionTab({ onOpenKey }) {
   const [desc,  setDesc]  = React.useState('');
   const [transcript, setTranscript] = React.useState('');
   const [showTranscript, setShowTranscript] = React.useState(false);
+  const [transFile, setTransFile] = React.useState(null);
+  const [transState, setTransState] = React.useState('idle'); // idle | transcribing | done | error
+  const [transErr, setTransErr] = React.useState('');
+  const groqKey = window.getGroqKey ? window.getGroqKey() : '';
   const [plats, setPlats] = React.useState(['youtube', 'instagram', 'tiktok']);
 
   const { state, report, usage, err, run, reset } = useAnalysis('caption');
@@ -47,6 +51,22 @@ function CaptionTab({ onOpenKey }) {
   function toggle(id) {
     setPlats(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
     reset();
+  }
+
+  async function transcribeFile() {
+    if (!transFile || transState === 'transcribing') return;
+    if (!groqKey) { setTransErr('Add a Groq API key in Settings → Platform Data to transcribe.'); setTransState('error'); return; }
+    setTransState('transcribing'); setTransErr('');
+    try {
+      const srt = await window.transcribeWithGroq(transFile, groqKey);
+      setTranscript(srt);
+      setShowTranscript(true);
+      setTransState('done');
+      reset();
+    } catch (e) {
+      setTransErr(e.message || 'Transcription failed.');
+      setTransState('error');
+    }
   }
 
   function generate() {
@@ -125,6 +145,48 @@ function CaptionTab({ onOpenKey }) {
                     {transcriptWords} words · Claude will extract key moments from this
                   </span>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Audio/video transcription via Groq Whisper */}
+          <div style={{ borderTop: '1px solid var(--stroke-1)', paddingTop: 14 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>
+              AI Transcription <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(Groq Whisper — free)</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5, margin: '0 0 10px' }}>
+              Upload your video or audio file and get an instant transcript — like Premiere Pro's caption AI, but free. The transcript auto-fills the field above for better captions.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 36, padding: '0 14px', borderRadius: 8,
+                border: '1.5px solid var(--stroke-2)', background: 'var(--surface-2)', cursor: 'pointer', fontSize: 13, color: 'var(--text-2)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {transFile ? `📎 ${transFile.name.slice(0, 28)}${transFile.name.length > 28 ? '…' : ''}` : '📎 Choose file'}
+                <input type="file" accept="audio/*,video/mp4,video/webm,.mp3,.mp4,.wav,.m4a,.webm,.ogg" style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files[0]; if (f) { setTransFile(f); setTransState('idle'); setTransErr(''); } }} />
+              </label>
+              {transFile && (
+                <button onClick={transcribeFile} disabled={transState === 'transcribing'}
+                  style={{ height: 36, padding: '0 16px', borderRadius: 8, border: `1.5px solid ${m.accentFrom}`,
+                    background: m.accentFrom + '18', color: m.accentFrom, fontSize: 13, fontWeight: 700,
+                    cursor: transState === 'transcribing' ? 'not-allowed' : 'pointer', opacity: transState === 'transcribing' ? 0.65 : 1 }}>
+                  {transState === 'transcribing' ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block', width: 11, height: 11, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      Transcribing…
+                    </span>
+                  ) : 'Transcribe →'}
+                </button>
+              )}
+              {transState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A', fontWeight: 600 }}>✓ Done — transcript filled in above</span>}
+            </div>
+            {transState === 'error' && transErr && (
+              <div style={{ marginTop: 8, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>
+                {transErr}{transErr.includes('Groq') && <button className="ci-copybtn" style={{ height: 24, padding: '0 8px', fontSize: 11, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>}
+              </div>
+            )}
+            {!groqKey && (
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)', lineHeight: 1.4 }}>
+                No Groq key — <button style={{ background: 'none', border: 'none', color: m.accentFrom, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }} onClick={onOpenKey}>add one free in Settings → Platform Data</button> to enable transcription.
               </div>
             )}
           </div>

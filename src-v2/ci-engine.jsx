@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-19-r22";
+window.CI_BUILD = "2026-06-20-r23";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -95,6 +95,10 @@ const setReveKeyLS = (k) => { try { k ? localStorage.setItem(LS_REVE, k) : local
 const LS_OPENAI = "ci_openai_key";
 const getOpenAIKey   = () => { try { return localStorage.getItem(LS_OPENAI) || ""; } catch (e) { return ""; } };
 const setOpenAIKeyLS = (k) => { try { k ? localStorage.setItem(LS_OPENAI, k) : localStorage.removeItem(LS_OPENAI); } catch (e) {} };
+// Groq API key -- free LLM inference (Llama 3.3 70B) and Whisper audio transcription (2000 min/day free).
+const LS_GROQ = "ci_groq_key";
+const getGroqKey   = () => { try { return localStorage.getItem(LS_GROQ) || ""; } catch (e) { return ""; } };
+const setGroqKeyLS = (k) => { try { k ? localStorage.setItem(LS_GROQ, k) : localStorage.removeItem(LS_GROQ); } catch (e) {} };
 // YouTube Data API v3 key -- server-side in SaaS mode (proxied via Worker), or local in BYO-key mode.
 const LS_YTKEY = "ci_yt_key";
 // In SaaS mode, return '__proxy__' so Audit/Competitor know to use the Worker proxy instead of a local key.
@@ -1693,6 +1697,36 @@ function formatCompetitorAnalytics(videos, channelInfo) {
   return lines.join('\n');
 }
 
+// Transcribe audio/video using Groq Whisper (free tier: 2000 min/day, 25MB max file).
+// Returns SRT-formatted transcript string.
+async function transcribeWithGroq(file, groqKey) {
+  if (!groqKey) throw new Error("NO_GROQ_KEY");
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('model', 'whisper-large-v3-turbo');
+  formData.append('response_format', 'verbose_json');
+  formData.append('timestamp_granularities[]', 'segment');
+  const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + groqKey },
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (res.status === 401 || res.status === 403) throw new Error("Groq key rejected — check it in Settings → Platform Data.");
+    if (res.status === 413) throw new Error("File too large — Groq Whisper accepts up to 25 MB.");
+    throw new Error((err.error && err.error.message) || ("Transcription failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const segments = data.segments || [];
+  if (!segments.length) return data.text || "";
+  function fmtSrt(secs) {
+    const h = Math.floor(secs / 3600), mn = Math.floor((secs % 3600) / 60), s = Math.floor(secs % 60), ms = Math.round((secs % 1) * 1000);
+    return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}:${String(s).padStart(2,'00')},${String(ms).padStart(3,'0')}`;
+  }
+  return segments.map((seg, i) => `${i+1}\n${fmtSrt(seg.start)} --> ${fmtSrt(seg.end)}\n${seg.text.trim()}`).join('\n\n');
+}
+
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey]     = React.useState(getKey());
@@ -1704,13 +1738,15 @@ function KeyModal({ open, onClose }) {
   const [model, setModel] = React.useState(getModel());
   const [show, setShow]   = React.useState(false);
   const [webSearch, setWebSearch] = React.useState(getWebSearch());
+  const [ytKey, setYtKey] = React.useState(() => { const k = getYouTubeKey ? getYouTubeKey() : ''; return k === '__proxy__' ? '' : k; });
+  const [groqKey, setGroqKey] = React.useState(getGroqKey ? getGroqKey() : '');
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
   const [section, setSection] = React.useState(saasMode ? "image" : "analysis");
   React.useEffect(() => {
-    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); }
+    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setGroqKey(getGroqKey ? getGroqKey() : ''); }
   }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setGroqKeyLS(groqKey.trim()); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
 
   const TabBtn = ({ id, label }) => (
@@ -1726,12 +1762,11 @@ function KeyModal({ open, onClose }) {
         </div>
 
         {/* Tab switcher */}
-        {!saasMode && (
-          <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
-            <TabBtn id="analysis" label="Analysis (Claude)" />
-            <TabBtn id="image" label="Image Generation" />
-          </div>
-        )}
+        <div style={{ display: "flex", background: "var(--surface-1)", border: "1px solid var(--stroke-1)", borderRadius: 10, padding: 3, marginBottom: 18 }}>
+          {!saasMode && <TabBtn id="analysis" label="Analysis (Claude)" />}
+          {!saasMode && <TabBtn id="image" label="Image Gen" />}
+          <TabBtn id="platforms" label="Platform Data" />
+        </div>
 
         {section === "analysis" && <>
           <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
@@ -1789,6 +1824,32 @@ function KeyModal({ open, onClose }) {
           </div>
         </>}
 
+        {section === "platforms" && <>
+          <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
+            Connect free platform APIs to unlock auto-fetch features and free AI transcription.
+          </p>
+
+          {!saasMode && <>
+            <label className="ci-label">YouTube Data API v3 key</label>
+            <input className="ci-input" type="password" value={ytKey} onChange={e => setYtKey(e.target.value)} placeholder="AIza..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+            <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+              Enables auto-fetch in Channel Audit and Competitor Analysis. Free quota: ~10,000 units/day. Get one at{" "}
+              <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>Google Cloud Console</a>.
+            </div>
+          </>}
+          {saasMode && (
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(143,216,106,0.08)", border: "1px solid rgba(143,216,106,0.2)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6, marginBottom: 16 }}>
+              <b style={{ color: "#8FD86A" }}>YouTube auto-fetch is included</b> — no key needed. It runs through ContentIntel's server.
+            </div>
+          )}
+
+          <label className="ci-label" style={{ marginTop: saasMode ? 0 : 18 }}>Groq API key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(free — Whisper transcription + Llama 3.3)</span></label>
+          <input className="ci-input" type="password" value={groqKey} onChange={e => setGroqKey(e.target.value)} placeholder="gsk_..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+            Enables AI video/audio transcription in the Caption tool — paste a subtitle track in seconds. Free tier: 2,000 min/day of Whisper transcription. Get a free key at{" "}
+            <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.groq.com</a>.
+          </div>
+        </>}
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
           <GlowButton mood="navy" onClick={save}>Save</GlowButton>
@@ -1809,6 +1870,7 @@ Object.assign(window, {
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
+  getGroqKey, setGroqKeyLS, transcribeWithGroq,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
