@@ -194,6 +194,50 @@ async function bCopyImageToClipboard(dataUrl, mime) {
   await navigator.clipboard.write([new ClipboardItem({ [blob.type || mime || 'image/png']: blob })]);
 }
 
+function analyzeImageQuality(previewUrl) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 200 / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = data.length / 4;
+        let sumL = 0, sumS = 0, minL = 255, maxL = 0;
+        const lumas = [];
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          const l = (mx + mn) / 2;
+          const s = mx === mn ? 0 : (l < 128 ? (mx - mn) / (mx + mn) : (mx - mn) / (510 - mx - mn));
+          lumas.push(l);
+          sumL += l; sumS += s;
+          if (l < minL) minL = l;
+          if (l > maxL) maxL = l;
+        }
+        const avgL = sumL / pixels;
+        const avgS = sumS / pixels;
+        const variance = lumas.reduce((acc, l) => acc + (l - avgL) ** 2, 0) / pixels;
+        const stdDev = Math.sqrt(variance);
+        const brightness = Math.round(avgL / 255 * 100);
+        const contrast = Math.round(Math.min(stdDev / 80, 1) * 100);
+        const saturation = Math.round(Math.min(avgS * 2, 1) * 100);
+        const range = Math.round((maxL - minL) / 255 * 100);
+        const brightScore = brightness >= 30 && brightness <= 80 ? 'green' : brightness < 20 || brightness > 90 ? 'red' : 'yellow';
+        const contrastScore = contrast >= 45 ? 'green' : contrast >= 25 ? 'yellow' : 'red';
+        const satScore = saturation >= 30 ? 'green' : saturation >= 15 ? 'yellow' : 'red';
+        res({ brightness, contrast, saturation, range, brightScore, contrastScore, satScore });
+      } catch (e) { rej(e); }
+    };
+    img.onerror = rej;
+    img.src = previewUrl;
+  });
+}
+
 async function extractColorPalette(previewUrl) {
   if (!window.ColorThief) {
     await new Promise((res, rej) => {
@@ -290,12 +334,12 @@ function BuilderTab({ onNav }) {
   const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
   const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
   const [colorPalette, setColorPalette] = React.useState([]);
+  const [imageQuality, setImageQuality] = React.useState(null);
 
   React.useEffect(() => {
-    if (!analyseImg) { setColorPalette([]); return; }
-    extractColorPalette(analyseImg.preview)
-      .then(setColorPalette)
-      .catch(() => setColorPalette([]));
+    if (!analyseImg) { setColorPalette([]); setImageQuality(null); return; }
+    extractColorPalette(analyseImg.preview).then(setColorPalette).catch(() => setColorPalette([]));
+    analyzeImageQuality(analyseImg.preview).then(setImageQuality).catch(() => setImageQuality(null));
   }, [analyseImg]);
 
   const [extraNote, setExtraNote] = React.useState(bootFresh && bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
@@ -365,7 +409,7 @@ function BuilderTab({ onNav }) {
   function clearForm() {
     setHeadline(''); setSubline(''); setPeople([]); setElements([]);
     setFeedback([]); setUpgrades([]); setPrompt(''); setBuilt(false);
-    setAnalyseSummary(''); setAnalyseDesc(''); setColorPalette([]);
+    setAnalyseSummary(''); setAnalyseDesc(''); setColorPalette([]); setImageQuality(null);
   }
 
   // Cloud check: works free inside Claude (text description) OR with an API key
@@ -549,6 +593,26 @@ function BuilderTab({ onNav }) {
                       ))}
                     </div>
                     <div style={{ fontSize: 10, color: 'var(--text-5)', marginTop: 4 }}>Click a swatch to copy its hex</div>
+                  </div>
+                )}
+                {imageQuality && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>Visual quality</div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {[
+                        { label: 'Brightness', val: imageQuality.brightness + '%', lvl: imageQuality.brightScore },
+                        { label: 'Contrast', val: imageQuality.contrast + '%', lvl: imageQuality.contrastScore },
+                        { label: 'Saturation', val: imageQuality.saturation + '%', lvl: imageQuality.satScore },
+                      ].map(q => {
+                        const col = q.lvl === 'green' ? '#8FD86A' : q.lvl === 'yellow' ? '#F0C85A' : '#F06A7E';
+                        return (
+                          <div key={q.label} style={{ padding: '4px 8px', borderRadius: 7, background: col + '18', border: `1px solid ${col}33`, textAlign: 'center' }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: col }}>{q.val}</div>
+                            <div style={{ fontSize: 9, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{q.label}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
