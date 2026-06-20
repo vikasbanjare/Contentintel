@@ -7684,6 +7684,36 @@ function analyzeImageQuality(previewUrl) {
   });
 }
 
+// Face detection via @vladmandic/face-api (TinyFaceDetector). Faces are a major
+// thumbnail-CTR lever, so we count them and measure how much frame the biggest fills.
+let _faceModelReady = false;
+async function detectThumbnailFaces(previewUrl) {
+  const FACEAPI = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js';
+  const MODELS  = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+  if (window.loadScriptOnce) await window.loadScriptOnce(FACEAPI, 'faceapi');
+  if (!window.faceapi) throw new Error('face engine unavailable');
+  if (!_faceModelReady) {
+    await window.faceapi.nets.tinyFaceDetector.loadFromUri(MODELS);
+    _faceModelReady = true;
+  }
+  const img = await new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = previewUrl; });
+  const dets = await window.faceapi.detectAllFaces(img, new window.faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }));
+  const frame = img.width * img.height || 1;
+  let largestPct = 0;
+  for (const d of dets) {
+    const b = d.box; const pct = (b.width * b.height) / frame * 100;
+    if (pct > largestPct) largestPct = pct;
+  }
+  largestPct = Math.round(largestPct);
+  const count = dets.length;
+  let score, advice;
+  if (count === 0) { score = 'yellow'; advice = 'No face detected — thumbnails with a clear, emotive face usually lift CTR. Consider adding one.'; }
+  else if (count === 1 && largestPct >= 12) { score = 'green'; advice = `One strong face filling ~${largestPct}% of the frame — ideal for CTR.`; }
+  else if (count === 1) { score = 'yellow'; advice = `Face is small (~${largestPct}% of frame) — crop tighter so the expression reads on mobile.`; }
+  else { score = largestPct >= 12 ? 'green' : 'yellow'; advice = `${count} faces detected — make sure one is the clear focal point so it isn't cluttered.`; }
+  return { count, largestPct, score, advice };
+}
+
 async function extractColorPalette(previewUrl) {
   if (!window.ColorThief) {
     await new Promise((res, rej) => {
@@ -7781,11 +7811,17 @@ function BuilderTab({ onNav }) {
   const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
   const [colorPalette, setColorPalette] = React.useState([]);
   const [imageQuality, setImageQuality] = React.useState(null);
+  const [faceInfo, setFaceInfo] = React.useState(null);
+  const [faceState, setFaceState] = React.useState('idle'); // idle | detecting | done | error
 
   React.useEffect(() => {
-    if (!analyseImg) { setColorPalette([]); setImageQuality(null); return; }
+    if (!analyseImg) { setColorPalette([]); setImageQuality(null); setFaceInfo(null); setFaceState('idle'); return; }
     extractColorPalette(analyseImg.preview).then(setColorPalette).catch(() => setColorPalette([]));
     analyzeImageQuality(analyseImg.preview).then(setImageQuality).catch(() => setImageQuality(null));
+    setFaceState('detecting'); setFaceInfo(null);
+    detectThumbnailFaces(analyseImg.preview)
+      .then(r => { setFaceInfo(r); setFaceState('done'); })
+      .catch(() => setFaceState('error'));
   }, [analyseImg]);
 
   const [extraNote, setExtraNote] = React.useState(bootFresh && bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
@@ -8059,6 +8095,28 @@ function BuilderTab({ onNav }) {
                         );
                       })}
                     </div>
+                  </div>
+                )}
+                {(faceState === 'detecting' || faceInfo) && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>Face detection</div>
+                    {faceState === 'detecting' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: 'var(--text-4)' }}>
+                        <span style={{ display: 'inline-block', width: 11, height: 11, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        Scanning for faces…
+                      </div>
+                    )}
+                    {faceInfo && (() => {
+                      const col = faceInfo.score === 'green' ? '#8FD86A' : faceInfo.score === 'yellow' ? '#F0C85A' : '#F06A7E';
+                      return (
+                        <div style={{ padding: '7px 10px', borderRadius: 8, background: col + '15', border: `1px solid ${col}33` }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: col }}>
+                            {faceInfo.count === 0 ? 'No face' : `${faceInfo.count} face${faceInfo.count > 1 ? 's' : ''}`}{faceInfo.count > 0 ? ` · biggest fills ~${faceInfo.largestPct}%` : ''}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.45, marginTop: 3 }}>{faceInfo.advice}</div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
