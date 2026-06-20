@@ -186,22 +186,36 @@ async function loadCompromise() {
   });
 }
 
+// Optional stopword-filtered single-word tags via keyword-extractor (esm.sh).
+let _kwExtractor = null;
+async function keywordExtractorTags(text) {
+  try {
+    if (!_kwExtractor) { const mod = await import('https://esm.sh/keyword-extractor@0.0.28'); _kwExtractor = mod.default || mod; }
+    return _kwExtractor.extract(text, { language: 'english', remove_digits: false, return_changed_case: false, remove_duplicates: true }) || [];
+  } catch (e) { return []; }
+}
+
 async function extractSEOKeywords(text) {
   try {
     const nlp = await loadCompromise();
     const doc = nlp(text);
-    const topics = doc.topics().json().map(t => t.text.trim()).filter(Boolean);
-    const nouns  = doc.nouns().json().map(n => n.text.trim()).filter(n => n.length > 3);
-    const adj    = doc.adjectives().json().map(a => a.text.trim()).filter(a => a.length > 3);
+    // Multi-word noun phrases first — these make the strongest YouTube tags
+    // (e.g. "index funds", "compound interest"). Then named topics, then nouns.
+    const phrases = doc.match('#Adjective? #Noun+').json().map(p => p.text.trim()).filter(p => p.split(/\s+/).length >= 2 && p.length > 6);
+    const topics  = doc.topics().json().map(t => t.text.trim()).filter(Boolean);
+    const nouns   = doc.nouns().json().map(n => n.text.trim()).filter(n => n.length > 3);
+    let extras = [];
+    try { extras = await keywordExtractorTags(text); } catch (e) {}
     const seen = new Set();
     const result = [];
-    for (const kw of [...topics, ...nouns, ...adj]) {
-      const k = kw.toLowerCase();
-      if (!seen.has(k)) { seen.add(k); result.push(kw); }
-      if (result.length >= 12) break;
+    for (const kw of [...phrases, ...topics, ...nouns, ...extras]) {
+      const k = kw.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      if (k.length < 3 || seen.has(k)) continue;
+      seen.add(k); result.push(kw.trim());
+      if (result.length >= 14) break;
     }
     return result;
-  } catch(e) { return []; }
+  } catch (e) { return []; }
 }
 
 // Language detection via franc-min (ESM, lazy import). Returns a friendly name.
