@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r23";
+window.CI_BUILD = "2026-06-20-r24";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2388,6 +2388,14 @@ const setWebSearchLS = (on) => { try { on ? localStorage.setItem(LS_WEBSEARCH, "
 const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAULT_MODEL; } catch (e) { return CI_DEFAULT_MODEL; } };
 const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
 const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
+// Analysis provider: "claude" (default, paid) or "groq" (free, Llama 3.3 70B via OpenAI-compatible API).
+const LS_PROVIDER = "ci_provider";
+const getProvider   = () => { try { return localStorage.getItem(LS_PROVIDER) || "claude"; } catch (e) { return "claude"; } };
+const setProviderLS = (p) => { try { p && p !== "claude" ? localStorage.setItem(LS_PROVIDER, p) : localStorage.removeItem(LS_PROVIDER); } catch (e) {} };
+function canRunAnalysis() {
+  if (getProvider() === 'groq') return !!getGroqKey();
+  return canRun();
+}
 
 // True when running inside a Claude preview/artifact (Anthropic provides free AI there).
 const hasSandbox = () => { try { return typeof window !== "undefined" && window.claude && typeof window.claude.complete === "function"; } catch (e) { return false; } };
@@ -3354,18 +3362,22 @@ function useAnalysis(type, opts = {}) {
 
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setSources(null); setState("loading");
-    if (!canRun()) {
-      if (hasSandbox()) {
+    if (!canRunAnalysis()) {
+      if (hasSandbox() && getProvider() !== 'groq') {
         // Inside a Claude artifact — show placeholder after brief delay
         const tid = setTimeout(() => { if (mountedRef.current) setState("done"); }, 850);
         return () => clearTimeout(tid);
       }
-      setErr("No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
+      setErr(getProvider() === 'groq'
+        ? "Add a Groq API key in Settings → Platform Data to use free AI analysis."
+        : "No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
       setState("error");
       return;
     }
     try {
-      const { text, usage, sources: rawSources } = await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
+      const { text, usage, sources: rawSources } = getProvider() === 'groq'
+        ? await callGroqAnalysis({ system: system || buildSystem(type), userText, maxTokens })
+        : await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
         const body = (text || "").trim();
@@ -3399,7 +3411,7 @@ function useAnalysis(type, opts = {}) {
           report: json });
       } catch (e) {}
     } catch (e) {
-      if (String(e.message) === "NO_KEY") { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
+      if (String(e.message) === "NO_KEY" || String(e.message) === "NO_GROQ_KEY") { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
@@ -3412,7 +3424,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
   const inTok = estIn + 0;
   const outTok = estOut != null ? estOut : CI_OUTPUT_GUESS;
   const total = inTok + outTok;
-  const cost = estCost(inTok, outTok, model);
+  const isGroq = getProvider() === 'groq';
+  const cost = isGroq ? 0 : estCost(inTok, outTok, model);
   const hasKey = !!getKey();
   const free = !hasKey && hasSandbox(); // free Claude preview AI
   return (
@@ -3426,14 +3439,18 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
           </>
         ) : (
           <>
-            {label} <span style={{ opacity: 0.7, fontWeight: 500 }}>· ~{fmtTokens(total)} tokens</span> →
+            {label} <span style={{ opacity: 0.7, fontWeight: 500 }}>{isGroq ? "· free" : `· ~${fmtTokens(total)} tokens`}</span> →
           </>
         )}
       </GlowButton>
       <span className="ci-est">
-        {disabled && disabledHint ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span> : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(outTok)} out · ~{fmtCost(cost)}</>}
+        {disabled && disabledHint
+          ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span>
+          : isGroq
+            ? <span style={{ color: "#8FD86A" }}>Free — Groq Llama 3.3 70B</span>
+            : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(outTok)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · live</span>}
-        {!hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
+        {!isGroq && !hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
       </span>
     </div>
   );
@@ -3443,10 +3460,11 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
 function UsageBadge({ usage, model }) {
   if (!usage) return null;
   const inT = usage.input_tokens || 0, outT = usage.output_tokens || 0;
-  const cost = estCost(inT, outT, model);
+  const isGroq = getProvider() === 'groq';
+  const costStr = isGroq ? "free (Groq)" : "~" + fmtCost(estCost(inT, outT, model));
   return (
     <div className="ci-usage">
-      ✓ Real analysis · used {fmtTokens(inT)} in + {fmtTokens(outT)} out = <b>{fmtTokens(inT + outT)} tokens</b> · ~{fmtCost(cost)}
+      ✓ Real analysis · used {fmtTokens(inT)} in + {fmtTokens(outT)} out = <b>{fmtTokens(inT + outT)} tokens</b> · {costStr}
     </div>
   );
 }
@@ -3996,6 +4014,56 @@ async function transcribeWithGroq(file, groqKey) {
   return segments.map((seg, i) => `${i+1}\n${fmtSrt(seg.start)} --> ${fmtSrt(seg.end)}\n${seg.text.trim()}`).join('\n\n');
 }
 
+// Analysis via Groq (free tier — Llama 3.3 70B, OpenAI-compatible).
+// Returns { text, usage } in the same shape as callClaudeOnce so useAnalysis can swap providers.
+async function callGroqAnalysis({ system, userText, maxTokens = 1800 }) {
+  const groqKey = getGroqKey();
+  if (!groqKey) throw new Error("NO_GROQ_KEY");
+  const groqTool = {
+    type: "function",
+    function: { name: REPORT_TOOL.name, description: REPORT_TOOL.description, parameters: REPORT_TOOL.input_schema },
+  };
+  const messages = [
+    ...(system ? [{ role: "system", content: system }] : []),
+    { role: "user", content: userText },
+  ];
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 900 * Math.pow(2, attempt - 1) + Math.random() * 400));
+    let res;
+    try {
+      res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "Authorization": "Bearer " + groqKey },
+        body: JSON.stringify({ model: "llama-3.3-70b-versatile", max_tokens: maxTokens, messages, tools: [groqTool], tool_choice: { type: "function", function: { name: "submit_report" } } }),
+      });
+    } catch (e) { throw new Error("Couldn't reach Groq (network error). Check your connection."); }
+    if (res.status === 429) {
+      lastErr = new Error("Groq rate limit hit (30 req/min on free tier). Wait a moment and try again.");
+      continue;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) throw new Error("Groq key rejected — add it in Settings → Platform Data.");
+      throw new Error((err.error && err.error.message) || ("Groq request failed (" + res.status + ")."));
+    }
+    const data = await res.json();
+    const choice = (data.choices || [])[0] || {};
+    const msg = choice.message || {};
+    const toolCall = (msg.tool_calls || [])[0];
+    const text = toolCall ? toolCall.function.arguments : (msg.content || "");
+    const gu = data.usage || {};
+    const usage = gu.prompt_tokens ? { input_tokens: gu.prompt_tokens, output_tokens: gu.completion_tokens || 0 } : null;
+    if (usage) {
+      window.CI_SESSION_USAGE.in  += usage.input_tokens;
+      window.CI_SESSION_USAGE.out += usage.output_tokens;
+      try { window.dispatchEvent(new Event('ci-usage-update')); } catch (e) {}
+    }
+    return { text, usage };
+  }
+  throw lastErr || new Error("Groq request failed after retries.");
+}
+
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey]     = React.useState(getKey());
@@ -4009,13 +4077,14 @@ function KeyModal({ open, onClose }) {
   const [webSearch, setWebSearch] = React.useState(getWebSearch());
   const [ytKey, setYtKey] = React.useState(() => { const k = getYouTubeKey ? getYouTubeKey() : ''; return k === '__proxy__' ? '' : k; });
   const [groqKey, setGroqKey] = React.useState(getGroqKey ? getGroqKey() : '');
+  const [provider, setProvider] = React.useState(getProvider());
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
   const [section, setSection] = React.useState(saasMode ? "image" : "analysis");
   React.useEffect(() => {
-    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setGroqKey(getGroqKey ? getGroqKey() : ''); }
+    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setGroqKey(getGroqKey ? getGroqKey() : ''); setProvider(getProvider()); }
   }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setGroqKeyLS(groqKey.trim()); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setGroqKeyLS(groqKey.trim()); setProviderLS(provider); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
 
   const TabBtn = ({ id, label }) => (
@@ -4039,33 +4108,58 @@ function KeyModal({ open, onClose }) {
 
         {section === "analysis" && <>
           <p style={{ fontSize: 13, color: "var(--text-3)", lineHeight: 1.55, margin: "0 0 14px" }}>
-            ContentIntel runs on <b>your own</b> Anthropic API key — stored only in this browser, sent directly to Anthropic.
+            Choose your AI provider for all content analysis. Keys are stored only in your browser.
           </p>
-          <label className="ci-label">Anthropic API key</label>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input className="ci-input" type={show ? "text" : "password"} value={key} onChange={e => setKey(e.target.value)} placeholder="sk-ant-..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-            <button className="ci-copybtn" style={{ height: 44 }} onClick={() => setShow(s => !s)}>{show ? "Hide" : "Show"}</button>
+          <label className="ci-label">AI provider</label>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            {[
+              { id: "claude", label: "Claude (Anthropic)", desc: "Paid · highest quality" },
+              { id: "groq",   label: "Groq — Llama 3.3 70B", desc: "Free · 30 req/min" },
+            ].map(p => (
+              <button key={p.id} onClick={() => setProvider(p.id)} style={{
+                flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid",
+                borderColor: provider === p.id ? "rgba(143,216,106,0.4)" : "var(--stroke-1)",
+                background: provider === p.id ? "rgba(143,216,106,0.08)" : "var(--surface-1)",
+                cursor: "pointer", textAlign: "left",
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: provider === p.id ? "#8FD86A" : "var(--text-2)" }}>{p.label}</div>
+                <div style={{ fontSize: 11, color: "var(--text-4)", marginTop: 2 }}>{p.desc}</div>
+              </button>
+            ))}
           </div>
-          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-            No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll see sample reports.
-          </div>
-          <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
-          <select className="ci-input" value={model} onChange={e => setModel(e.target.value)} style={{ appearance: "auto" }}>
-            {CI_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-          </select>
-          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
-            Pricing (approx, per 1M tokens): in ${modelInfo(model).inP} / out ${modelInfo(model).outP}.
-          </div>
-
-          <label className="ci-label" style={{ marginTop: 18 }}>Live web search</label>
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-            <input type="checkbox" checked={webSearch} onChange={e => setWebSearch(e.target.checked)}
-              style={{ width: 16, height: 16, accentColor: "var(--ci-accent, #818CF8)", cursor: "pointer" }} />
-            <span style={{ fontSize: 13.5, color: "var(--text-2)" }}>Enable real-time web verification</span>
-          </label>
-          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
-            When on, Claude searches the web before answering — facts, algorithm changes, and numbers are grounded in live sources. Uses roughly <b>2× tokens</b>. Not available on Haiku. Off by default.
-          </div>
+          {provider === "groq" ? (
+            <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(143,216,106,0.06)", border: "1px solid rgba(143,216,106,0.2)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6 }}>
+              <b style={{ color: "#8FD86A" }}>Free analysis via Groq</b> — Llama 3.3 70B, no per-request cost.<br />
+              Uses your Groq API key from the Platform Data tab.{" "}
+              <button className="ci-copybtn" style={{ height: 26, padding: "0 10px", fontSize: 11, marginLeft: 4 }} onClick={() => setSection("platforms")}>Platform Data →</button>
+              {!groqKey && <div style={{ marginTop: 8, color: "#F0C85A", fontSize: 12.5 }}>⚠ No Groq key found — add it in Platform Data to enable free analysis.</div>}
+            </div>
+          ) : <>
+            <label className="ci-label">Anthropic API key</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input className="ci-input" type={show ? "text" : "password"} value={key} onChange={e => setKey(e.target.value)} placeholder="sk-ant-..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+              <button className="ci-copybtn" style={{ height: 44 }} onClick={() => setShow(s => !s)}>{show ? "Hide" : "Show"}</button>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
+              No key? Create one at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.anthropic.com</a>. Without a key you'll see sample reports.
+            </div>
+            <label className="ci-label" style={{ marginTop: 18 }}>Model</label>
+            <select className="ci-input" value={model} onChange={e => setModel(e.target.value)} style={{ appearance: "auto" }}>
+              {CI_MODELS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+            <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 8 }}>
+              Pricing (approx, per 1M tokens): in ${modelInfo(model).inP} / out ${modelInfo(model).outP}.
+            </div>
+            <label className="ci-label" style={{ marginTop: 18 }}>Live web search</label>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" checked={webSearch} onChange={e => setWebSearch(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: "var(--ci-accent, #818CF8)", cursor: "pointer" }} />
+              <span style={{ fontSize: 13.5, color: "var(--text-2)" }}>Enable real-time web verification</span>
+            </label>
+            <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+              When on, Claude searches the web before answering — facts, algorithm changes, and numbers are grounded in live sources. Uses roughly <b>2× tokens</b>. Not available on Haiku. Off by default.
+            </div>
+          </>}
         </>}
 
         {section === "image" && <>
@@ -4115,7 +4209,7 @@ function KeyModal({ open, onClose }) {
           <label className="ci-label" style={{ marginTop: saasMode ? 0 : 18 }}>Groq API key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(free — Whisper transcription + Llama 3.3)</span></label>
           <input className="ci-input" type="password" value={groqKey} onChange={e => setGroqKey(e.target.value)} placeholder="gsk_..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
           <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
-            Enables AI video/audio transcription in the Caption tool — paste a subtitle track in seconds. Free tier: 2,000 min/day of Whisper transcription. Get a free key at{" "}
+            Powers free AI analysis (Llama 3.3 70B — select Groq in the Analysis tab) and Whisper transcription in the Caption tool. Free tier: 30 req/min for analysis, 2,000 min/day for transcription. Get a free key at{" "}
             <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.groq.com</a>.
           </div>
         </>}
@@ -4139,7 +4233,7 @@ Object.assign(window, {
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
-  getGroqKey, setGroqKeyLS, transcribeWithGroq,
+  getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
