@@ -3647,6 +3647,59 @@ function reportToMarkdown(report) {
   return lines.join("\n");
 }
 
+// Lazy-load a script once, resolving when its global is ready.
+function loadScriptOnce(src, globalName) {
+  return new Promise((resolve, reject) => {
+    if (globalName && window[globalName]) return resolve(window[globalName]);
+    const existing = document.querySelector(`script[data-cdn="${src}"]`);
+    if (existing) { existing.addEventListener('load', () => resolve(globalName ? window[globalName] : true)); existing.addEventListener('error', reject); return; }
+    const s = document.createElement('script');
+    s.src = src; s.async = true; s.dataset.cdn = src;
+    s.onload = () => resolve(globalName ? window[globalName] : true);
+    s.onerror = () => reject(new Error('Failed to load ' + src));
+    document.head.appendChild(s);
+  });
+}
+window.loadScriptOnce = loadScriptOnce;
+
+// Export a DOM element to a multi-page A4 PDF via html2canvas + jsPDF (lazy CDN).
+async function exportElementToPDF(el, filename) {
+  if (!el) throw new Error('Nothing to export.');
+  await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', 'html2canvas');
+  await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+  const jsPDFctor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!jsPDFctor) throw new Error('PDF engine unavailable.');
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  const canvas = await window.html2canvas(el, { scale: 2, useCORS: true, backgroundColor: isDark ? '#0d0d0f' : '#ffffff', logging: false });
+  const pdf = new jsPDFctor({ unit: 'pt', format: 'a4', compress: true });
+  const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+  const margin = 24;
+  const imgW = pw - margin * 2;
+  const imgH = (canvas.height * imgW) / canvas.width;
+  const img = canvas.toDataURL('image/jpeg', 0.92);
+  let remaining = imgH, posY = margin;
+  if (imgH <= ph - margin * 2) {
+    pdf.addImage(img, 'JPEG', margin, posY, imgW, imgH);
+  } else {
+    // Slice the tall capture across pages.
+    let srcY = 0;
+    const pageContentH = ph - margin * 2;
+    const pxPerPt = canvas.width / imgW;
+    while (srcY < canvas.height) {
+      const sliceH = Math.min(pageContentH * pxPerPt, canvas.height - srcY);
+      const part = document.createElement('canvas');
+      part.width = canvas.width; part.height = sliceH;
+      part.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+      const partImg = part.toDataURL('image/jpeg', 0.92);
+      pdf.addImage(partImg, 'JPEG', margin, margin, imgW, sliceH / pxPerPt);
+      srcY += sliceH;
+      if (srcY < canvas.height) pdf.addPage();
+    }
+  }
+  pdf.save(filename);
+}
+window.exportElementToPDF = exportElementToPDF;
+
 // ── ReportView -- dashboard-style report renderer ─────────────────────────────
 function ReportView({ report, mood, onApplyText, sources }) {
   const m = EM[mood] || EM.navy;
@@ -3658,9 +3711,22 @@ function ReportView({ report, mood, onApplyText, sources }) {
   const issues = sections.filter(s => s.type === "issues");
   const rest   = sections.filter(s => !["graph", "beats", "issues"].includes(s.type));
   const hasOverall = typeof report.overall === "number";
+  const rootRef = React.useRef(null);
+  const [pdfState, setPdfState] = React.useState("idle"); // idle | working | error
+
+  async function downloadPDF() {
+    if (pdfState === "working") return;
+    setPdfState("working");
+    try {
+      const v2 = report.verdict || {};
+      const slug = (v2.title || "report").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+      await window.exportElementToPDF(rootRef.current, `contentintel-${slug}.pdf`);
+      setPdfState("idle");
+    } catch (e) { setPdfState("error"); setTimeout(() => setPdfState("idle"), 2500); }
+  }
 
   return (
-    <div className="ci-results" style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
+    <div className="ci-results" ref={rootRef} style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 14 }}>
       {/* Header -- verdict + overall score */}
       {(v.level || hasOverall) && (
         <Block mood={mood}>
@@ -3788,6 +3854,9 @@ function ReportView({ report, mood, onApplyText, sources }) {
           const slug = (v.title || "report").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
           window.downloadText ? window.downloadText(md, `contentintel-${slug}.md`) : downloadText(md, `contentintel-${slug}.md`);
         }}>⬇ Download .md</button>
+        <button className="ci-copybtn" style={{ height: 34 }} onClick={downloadPDF} disabled={pdfState === "working"}>
+          {pdfState === "working" ? "⏳ Building PDF…" : pdfState === "error" ? "✗ PDF failed" : "⬇ Download PDF"}
+        </button>
         <span style={{ fontSize: 11.5, color: "var(--text-5)" }}>Includes a contentintel.in credit — share your wins.</span>
       </div>
     </div>
