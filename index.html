@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r24";
+window.CI_BUILD = "2026-06-20-r30";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2368,6 +2368,14 @@ const setOpenAIKeyLS = (k) => { try { k ? localStorage.setItem(LS_OPENAI, k) : l
 const LS_GROQ = "ci_groq_key";
 const getGroqKey   = () => { try { return localStorage.getItem(LS_GROQ) || ""; } catch (e) { return ""; } };
 const setGroqKeyLS = (k) => { try { k ? localStorage.setItem(LS_GROQ, k) : localStorage.removeItem(LS_GROQ); } catch (e) {} };
+// OpenRouter key -- 400+ models, many completely free (e.g. meta-llama/llama-3.3-70b-instruct:free).
+const LS_OPENROUTER = "ci_openrouter_key";
+const LS_OPENROUTER_MODEL = "ci_openrouter_model";
+const OPENROUTER_DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct:free";
+const getOpenRouterKey   = () => { try { return localStorage.getItem(LS_OPENROUTER) || ""; } catch (e) { return ""; } };
+const setOpenRouterKeyLS = (k) => { try { k ? localStorage.setItem(LS_OPENROUTER, k) : localStorage.removeItem(LS_OPENROUTER); } catch (e) {} };
+const getOpenRouterModel = () => { try { return localStorage.getItem(LS_OPENROUTER_MODEL) || OPENROUTER_DEFAULT_MODEL; } catch (e) { return OPENROUTER_DEFAULT_MODEL; } };
+const setOpenRouterModelLS = (m) => { try { m ? localStorage.setItem(LS_OPENROUTER_MODEL, m) : localStorage.removeItem(LS_OPENROUTER_MODEL); } catch (e) {} };
 // YouTube Data API v3 key -- server-side in SaaS mode (proxied via Worker), or local in BYO-key mode.
 const LS_YTKEY = "ci_yt_key";
 // In SaaS mode, return '__proxy__' so Audit/Competitor know to use the Worker proxy instead of a local key.
@@ -2388,12 +2396,14 @@ const setWebSearchLS = (on) => { try { on ? localStorage.setItem(LS_WEBSEARCH, "
 const getModel = () => { try { return localStorage.getItem(LS_MODEL) || CI_DEFAULT_MODEL; } catch (e) { return CI_DEFAULT_MODEL; } };
 const setModelLS = (m) => { try { localStorage.setItem(LS_MODEL, m); } catch (e) {} };
 const modelInfo = (id) => CI_MODELS.find(m => m.id === (id || getModel())) || CI_MODELS[1];
-// Analysis provider: "claude" (default, paid) or "groq" (free, Llama 3.3 70B via OpenAI-compatible API).
+// Analysis provider: "claude" (default, paid), "groq" (free, Llama 3.3 70B), or "openrouter" (400+ models, many free).
 const LS_PROVIDER = "ci_provider";
 const getProvider   = () => { try { return localStorage.getItem(LS_PROVIDER) || "claude"; } catch (e) { return "claude"; } };
 const setProviderLS = (p) => { try { p && p !== "claude" ? localStorage.setItem(LS_PROVIDER, p) : localStorage.removeItem(LS_PROVIDER); } catch (e) {} };
 function canRunAnalysis() {
-  if (getProvider() === 'groq') return !!getGroqKey();
+  const prov = getProvider();
+  if (prov === 'groq') return !!getGroqKey();
+  if (prov === 'openrouter') return !!getOpenRouterKey();
   return canRun();
 }
 
@@ -3362,22 +3372,27 @@ function useAnalysis(type, opts = {}) {
 
   async function run({ userText, image, images, maxTokens, system }) {
     setErr(""); setReport(null); setUsage(null); setSources(null); setState("loading");
+    const prov = getProvider();
     if (!canRunAnalysis()) {
-      if (hasSandbox() && getProvider() !== 'groq') {
+      if (hasSandbox() && !['groq', 'openrouter'].includes(prov)) {
         // Inside a Claude artifact — show placeholder after brief delay
         const tid = setTimeout(() => { if (mountedRef.current) setState("done"); }, 850);
         return () => clearTimeout(tid);
       }
-      setErr(getProvider() === 'groq'
+      setErr(prov === 'groq'
         ? "Add a Groq API key in Settings → Platform Data to use free AI analysis."
-        : "No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
+        : prov === 'openrouter'
+          ? "Add an OpenRouter API key in Settings → Platform Data to use this provider."
+          : "No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
       setState("error");
       return;
     }
     try {
-      const { text, usage, sources: rawSources } = getProvider() === 'groq'
+      const { text, usage, sources: rawSources } = prov === 'groq'
         ? await callGroqAnalysis({ system: system || buildSystem(type), userText, maxTokens })
-        : await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
+        : prov === 'openrouter'
+          ? await callOpenRouterAnalysis({ system: system || buildSystem(type), userText, maxTokens })
+          : await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
         const body = (text || "").trim();
@@ -3411,7 +3426,7 @@ function useAnalysis(type, opts = {}) {
           report: json });
       } catch (e) {}
     } catch (e) {
-      if (String(e.message) === "NO_KEY" || String(e.message) === "NO_GROQ_KEY") { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
+      if (["NO_KEY", "NO_GROQ_KEY", "NO_OPENROUTER_KEY"].includes(String(e.message))) { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
@@ -3424,8 +3439,10 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
   const inTok = estIn + 0;
   const outTok = estOut != null ? estOut : CI_OUTPUT_GUESS;
   const total = inTok + outTok;
-  const isGroq = getProvider() === 'groq';
-  const cost = isGroq ? 0 : estCost(inTok, outTok, model);
+  const _prov = getProvider();
+  const isGroq = _prov === 'groq';
+  const isFree = isGroq || _prov === 'openrouter';
+  const cost = isFree ? 0 : estCost(inTok, outTok, model);
   const hasKey = !!getKey();
   const free = !hasKey && hasSandbox(); // free Claude preview AI
   return (
@@ -3446,11 +3463,11 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
       <span className="ci-est">
         {disabled && disabledHint
           ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span>
-          : isGroq
-            ? <span style={{ color: "#8FD86A" }}>Free — Groq Llama 3.3 70B</span>
+          : isFree
+            ? <span style={{ color: "#8FD86A" }}>{isGroq ? "Free — Groq Llama 3.3 70B" : "Free — OpenRouter " + getOpenRouterModel().split('/').pop()}</span>
             : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(outTok)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · live</span>}
-        {!isGroq && !hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
+        {!isFree && !hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
       </span>
     </div>
   );
@@ -3460,8 +3477,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
 function UsageBadge({ usage, model }) {
   if (!usage) return null;
   const inT = usage.input_tokens || 0, outT = usage.output_tokens || 0;
-  const isGroq = getProvider() === 'groq';
-  const costStr = isGroq ? "free (Groq)" : "~" + fmtCost(estCost(inT, outT, model));
+  const _ubProv = getProvider();
+  const costStr = _ubProv === 'groq' ? "free (Groq)" : _ubProv === 'openrouter' ? "free (OpenRouter)" : "~" + fmtCost(estCost(inT, outT, model));
   return (
     <div className="ci-usage">
       ✓ Real analysis · used {fmtTokens(inT)} in + {fmtTokens(outT)} out = <b>{fmtTokens(inT + outT)} tokens</b> · {costStr}
@@ -3594,6 +3611,40 @@ function GroundingBadge({ sources }) {
       )}
     </div>
   );
+}
+
+// Convert a structured report object to clean Markdown (for download).
+function reportToMarkdown(report) {
+  if (!report || typeof report !== "object") return "";
+  const lines = [];
+  const v = report.verdict || {};
+  lines.push("# ContentIntel Analysis Report");
+  if (typeof report.overall === "number") lines.push(`**Overall Score: ${Math.round(report.overall)}/100**`);
+  lines.push("");
+  if (v.title) { lines.push(`## ${v.title}`); if (v.text) lines.push(v.text); lines.push(""); }
+  if (Array.isArray(report.scores) && report.scores.length) {
+    lines.push("## Scores");
+    for (const s of report.scores) lines.push(`- **${s.name}**: ${Math.round(s.score)}/100 — ${s.why || ""}`);
+    lines.push("");
+  }
+  for (const sec of (report.sections || [])) {
+    if (!sec) continue;
+    if (sec.title) lines.push(`## ${sec.title}`);
+    if (sec.desc) lines.push(`*${sec.desc}*`);
+    if (sec.type === "text" && sec.body) { lines.push(sec.body); }
+    else if (sec.type === "copy") { for (const b of (sec.blocks || [])) { if (b.label) lines.push(`### ${b.label}`); if (b.text) lines.push(b.text); } }
+    else if (sec.type === "checklist") { for (const it of (sec.items || [])) { const icon = it.state === "yes" ? "✅" : it.state === "no" ? "❌" : "⚡"; lines.push(`${icon} ${it.text || ""}`); } }
+    else if (sec.type === "kv") { for (const r of (sec.rows || [])) lines.push(`- **${r.k}**: ${r.v}`); }
+    else if (sec.type === "issues") { for (const it of (sec.items || [])) { const icon = it.level === "red" ? "🔴" : "🟡"; lines.push(`${icon} ${it.text || ""}`); } }
+    else if (sec.type === "beats") { for (const it of (sec.items || [])) lines.push(`- **${it.label || it.beat || ""}**: ${it.desc || it.text || ""}`); }
+    lines.push("");
+  }
+  if (report.bottomLine) { lines.push("## Biggest Fix"); lines.push(report.bottomLine); lines.push(""); }
+  if (report.winner && report.winner.pick) {
+    lines.push("## Winner"); lines.push(`**${report.winner.label || report.winner.pick}** — ${report.winner.why || ""}`); lines.push("");
+  }
+  lines.push("---"); lines.push("*Generated by ContentIntel — https://contentintel.in*");
+  return lines.join("\n");
 }
 
 // ── ReportView -- dashboard-style report renderer ─────────────────────────────
@@ -3731,6 +3782,12 @@ function ReportView({ report, mood, onApplyText, sources }) {
           ].filter(Boolean);
           window.copyText(lines.join("\n"));
         }}>⧉ Copy shareable summary</button>
+        <button className="ci-copybtn" style={{ height: 34 }} onClick={() => {
+          const md = reportToMarkdown(report);
+          const v = report.verdict || {};
+          const slug = (v.title || "report").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+          window.downloadText ? window.downloadText(md, `contentintel-${slug}.md`) : downloadText(md, `contentintel-${slug}.md`);
+        }}>⬇ Download .md</button>
         <span style={{ fontSize: 11.5, color: "var(--text-5)" }}>Includes a contentintel.in credit — share your wins.</span>
       </div>
     </div>
@@ -4064,6 +4121,61 @@ async function callGroqAnalysis({ system, userText, maxTokens = 1800 }) {
   throw lastErr || new Error("Groq request failed after retries.");
 }
 
+// Analysis via OpenRouter (400+ models, many completely free).
+// Returns { text, usage } in the same shape as callClaudeOnce so useAnalysis can swap providers.
+async function callOpenRouterAnalysis({ system, userText, maxTokens = 1800 }) {
+  const key = getOpenRouterKey();
+  if (!key) throw new Error("NO_OPENROUTER_KEY");
+  const orTool = {
+    type: "function",
+    function: { name: REPORT_TOOL.name, description: REPORT_TOOL.description, parameters: REPORT_TOOL.input_schema },
+  };
+  const messages = [
+    { role: "system", content: system || "" },
+    { role: "user", content: userText },
+  ];
+  const model = getOpenRouterModel();
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let res;
+    try {
+      res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "Authorization": "Bearer " + key,
+          "HTTP-Referer": typeof window !== "undefined" ? window.location.origin : "",
+          "X-Title": "ContentIntel",
+        },
+        body: JSON.stringify({ model, max_tokens: maxTokens, messages, tools: [orTool], tool_choice: { type: "function", function: { name: "submit_report" } } }),
+      });
+    } catch (e) { throw new Error("Couldn't reach OpenRouter (network error). Check your connection."); }
+    if (res.status === 429) {
+      lastErr = new Error("OpenRouter rate limit hit. Wait a moment and try again.");
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+      continue;
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) throw new Error("OpenRouter key rejected — check it in Settings → Platform Data.");
+      throw new Error((err.error && err.error.message) || ("OpenRouter request failed (" + res.status + ")."));
+    }
+    const data = await res.json();
+    const choice = (data.choices || [])[0];
+    let text = "";
+    if (choice?.message?.tool_calls?.length > 0) {
+      const tc = choice.message.tool_calls[0];
+      const args = tc?.function?.arguments;
+      text = typeof args === "string" ? args : JSON.stringify(args || {});
+    } else {
+      text = choice?.message?.content || "";
+    }
+    const usage = data.usage ? { input_tokens: data.usage.prompt_tokens || 0, output_tokens: data.usage.completion_tokens || 0 } : null;
+    return { text, usage };
+  }
+  throw lastErr || new Error("OpenRouter request failed after retries.");
+}
+
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey]     = React.useState(getKey());
@@ -4077,14 +4189,16 @@ function KeyModal({ open, onClose }) {
   const [webSearch, setWebSearch] = React.useState(getWebSearch());
   const [ytKey, setYtKey] = React.useState(() => { const k = getYouTubeKey ? getYouTubeKey() : ''; return k === '__proxy__' ? '' : k; });
   const [groqKey, setGroqKey] = React.useState(getGroqKey ? getGroqKey() : '');
+  const [orKey, setOrKey]     = React.useState(getOpenRouterKey ? getOpenRouterKey() : '');
+  const [orModel, setOrModel] = React.useState(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL);
   const [provider, setProvider] = React.useState(getProvider());
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
   const [section, setSection] = React.useState(saasMode ? "image" : "analysis");
   React.useEffect(() => {
-    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setGroqKey(getGroqKey ? getGroqKey() : ''); setProvider(getProvider()); }
+    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setGroqKey(getGroqKey ? getGroqKey() : ''); setOrKey(getOpenRouterKey ? getOpenRouterKey() : ''); setOrModel(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL); setProvider(getProvider()); }
   }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setGroqKeyLS(groqKey.trim()); setProviderLS(provider); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setGroqKeyLS(groqKey.trim()); setOpenRouterKeyLS(orKey.trim()); setOpenRouterModelLS(orModel.trim()); setProviderLS(provider); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
 
   const TabBtn = ({ id, label }) => (
@@ -4111,13 +4225,14 @@ function KeyModal({ open, onClose }) {
             Choose your AI provider for all content analysis. Keys are stored only in your browser.
           </p>
           <label className="ci-label">AI provider</label>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
             {[
-              { id: "claude", label: "Claude (Anthropic)", desc: "Paid · highest quality" },
-              { id: "groq",   label: "Groq — Llama 3.3 70B", desc: "Free · 30 req/min" },
+              { id: "claude",      label: "Claude (Anthropic)", desc: "Paid · best quality" },
+              { id: "groq",        label: "Groq — Llama 3.3 70B", desc: "Free · fast" },
+              { id: "openrouter",  label: "OpenRouter", desc: "400+ models · many free" },
             ].map(p => (
               <button key={p.id} onClick={() => setProvider(p.id)} style={{
-                flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid",
+                flex: "1 0 120px", padding: "10px 12px", borderRadius: 10, border: "1px solid",
                 borderColor: provider === p.id ? "rgba(143,216,106,0.4)" : "var(--stroke-1)",
                 background: provider === p.id ? "rgba(143,216,106,0.08)" : "var(--surface-1)",
                 cursor: "pointer", textAlign: "left",
@@ -4133,6 +4248,13 @@ function KeyModal({ open, onClose }) {
               Uses your Groq API key from the Platform Data tab.{" "}
               <button className="ci-copybtn" style={{ height: 26, padding: "0 10px", fontSize: 11, marginLeft: 4 }} onClick={() => setSection("platforms")}>Platform Data →</button>
               {!groqKey && <div style={{ marginTop: 8, color: "#F0C85A", fontSize: 12.5 }}>⚠ No Groq key found — add it in Platform Data to enable free analysis.</div>}
+            </div>
+          ) : provider === "openrouter" ? (
+            <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(143,216,106,0.06)", border: "1px solid rgba(143,216,106,0.2)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6 }}>
+              <b style={{ color: "#8FD86A" }}>Free analysis via OpenRouter</b> — 400+ models, many completely free.<br />
+              Uses your OpenRouter key from the Platform Data tab.{" "}
+              <button className="ci-copybtn" style={{ height: 26, padding: "0 10px", fontSize: 11, marginLeft: 4 }} onClick={() => setSection("platforms")}>Platform Data →</button>
+              {!orKey && <div style={{ marginTop: 8, color: "#F0C85A", fontSize: 12.5 }}>⚠ No OpenRouter key found — add it in Platform Data.</div>}
             </div>
           ) : <>
             <label className="ci-label">Anthropic API key</label>
@@ -4212,6 +4334,19 @@ function KeyModal({ open, onClose }) {
             Powers free AI analysis (Llama 3.3 70B — select Groq in the Analysis tab) and Whisper transcription in the Caption tool. Free tier: 30 req/min for analysis, 2,000 min/day for transcription. Get a free key at{" "}
             <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.groq.com</a>.
           </div>
+
+          <label className="ci-label" style={{ marginTop: 18 }}>OpenRouter API key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(400+ models, many free)</span></label>
+          <input className="ci-input" type="password" value={orKey} onChange={e => setOrKey(e.target.value)} placeholder="sk-or-..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+            Select <b>OpenRouter</b> as your provider in the Analysis tab to use any of 400+ models — including many with zero per-request cost. Get a free key at{" "}
+            <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>openrouter.ai/keys</a>.
+          </div>
+          <label className="ci-label" style={{ marginTop: 12 }}>OpenRouter model ID</label>
+          <input className="ci-input" value={orModel} onChange={e => setOrModel(e.target.value)} placeholder="meta-llama/llama-3.3-70b-instruct:free" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 4, lineHeight: 1.5 }}>
+            Default: <code style={{ background: "var(--surface-2)", padding: "1px 4px", borderRadius: 4 }}>meta-llama/llama-3.3-70b-instruct:free</code>. Browse all models at{" "}
+            <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>openrouter.ai/models</a> — any ID ending in <code style={{ background: "var(--surface-2)", padding: "1px 4px", borderRadius: 4 }}>:free</code> has zero cost.
+          </div>
         </>}
 
         <div style={{ display: "flex", gap: 10, marginTop: 22 }}>
@@ -4228,12 +4363,13 @@ Object.assign(window, {
   getKey, setKeyLS, getModel, setModelLS, modelInfo, getWebSearch, setWebSearchLS, getResearch, liveResearch,
   canRun, hasSandbox,
   loadLocalResearch, saveLocalResearch, clearLocalResearch, hasLocalResearch,
-  estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport,
+  estTokens, fmtTokens, estCost, fmtCost, callClaude, buildSystem, parseReport, reportToMarkdown,
   useAnalysis, AnalyzeButton, UsageBadge, ErrorCard, ReportView, GroundingBadge, KeyModal,
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
   getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
+  getOpenRouterKey, setOpenRouterKeyLS, getOpenRouterModel, setOpenRouterModelLS, callOpenRouterAnalysis,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
@@ -5056,11 +5192,12 @@ function ScoreBar({ name, score, why }) {
   );
 }
 
-// Script quality / attention curve over the runtime
+// Script quality / attention curve over the runtime — with hover tooltips
 function QualityGraph({ points = [], mood = 'navy' }) {
   const m = RM[mood] || RM.navy;
   const pts = (points || []).filter(p => p && typeof p.value === 'number').slice(0, 14);
   if (pts.length < 2) return null;
+  const [hov, setHov] = React.useState(null);
   const W = 1000, H = 240, padX = 34, padTop = 18, padBot = 52;
   const innerW = W - padX * 2, innerH = H - padTop - padBot, base = padTop + innerH;
   const xs = i => padX + (innerW * i) / (pts.length - 1);
@@ -5070,28 +5207,54 @@ function QualityGraph({ points = [], mood = 'navy' }) {
   const accent = m.accentFrom;
   const gid = 'qg-' + mood;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
-      <defs>
-        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={accent} stopOpacity="0.32" />
-          <stop offset="100%" stopColor={accent} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[25, 50, 75].map(g => (
-        <line key={g} x1={padX} y1={ys(g)} x2={W - padX} y2={ys(g)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4 6" />
-      ))}
-      <path d={area} fill={`url(#${gid})`} />
-      <path d={line} fill="none" stroke={accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${m.accentGlow})` }} />
-      {pts.map((p, i) => {
-        const low = p.value < 42;
-        return (
-          <g key={i}>
-            <circle cx={xs(i)} cy={ys(p.value)} r={low ? 6 : 4.5} fill={low ? '#F06A7E' : accent} stroke="#0b0e15" strokeWidth="2" />
-            <text x={xs(i)} y={H - 28} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="15" fill="var(--text-3)">{p.label || (i + 1)}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div style={{ position: 'relative' }}>
+      {hov !== null && pts[hov] && (
+        <div style={{
+          position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--surface-3)', border: '1px solid var(--stroke-2)',
+          borderRadius: 8, padding: '7px 12px', fontSize: 12.5, zIndex: 10,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)', pointerEvents: 'none',
+          maxWidth: 280, textAlign: 'center', lineHeight: 1.5,
+        }}>
+          <span style={{ fontWeight: 700, color: pts[hov].value < 42 ? '#F06A7E' : pts[hov].value >= 75 ? '#8FD86A' : '#F0C85A' }}>
+            {Math.round(pts[hov].value)}
+          </span>
+          <span style={{ color: 'var(--text-3)', marginLeft: 6 }}>{pts[hov].label || `Segment ${hov + 1}`}</span>
+          {pts[hov].note && <div style={{ color: 'var(--text-4)', fontSize: 11.5, marginTop: 2 }}>{pts[hov].note}</div>}
+        </div>
+      )}
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', cursor: 'crosshair' }}>
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={accent} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={accent} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[25, 50, 75].map(g => (
+          <line key={g} x1={padX} y1={ys(g)} x2={W - padX} y2={ys(g)} stroke="rgba(255,255,255,0.06)" strokeWidth="1" strokeDasharray="4 6" />
+        ))}
+        {[25, 50, 75].map(g => (
+          <text key={'gl'+g} x={padX - 6} y={ys(g) + 4} textAnchor="end" fontFamily="var(--font-mono)" fontSize="12" fill="rgba(255,255,255,0.2)">{g}</text>
+        ))}
+        <path d={area} fill={`url(#${gid})`} />
+        <path d={line} fill="none" stroke={accent} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${m.accentGlow})` }} />
+        {pts.map((p, i) => {
+          const low = p.value < 42;
+          const isHov = hov === i;
+          const col = low ? '#F06A7E' : accent;
+          return (
+            <g key={i} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} style={{ cursor: 'pointer' }}>
+              <circle cx={xs(i)} cy={ys(p.value)} r={isHov ? 9 : (low ? 6 : 4.5)}
+                fill={col} stroke="#0b0e15" strokeWidth="2"
+                style={{ transition: 'r 0.1s', filter: isHov ? `drop-shadow(0 0 6px ${col})` : 'none' }} />
+              {isHov && <circle cx={xs(i)} cy={ys(p.value)} r={14} fill="transparent" />}
+              <text x={xs(i)} y={H - 28} textAnchor="middle" fontFamily="var(--font-mono)" fontSize="15" fill={isHov ? 'var(--text-1)' : 'var(--text-3)'}>{p.label || (i + 1)}</text>
+            </g>
+          );
+        })}
+        {hov !== null && <line x1={xs(hov)} y1={padTop} x2={xs(hov)} y2={base} stroke="rgba(255,255,255,0.1)" strokeWidth="1" strokeDasharray="3 4" />}
+      </svg>
+    </div>
   );
 }
 
@@ -7408,6 +7571,76 @@ async function bCopyImageToClipboard(dataUrl, mime) {
   await navigator.clipboard.write([new ClipboardItem({ [blob.type || mime || 'image/png']: blob })]);
 }
 
+function analyzeImageQuality(previewUrl) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 200 / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = data.length / 4;
+        let sumL = 0, sumS = 0, minL = 255, maxL = 0;
+        const lumas = [];
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          const l = (mx + mn) / 2;
+          const s = mx === mn ? 0 : (l < 128 ? (mx - mn) / (mx + mn) : (mx - mn) / (510 - mx - mn));
+          lumas.push(l);
+          sumL += l; sumS += s;
+          if (l < minL) minL = l;
+          if (l > maxL) maxL = l;
+        }
+        const avgL = sumL / pixels;
+        const avgS = sumS / pixels;
+        const variance = lumas.reduce((acc, l) => acc + (l - avgL) ** 2, 0) / pixels;
+        const stdDev = Math.sqrt(variance);
+        const brightness = Math.round(avgL / 255 * 100);
+        const contrast = Math.round(Math.min(stdDev / 80, 1) * 100);
+        const saturation = Math.round(Math.min(avgS * 2, 1) * 100);
+        const range = Math.round((maxL - minL) / 255 * 100);
+        const brightScore = brightness >= 30 && brightness <= 80 ? 'green' : brightness < 20 || brightness > 90 ? 'red' : 'yellow';
+        const contrastScore = contrast >= 45 ? 'green' : contrast >= 25 ? 'yellow' : 'red';
+        const satScore = saturation >= 30 ? 'green' : saturation >= 15 ? 'yellow' : 'red';
+        res({ brightness, contrast, saturation, range, brightScore, contrastScore, satScore });
+      } catch (e) { rej(e); }
+    };
+    img.onerror = rej;
+    img.src = previewUrl;
+  });
+}
+
+async function extractColorPalette(previewUrl) {
+  if (!window.ColorThief) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/color-thief/2.3.2/color-thief.umd.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const ct = new window.ColorThief();
+        const palette = ct.getPalette(img, 8);
+        res(palette.map(([r, g, b]) => ({
+          rgb: `rgb(${r},${g},${b})`,
+          hex: '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join(''),
+        })));
+      } catch (e) { rej(e); }
+    };
+    img.onerror = rej;
+    img.src = previewUrl;
+  });
+}
+
 function BuilderTab({ onNav }) {
   const mood = 'ember';
   const m = BM[mood];
@@ -7477,6 +7710,14 @@ function BuilderTab({ onNav }) {
   const [analyseSummary, setAnalyseSummary] = React.useState('');
   const [feedback, setFeedback] = React.useState([]); // research-based "what's wrong" list
   const [upgrades, setUpgrades] = React.useState([]); // 3 tiers: basic / mild / full
+  const [colorPalette, setColorPalette] = React.useState([]);
+  const [imageQuality, setImageQuality] = React.useState(null);
+
+  React.useEffect(() => {
+    if (!analyseImg) { setColorPalette([]); setImageQuality(null); return; }
+    extractColorPalette(analyseImg.preview).then(setColorPalette).catch(() => setColorPalette([]));
+    analyzeImageQuality(analyseImg.preview).then(setImageQuality).catch(() => setImageQuality(null));
+  }, [analyseImg]);
 
   const [extraNote, setExtraNote] = React.useState(bootFresh && bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
   const [brand] = React.useState(bLoadBrand);
@@ -7545,7 +7786,7 @@ function BuilderTab({ onNav }) {
   function clearForm() {
     setHeadline(''); setSubline(''); setPeople([]); setElements([]);
     setFeedback([]); setUpgrades([]); setPrompt(''); setBuilt(false);
-    setAnalyseSummary(''); setAnalyseDesc('');
+    setAnalyseSummary(''); setAnalyseDesc(''); setColorPalette([]); setImageQuality(null);
   }
 
   // Cloud check: works free inside Claude (text description) OR with an API key
@@ -7710,10 +7951,49 @@ function BuilderTab({ onNav }) {
       {/* CLOUD CHECK -- free, no API key */}
       <BB mood={mood} title="Check & fix my thumbnail" desc="Runs free inside Claude -- no API key. Describe your current thumbnail (or upload it if you have an API key for image vision). It finds what's wrong using the research and writes the fixed prompt below.">
         {analyseImg && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-            <img src={analyseImg.preview} alt="" style={{ width: 120, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
-            <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
-              onClick={() => { setAnalyseImg(null); clearForm(); setAnalyseState('idle'); }}>Remove image</button>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <img src={analyseImg.preview} alt="" style={{ width: 120, borderRadius: 9, border: '1px solid var(--stroke-1)', flexShrink: 0 }} />
+              <div>
+                <button className="ci-copybtn" style={{ height: 30, fontSize: 11.5 }}
+                  onClick={() => { setAnalyseImg(null); clearForm(); setAnalyseState('idle'); }}>Remove image</button>
+                {colorPalette.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>Color palette</div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {colorPalette.map((c, i) => (
+                        <div key={i} title={`${c.hex} — click to copy`}
+                          style={{ width: 24, height: 24, borderRadius: 6, background: c.rgb, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', flexShrink: 0, transition: 'transform .1s' }}
+                          onClick={() => window.copyText && window.copyText(c.hex)}
+                          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.15)'}
+                          onMouseLeave={e => e.currentTarget.style.transform = ''} />
+                      ))}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text-5)', marginTop: 4 }}>Click a swatch to copy its hex</div>
+                  </div>
+                )}
+                {imageQuality && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>Visual quality</div>
+                    <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                      {[
+                        { label: 'Brightness', val: imageQuality.brightness + '%', lvl: imageQuality.brightScore },
+                        { label: 'Contrast', val: imageQuality.contrast + '%', lvl: imageQuality.contrastScore },
+                        { label: 'Saturation', val: imageQuality.saturation + '%', lvl: imageQuality.satScore },
+                      ].map(q => {
+                        const col = q.lvl === 'green' ? '#8FD86A' : q.lvl === 'yellow' ? '#F0C85A' : '#F06A7E';
+                        return (
+                          <div key={q.label} style={{ padding: '4px 8px', borderRadius: 7, background: col + '18', border: `1px solid ${col}33`, textAlign: 'center' }}>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: col }}>{q.val}</div>
+                            <div style={{ fontSize: 9, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{q.label}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
         {!analyseImg && (
@@ -10200,6 +10480,79 @@ window.ProfileModal = ProfileModal;
 /* ===== ci-caption.jsx ===== */
 // ContentIntel — Caption & Description Generator
 
+// Real-time title CTR score (no CDN needed — pure heuristic scoring)
+function scoreTitleCTR(title) {
+  const t = (title || '').trim();
+  if (t.length < 5) return null;
+  let score = 45;
+  const factors = [];
+
+  // Character length — ideal 50-70
+  const len = t.length;
+  if (len >= 50 && len <= 70) { score += 10; factors.push({ key: 'len', label: 'Ideal length', col: '#8FD86A' }); }
+  else if (len < 25) { score -= 12; factors.push({ key: 'len', label: 'Too short', col: '#F06A7E' }); }
+  else if (len > 100) { score -= 8; factors.push({ key: 'len', label: 'Very long', col: '#F06A7E' }); }
+
+  // Number (numbers boost CTR ~36%)
+  if (/\d/.test(t)) { score += 9; factors.push({ key: 'num', label: 'Has number', col: '#8FD86A' }); }
+
+  // Question
+  if (/\?/.test(t)) { score += 7; factors.push({ key: 'q', label: 'Question', col: '#8FD86A' }); }
+
+  // Bracket/parens qualifier
+  if (/[\[(].{2,}[\])]/.test(t)) { score += 5; factors.push({ key: 'br', label: 'Qualifier []', col: '#8FD86A' }); }
+
+  // Power words
+  if (/\b(secret|never|always|stop|best|worst|mistake|truth|real|only|revealed|shocking|surprising|proven|ultimate|simple|instant|free)\b/i.test(t)) {
+    score += 8; factors.push({ key: 'pw', label: 'Power word', col: '#F0C85A' });
+  }
+
+  // How/Why/What hooks
+  if (/^(how|why|what|when)\b/i.test(t)) { score += 6; factors.push({ key: 'hw', label: 'How/Why/What', col: '#8FD86A' }); }
+
+  // Negative framing
+  if (/\b(mistake|wrong|fail|worst|stop|never|avoid|don.t)\b/i.test(t)) { score += 5; factors.push({ key: 'neg', label: 'Negative hook', col: '#F0C85A' }); }
+
+  // Year signal
+  if (/20\d\d/.test(t)) { score += 3; factors.push({ key: 'yr', label: 'Year', col: '#8FD86A' }); }
+
+  // Weak openers (penalty)
+  if (/^(hi |hey |hello |welcome |so |today |in this video |this is )/i.test(t)) {
+    score -= 14; factors.push({ key: 'wo', label: 'Weak opener', col: '#F06A7E' });
+  }
+
+  // Excessive ALL CAPS (trust penalty)
+  const capsCount = t.split(/\s+/).filter(w => w.length > 3 && w === w.toUpperCase() && /[A-Z]/.test(w)).length;
+  if (capsCount >= 3) { score -= 8; factors.push({ key: 'caps', label: 'Too many CAPS', col: '#F06A7E' }); }
+
+  // Curiosity / gap framing
+  if (/\b(this is why|the reason|nobody|everyone|truth about|don.t know|hidden|before you)\b/i.test(t)) {
+    score += 6; factors.push({ key: 'cg', label: 'Curiosity gap', col: '#8FD86A' });
+  }
+
+  const final = Math.max(12, Math.min(98, score));
+  return { score: final, factors };
+}
+
+function TitleCTRBadge({ title }) {
+  const result = React.useMemo(() => scoreTitleCTR(title), [title]);
+  if (!result) return null;
+  const { score, factors } = result;
+  const col = score >= 72 ? '#8FD86A' : score >= 50 ? '#F0C85A' : '#F06A7E';
+  const label = score >= 72 ? 'Strong CTR' : score >= 50 ? 'Average CTR' : 'Weak CTR';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: col + '18', border: `1px solid ${col}44` }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 14, color: col }}>{score}</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: col }}>{label}</span>
+      </div>
+      {factors.map(f => (
+        <span key={f.key} style={{ fontSize: 10.5, padding: '3px 7px', borderRadius: 999, background: f.col + '18', color: f.col, fontWeight: 600, border: `1px solid ${f.col}33` }}>{f.label}</span>
+      ))}
+    </div>
+  );
+}
+
 const CAPTION_SYSTEM = [
   "You are an expert social media copywriter for video creators.",
   "Write platform-optimised captions, descriptions and hashtag sets that maximise clicks, saves, watch-time and shares.",
@@ -10223,16 +10576,143 @@ const CAPTION_SYSTEM = [
   "Set bottomLine to the single most important tip for maximising reach with these captions.",
 ].join("\n");
 
+// Parse SRT string → array of { index, start, end, text }
+function parseSRT(srt) {
+  const segs = [];
+  const blocks = (srt || '').trim().split(/\n\n+/);
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    if (lines.length < 2) continue;
+    const tLine = lines.find(l => /\d{2}:\d{2}:\d{2}[,\.]\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}[,\.]\d{3}/.test(l));
+    if (!tLine) continue;
+    const tm = tLine.match(/(\d{2}:\d{2}:\d{2})[,\.](\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2})[,\.](\d{3})/);
+    if (!tm) continue;
+    const text = lines.slice(lines.indexOf(tLine) + 1).join(' ').trim();
+    if (text) segs.push({ index: segs.length + 1, start: tm[1], end: tm[3], ms_start: tm[2], ms_end: tm[4], text });
+  }
+  return segs;
+}
+
+// Compact "00:00:04" → "0:04", strip leading zeros for readability
+function fmtTime(t) {
+  const p = (t || '').split(':');
+  if (p.length < 3) return t;
+  const h = parseInt(p[0], 10), m = parseInt(p[1], 10), s = parseInt(p[2], 10);
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function SRTViewer({ srt, accentColor }) {
+  const segs = React.useMemo(() => parseSRT(srt), [srt]);
+  const [copied, setCopied] = React.useState(null);
+  const [search, setSearch] = React.useState('');
+  if (!segs.length) return null;
+  function copyOne(i, text) {
+    window.copyText ? window.copyText(text) : navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(i); setTimeout(() => setCopied(c => c === i ? null : c), 1600);
+  }
+  function copyAll() {
+    const plain = segs.map(s => s.text).join(' ');
+    window.copyText ? window.copyText(plain) : navigator.clipboard.writeText(plain).catch(() => {});
+    setCopied('all'); setTimeout(() => setCopied(c => c === 'all' ? null : c), 1600);
+  }
+  const q = search.trim().toLowerCase();
+  const visible = q ? segs.filter(s => s.text.toLowerCase().includes(q)) : segs;
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+          {segs.length} segments
+        </span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search transcript…"
+            style={{ height: 28, padding: '0 10px', borderRadius: 6, border: '1px solid var(--stroke-2)', background: 'var(--surface-2)', color: 'var(--text-1)', fontSize: 12, outline: 'none', width: 160 }} />
+          <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 11.5 }} onClick={copyAll}>
+            {copied === 'all' ? '✓ Copied' : '⧉ Copy all text'}
+          </button>
+        </div>
+      </div>
+      <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, borderRadius: 10, border: '1px solid var(--stroke-1)', padding: '4px 0' }}>
+        {visible.length === 0 && <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-4)' }}>No results for "{search}"</div>}
+        {visible.map((s, i) => (
+          <div key={s.index} onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 12px', transition: 'background 0.1s', cursor: 'default' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: accentColor || '#8FD86A', flexShrink: 0, paddingTop: 2, width: 42 }}>{fmtTime(s.start)}</span>
+            <span style={{ flex: 1, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+              {q ? s.text.split(new RegExp(`(${search.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi')).map((part, pi) =>
+                part.toLowerCase() === q ? <mark key={pi} style={{ background: (accentColor || '#8FD86A') + '33', color: 'var(--text-1)', borderRadius: 2 }}>{part}</mark> : part
+              ) : s.text}
+            </span>
+            <button className="ci-copybtn" style={{ height: 24, padding: '0 8px', fontSize: 11, flexShrink: 0, opacity: 0.7 }}
+              onClick={() => copyOne(s.index, s.text)} title="Copy this line">
+              {copied === s.index ? '✓' : '⧉'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Extract YouTube video ID from URLs or bare IDs
+function extractYTVideoId(s) {
+  s = (s || '').trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const m = s.match(/(?:[?&]v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+
+// Parse YouTube timedtext XML (auto-generated or manual CC) into SRT string
+function parseYTTimedText(xml) {
+  const re = /<text[^>]*start="([\d.]+)"[^>]*dur="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g;
+  const segs = [];
+  let m;
+  while ((m = re.exec(xml)) !== null) {
+    const start = parseFloat(m[1]);
+    const end   = start + parseFloat(m[2]);
+    const text  = m[3].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+                       .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim();
+    if (text) segs.push({ i: segs.length + 1, start, end, text });
+  }
+  if (!segs.length) return '';
+  function ts(s) {
+    const h=Math.floor(s/3600), mm=Math.floor((s%3600)/60), ss=Math.floor(s%60), ms=Math.round((s%1)*1000);
+    return `${String(h).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+  }
+  return segs.map(s => `${s.i}\n${ts(s.start)} --> ${ts(s.end)}\n${s.text}`).join('\n\n');
+}
+
+// Fetch YouTube captions via allorigins.win CORS proxy (no API key).
+// Tries 'en', then 'en-US', then auto-generated 'a.en'.
+async function fetchYTCaptions(videoId) {
+  for (const lang of ['en', 'en-US', 'a.en']) {
+    const ytUrl = `https://www.youtube.com/api/timedtext?lang=${lang}&v=${videoId}`;
+    try {
+      const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(ytUrl)}`, { signal: AbortSignal.timeout ? AbortSignal.timeout(9000) : undefined });
+      if (!res.ok) continue;
+      const xml = await res.text();
+      if (!xml || !xml.includes('<text')) continue;
+      const srt = parseYTTimedText(xml);
+      if (srt && srt.length > 50) return srt;
+    } catch (e) { continue; }
+  }
+  throw new Error('No English captions found for this video. It may not have subtitles, or they may be disabled.');
+}
+
 function CaptionTab({ onOpenKey }) {
   const mood = 'lime';
   const m = MOODS[mood] || MOODS.burgundy;
   const [title, setTitle] = React.useState('');
   const [desc,  setDesc]  = React.useState('');
   const [transcript, setTranscript] = React.useState('');
+  const [srtSegments, setSrtSegments] = React.useState(null); // parsed SRT segments for viewer
   const [showTranscript, setShowTranscript] = React.useState(false);
   const [transFile, setTransFile] = React.useState(null);
   const [transState, setTransState] = React.useState('idle'); // idle | transcribing | done | error
   const [transErr, setTransErr] = React.useState('');
+  const [ytUrl, setYtUrl] = React.useState('');
+  const [ytFetchState, setYtFetchState] = React.useState('idle');
+  const [ytFetchErr, setYtFetchErr] = React.useState('');
   const groqKey = window.getGroqKey ? window.getGroqKey() : '';
   const [plats, setPlats] = React.useState(['youtube', 'instagram', 'tiktok']);
 
@@ -10259,13 +10739,33 @@ function CaptionTab({ onOpenKey }) {
     setTransState('transcribing'); setTransErr('');
     try {
       const srt = await window.transcribeWithGroq(transFile, groqKey);
+      const segs = parseSRT(srt);
       setTranscript(srt);
+      setSrtSegments(segs.length >= 2 ? segs : null);
       setShowTranscript(true);
       setTransState('done');
       reset();
     } catch (e) {
       setTransErr(e.message || 'Transcription failed.');
       setTransState('error');
+    }
+  }
+
+  async function fetchYTTranscriptFromUrl() {
+    const vid = extractYTVideoId(ytUrl);
+    if (!vid) { setYtFetchErr('Enter a valid YouTube URL or video ID.'); setYtFetchState('error'); return; }
+    setYtFetchState('fetching'); setYtFetchErr('');
+    try {
+      const srt = await fetchYTCaptions(vid);
+      const segs = parseSRT(srt);
+      setTranscript(srt);
+      setSrtSegments(segs.length >= 2 ? segs : null);
+      setShowTranscript(true);
+      setYtFetchState('done');
+      reset();
+    } catch (e) {
+      setYtFetchErr(e.message || 'Could not fetch captions.');
+      setYtFetchState('error');
     }
   }
 
@@ -10302,10 +10802,18 @@ function CaptionTab({ onOpenKey }) {
       <div className="ci-block" style={{ padding: 24, marginTop: 24 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Video title *</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>Video title *</span>
+              {title.trim() && (
+                <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 999, background: 'var(--surface-2)',
+                  color: title.length > 100 ? '#F06A7E' : title.length > 70 ? '#F0C85A' : '#8FD86A',
+                  fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{title.length}/100 chars</span>
+              )}
+            </div>
             <input className="ci-input" style={{ fontSize: 15 }}
               placeholder="e.g. I invested ₹50,000 in index funds for 1 year — here's what happened"
               value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
+            <TitleCTRBadge title={title} />
           </label>
 
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -10336,14 +10844,30 @@ function CaptionTab({ onOpenKey }) {
             </button>
             {showTranscript && (
               <div style={{ marginTop: 10 }}>
-                <textarea className="ci-input" rows={8}
-                  placeholder={"Paste your full video script or transcript here.\n\nClaude will extract real hooks, key moments, and specific points to build captions that match your actual content — not just the title."}
-                  value={transcript} onChange={e => { setTranscript(e.target.value); reset(); }}
-                  style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 12.5 }} />
-                {transcriptWords > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--text-5)', display: 'block', textAlign: 'right', marginTop: 4 }}>
-                    {transcriptWords} words · Claude will extract key moments from this
-                  </span>
+                {srtSegments && srtSegments.length >= 2 ? (
+                  <div>
+                    <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 6, lineHeight: 1.5 }}>
+                      Click any segment to copy it. Full transcript is used for caption generation.
+                    </div>
+                    <SRTViewer srt={transcript} accentColor={m.accentFrom} />
+                    <div style={{ marginTop: 8, display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-5)' }}>{transcriptWords} words</span>
+                      <button className="ci-copybtn" style={{ height: 24, padding: '0 9px', fontSize: 11 }}
+                        onClick={() => { setSrtSegments(null); }}>Edit as text ↓</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <textarea className="ci-input" rows={8}
+                      placeholder={"Paste your full video script or transcript here.\n\nClaude will extract real hooks, key moments, and specific points to build captions that match your actual content — not just the title."}
+                      value={transcript} onChange={e => { setTranscript(e.target.value); setSrtSegments(null); reset(); }}
+                      style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 12.5 }} />
+                    {transcriptWords > 0 && (
+                      <span style={{ fontSize: 11, color: 'var(--text-5)', display: 'block', textAlign: 'right', marginTop: 4 }}>
+                        {transcriptWords} words · Claude will extract key moments from this
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -10377,7 +10901,7 @@ function CaptionTab({ onOpenKey }) {
                   ) : 'Transcribe →'}
                 </button>
               )}
-              {transState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A', fontWeight: 600 }}>✓ Done — transcript filled in above</span>}
+              {transState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A', fontWeight: 600 }}>✓ Done — {srtSegments ? `${srtSegments.length} segments` : 'transcript filled in'} above</span>}
             </div>
             {transState === 'error' && transErr && (
               <div style={{ marginTop: 8, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>
@@ -10388,6 +10912,38 @@ function CaptionTab({ onOpenKey }) {
               <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)', lineHeight: 1.4 }}>
                 No Groq key — <button style={{ background: 'none', border: 'none', color: m.accentFrom, fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }} onClick={onOpenKey}>add one free in Settings → Platform Data</button> to enable transcription.
               </div>
+            )}
+          </div>
+
+          {/* YouTube auto-transcript (no key needed) */}
+          <div style={{ borderTop: '1px solid var(--stroke-1)', paddingTop: 14 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 8 }}>
+              YouTube Auto-Transcript <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(no key needed)</span>
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5, margin: '0 0 10px' }}>
+              Paste any YouTube URL and fetch its captions instantly — works on any video with CC or auto-generated subtitles.
+            </p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input className="ci-input" style={{ flex: 1, minWidth: 200 }}
+                placeholder="https://youtube.com/watch?v=..."
+                value={ytUrl} onChange={e => { setYtUrl(e.target.value); setYtFetchState('idle'); setYtFetchErr(''); }} />
+              <button onClick={fetchYTTranscriptFromUrl}
+                disabled={ytFetchState === 'fetching' || !ytUrl.trim()}
+                style={{ height: 40, padding: '0 14px', borderRadius: 8, border: `1.5px solid ${m.accentFrom}`,
+                  background: m.accentFrom + '18', color: m.accentFrom, fontSize: 13, fontWeight: 700,
+                  cursor: (ytFetchState === 'fetching' || !ytUrl.trim()) ? 'not-allowed' : 'pointer',
+                  opacity: (ytFetchState === 'fetching' || !ytUrl.trim()) ? 0.65 : 1 }}>
+                {ytFetchState === 'fetching' ? (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 11, height: 11, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    Fetching…
+                  </span>
+                ) : 'Fetch captions →'}
+              </button>
+              {ytFetchState === 'done' && <span style={{ fontSize: 12, color: '#8FD86A', fontWeight: 600 }}>✓ Captions loaded</span>}
+            </div>
+            {ytFetchState === 'error' && ytFetchErr && (
+              <div style={{ marginTop: 8, fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>{ytFetchErr}</div>
             )}
           </div>
 
