@@ -7854,6 +7854,9 @@ async function detectThumbnailFaces(previewUrl) {
   const MODELS  = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
   if (window.loadScriptOnce) await window.loadScriptOnce(FACEAPI, 'faceapi');
   if (!window.faceapi) throw new Error('face engine unavailable');
+  // Ensure the TF.js backend is initialized before inference (avoids a
+  // "backend not yet initialized" race on first load).
+  try { if (window.faceapi.tf && window.faceapi.tf.ready) await window.faceapi.tf.ready(); } catch (e) {}
   if (!_faceModelReady) {
     await window.faceapi.nets.tinyFaceDetector.loadFromUri(MODELS);
     _faceModelReady = true;
