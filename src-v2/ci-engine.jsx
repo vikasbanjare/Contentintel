@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r36";
+window.CI_BUILD = "2026-06-20-r37";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -176,8 +176,23 @@ const hasSandbox = () => { try { return typeof window !== "undefined" && window.
 const canRun = () => !!getKey() || hasSandbox() || !!(typeof window !== 'undefined' && window.CI_SESSION);
 
 // ── Research access (falls back to a tiny default so nothing ever breaks) ────
+// Distilled writing-craft (compressed from the hooks/storytelling/anti-ai/dumbify
+// skill pack — every operational rule kept, prose dropped to save tokens).
+const SCRIPT_CRAFT = [
+"SCRIPT CRAFT — the operating system for hooks, retention and a human voice. Apply these when writing; diagnose by the same rules when grading.",
+"HOOK (first 1-2 spoken lines) must do two things fast: topic clear in ~2 seconds AND clearly for THIS viewer with an open curiosity gap. Hooks die four ways — name it, fix it: DELAY (topic arrives late → cut everything before it; first noun phrase carries the subject). CONFUSION (needs a re-read → fewer/simpler words, one idea per line, active voice). IRRELEVANCE (clear but not 'for me' → swap me/my→you/your, agitate a pain they already feel; first-person founder stories are the allowed exception when the feeling is universal). DISINTEREST (clear+relevant but no open question → contrast: name the common belief/method A, put your surprising B against it). Banned openers: Hi/Hey/Today/So/Welcome/'in this video'/'let me explain'/'story time' with no stake/'wait till you see'/a definition/a CTA.",
+"RETENTION (the body) is a dance of context vs conflict. Between EVERY beat the connector is BUT or THEREFORE — never 'and then' (and-then piles detail with no tension and they leave). Stack several open loops in the first 30s: raise a new question before closing the last.",
+"DIRECTION: write the LAST line first as a shareable 'last dab' (if someone heard only that line they'd repost). Short-form loops, so the last line hands back into the hook. Then fill the middle with but/therefore beats that earn it.",
+"LENS: a topic is not a take. Pick a non-obvious angle before writing — invert the assumed villain, find the asset hidden in the failure, jump to the second-order effect, or switch POV. The obvious angle is the one everyone already made.",
+"RHYTHM: vary sentence length — short, then medium, then one longer line that builds and rolls. If every line ends at the same length it drones; break the meter. Read it aloud.",
+"PLAIN LANGUAGE (~8th-grade body, ~6th-grade hook): simple words, not simple ideas. use not utilize, help not facilitate, show not demonstrate. One idea per sentence. Cut filler (basically, in order to, the fact that). Keep jargon only if the audience shares it. One concrete example beats a definition.",
+"SPECIFICITY is the whole game: replace categories with instances and adjectives with numbers — 'users were frustrated' → 'users clicked export six times because nothing loaded'. Never invent facts; if you lack the specific, soften the framing, don't fabricate.",
+"KILL AI TELLS even out loud: no hollow 'it's not X, it's Y' reframes where Y is vague significance (keep a contrast only if B is concrete and the line pays it off); no significance inflation ('a pivotal shift') on normal facts; no borrowed-authority filler. Take the position or cut the sentence.",
+"LENGTH: spoken delivery ≈ 2 words/second. 30s ≈ 60-75 words, 45s ≈ 110-130, 60s ≈ 150-170. Write to the runtime; cut beats, never the lens or the last dab.",
+].join("\n");
+
 const DEFAULT_RESEARCH = {
-  script:    { label: "Script",    systemGuidance: "Evaluate the script's hook, retention and CTA. Be specific and give rewrites.", rubric: [{ name: "Hook", what: "" }, { name: "Retention", what: "" }, { name: "CTA", what: "" }], notes: "" },
+  script:    { label: "Script",    systemGuidance: SCRIPT_CRAFT, rubric: [{ name: "Hook", what: "" }, { name: "Retention", what: "" }, { name: "CTA", what: "" }], notes: "" },
   thumbnail: { label: "Thumbnail", systemGuidance: "Judge whether the thumbnail earns the click in a feed.", rubric: [{ name: "Clarity", what: "" }, { name: "Face", what: "" }, { name: "Contrast", what: "" }], notes: "" },
   title:     { label: "Title",     systemGuidance: "Judge click-worthiness, clarity, truncation. Give 10 alternatives.", rubric: [{ name: "Click chance", what: "" }, { name: "Curiosity", what: "" }, { name: "Clarity", what: "" }], notes: "" },
   ads:       { label: "Ads",       systemGuidance: "Check limits, truncation, scroll-stopping power.", rubric: [{ name: "Scroll-stop", what: "" }, { name: "Copy", what: "" }, { name: "CTA fit", what: "" }], notes: "" },
