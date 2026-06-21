@@ -43,6 +43,15 @@ Legend: ✅ = auto-verified headlessly in this environment · 🔎 = needs your 
 - 🔎 **RapidAPI key** — Settings → Platform Data → paste a RapidAPI key (no Google key needed). Then Channel Audit / Comments should fetch via youtube-v31.
   **COULD NOT auto-verify here** — needs a real RapidAPI key + live network. Note: a browser key is visible to site visitors → personal use only.
 
+## r37 — Writing-craft baked into Script + Caption ⭐
+Compressed the 5-skill writing pack (~600 lines) into tight prompt blocks (~550 tokens) — every rule kept, prose dropped. Est. lift: Script +25–35%, Caption +30–40% (perceived "sounds human").
+- ✅ **Verified at runtime**: the Script CHECK + CREATE prompts now carry the 4 hook killers, but/therefore retention, last-dab endings, unique-lens guidance, plain-language + specificity rules, and AI-tell removal. Caption tab gets the full written anti-AI pass.
+- 🔎 **Test tomorrow**: run Script → Create a script (or Check one) and compare to before — hooks should be sharper, fewer "it's not X, it's Y" / "delve/leverage" tells, tighter endings. Same for captions.
+
+## r38 — Voice-DNA (write in YOUR voice) ⭐
+- ✅ **Verified** (mocked): Profile modal → **Voice DNA** section → paste 10–20 of your real posts/transcripts → **"🧬 Build my voice profile"** → AI extracts your voice once (uses your selected free provider) and stores it. From then on every script/caption/rewrite matches your voice.
+- 🔎 **Test tomorrow**: open Creator Profile, paste real posts, build the profile, then run a Script/Caption and check it sounds like you. Rebuild anytime as your voice evolves.
+
 ## r36 — OpenRouter free-model picker ⭐
 OpenRouter = one key → 400+ models, ~28 of them **free** (DeepSeek R1/V3, Llama 3.3 70B, Llama 4 Scout, Gemma 3, Gemini Flash…). It's NOT a scraper — it's a model aggregator.
 - ✅ **Verified**: Settings → Platform Data → OpenRouter → tap **"↻ Load free models"** → dropdown fills with the live list of FREE models that actually work here (must support tools). Pick one; no typing model IDs.

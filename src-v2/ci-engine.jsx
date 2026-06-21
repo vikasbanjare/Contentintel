@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r37";
+window.CI_BUILD = "2026-06-20-r38";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2005,6 +2005,32 @@ async function callCerebrasAnalysis({ system, userText, maxTokens = 1800 }) {
   throw lastErr || new Error("Cerebras request failed after retries.");
 }
 
+// Plain free-form text completion routed to the active provider (no tools, no JSON
+// mode). Used for Voice-DNA profile building. Returns a plain string.
+async function callTextLLM({ system, userText, maxTokens = 1500 }) {
+  const prov = getProvider();
+  if (prov === 'claude') { const { text } = await callClaude({ system, userText, maxTokens }); return text; }
+  if (prov === 'gemini') {
+    const key = getGoogleKey(); if (!key) throw new Error("NO_GOOGLE_KEY");
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system || "" }] }, contents: [{ role: "user", parts: [{ text: userText }] }], generationConfig: { maxOutputTokens: maxTokens, temperature: 0.4 } }),
+    });
+    if (!res.ok) { let d = ""; try { d = (await res.json())?.error?.message || ""; } catch (e) {} throw new Error(d || ("Gemini failed (" + res.status + ").")); }
+    const data = await res.json(); const parts = (((data.candidates || [])[0] || {}).content || {}).parts || []; return parts.map(p => p.text || "").join("").trim();
+  }
+  // OpenAI-compatible providers: groq / cerebras / openrouter
+  const cfg = prov === 'groq' ? { url: "https://api.groq.com/openai/v1/chat/completions", key: getGroqKey(), model: "llama-3.3-70b-versatile", err: "NO_GROQ_KEY" }
+    : prov === 'cerebras' ? { url: "https://api.cerebras.ai/v1/chat/completions", key: getCerebrasKey(), model: "llama-3.3-70b", err: "NO_CEREBRAS_KEY" }
+    : { url: "https://openrouter.ai/api/v1/chat/completions", key: getOpenRouterKey(), model: getOpenRouterModel(), err: "NO_OPENROUTER_KEY" };
+  if (!cfg.key) throw new Error(cfg.err);
+  const headers = { "content-type": "application/json", "Authorization": "Bearer " + cfg.key };
+  if (prov === 'openrouter') { headers["HTTP-Referer"] = typeof window !== "undefined" ? window.location.origin : ""; headers["X-Title"] = "ContentIntel"; }
+  const res = await fetch(cfg.url, { method: "POST", headers, body: JSON.stringify({ model: cfg.model, max_tokens: maxTokens, messages: [...(system ? [{ role: "system", content: system }] : []), { role: "user", content: userText }] }) });
+  if (!res.ok) { let d = ""; try { d = (await res.json())?.error?.message || ""; } catch (e) {} throw new Error(d || ("Request failed (" + res.status + ").")); }
+  const data = await res.json(); return ((((data.choices || [])[0] || {}).message) || {}).content || "";
+}
+
 async function callGroqAnalysis({ system, userText, maxTokens = 1800 }) {
   const groqKey = getGroqKey();
   if (!groqKey) throw new Error("NO_GROQ_KEY");
@@ -2423,7 +2449,7 @@ Object.assign(window, {
   getRapidAPIKey, setRapidAPIKeyLS,
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
   getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
-  getCerebrasKey, setCerebrasKeyLS, callCerebrasAnalysis,
+  getCerebrasKey, setCerebrasKeyLS, callCerebrasAnalysis, callTextLLM,
   getOpenRouterKey, setOpenRouterKeyLS, getOpenRouterModel, setOpenRouterModelLS, callOpenRouterAnalysis,
   callGeminiAnalysis,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
