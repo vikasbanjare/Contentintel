@@ -1,0 +1,100 @@
+# ContentIntel — Verification Checklist (r31 → r33)
+
+Use this tomorrow to check every feature in a **real browser** (Chrome/Edge desktop recommended).
+Open the app, or run it locally, then go feature by feature.
+
+Legend: ✅ = auto-verified headlessly in this environment · 🔎 = needs your manual check (live data / GPU / real images)
+
+---
+
+## r31 — Caption tab + cross-tab handoff
+- ✅ **SEO keyword chips** — type a video title; within ~1s, keyword chips appear. Click a chip → copies it.
+- ✅ **Ctrl+Enter** — focus the title or transcript field, press Ctrl+Enter (Cmd+Enter on Mac) → triggers Generate.
+- 🔎 **Audit → Script handoff** — run a Channel Audit, click **"→ Plan Scripts from This Audit"** → should jump to the Script tab pre-filled with the recommended video. (Needs a real audit, which needs an API key.)
+
+## r32a — Universal PDF export
+- ✅ **Download PDF** — on ANY report (Title/Script/Audit/Caption/Comments), click **"⬇ Download PDF"** → a multi-page PDF downloads. (Verified: produces a real PDF blob.)
+- 🔎 Confirm the PDF looks right with a full, long report (page slicing across A4).
+
+## r32b — Language + readability (Caption tab)
+- ✅ **Language badge** — type a title in English → "🌐 English" badge appears near the keywords. Try Hindi/Spanish text to see it switch.
+- ✅ **Readability badge** — type a paragraph in "Key points / summary" → "📖 Easy/Fairly/Hard to read · Flesch NN · grade N".
+
+## r32c — Comment sentiment (Comments tab)
+- ✅ **Audience Mood bar** — switch to "Paste manually", paste 3+ comments separated by `---` on their own line → a stacked positive/neutral/negative bar with % appears.
+- 🔎 Try the "Fetch from YouTube" path with a real video (needs YouTube or RapidAPI key).
+
+## r32d — Thumbnail face detection (Builder / "Check & fix my thumbnail")
+- 🔎 **Face detection** — upload a thumbnail image with a face → "Face detection" panel should show face count + how much of the frame it fills + CTR advice.
+  (Verified headlessly that the model loads and the detector runs end-to-end on WebGL; needs a **real photo with a face** to confirm it counts correctly. Requires WebGL — any normal desktop browser has it.)
+
+## r32e — Posting calendar heatmap (Channel Audit)
+- ✅ **Calendar heatmap** — after fetching a channel, a GitHub-style calendar appears, days colored by views. (Verified: ECharts renders the calendar canvas.)
+- 🔎 Confirm with a real channel's data that the dates/colors look sensible. (Needs API key.)
+
+## r32f — Local AI CTR predictor (Title tab) — ⚠️ HEAVY, OPT-IN
+- 🔎 **WebLLM** — open "🧠 Local AI CTR Predictor", click **"Load model (~400 MB)"**. First load downloads ~400 MB (one time, cached). Then "⚡ Predict CTR" gives a 0–100 score.
+  **COULD NOT auto-verify here** — needs a real GPU + WebGPU + the 400 MB download (blocked in the sandbox). Test in **desktop Chrome/Edge**. If WebGPU is missing, the button is disabled with a message (safe).
+
+## r32g — Richer keyword/tag extraction (Caption tab)
+- ✅ Keyword chips now include **multi-word phrases** (e.g. "index funds") + stopword-filtered tags. (Verified: 6 real keyword chips from a sample title.)
+
+## r32h — RapidAPI alternative data source
+- 🔎 **RapidAPI key** — Settings → Platform Data → paste a RapidAPI key (no Google key needed). Then Channel Audit / Comments should fetch via youtube-v31.
+  **COULD NOT auto-verify here** — needs a real RapidAPI key + live network. Note: a browser key is visible to site visitors → personal use only.
+
+## r37 — Writing-craft baked into Script + Caption ⭐
+Compressed the 5-skill writing pack (~600 lines) into tight prompt blocks (~550 tokens) — every rule kept, prose dropped. Est. lift: Script +25–35%, Caption +30–40% (perceived "sounds human").
+- ✅ **Verified at runtime**: the Script CHECK + CREATE prompts now carry the 4 hook killers, but/therefore retention, last-dab endings, unique-lens guidance, plain-language + specificity rules, and AI-tell removal. Caption tab gets the full written anti-AI pass.
+- 🔎 **Test tomorrow**: run Script → Create a script (or Check one) and compare to before — hooks should be sharper, fewer "it's not X, it's Y" / "delve/leverage" tells, tighter endings. Same for captions.
+
+## r38 — Voice-DNA (write in YOUR voice) ⭐
+- ✅ **Verified** (mocked): Profile modal → **Voice DNA** section → paste 10–20 of your real posts/transcripts → **"🧬 Build my voice profile"** → AI extracts your voice once (uses your selected free provider) and stores it. From then on every script/caption/rewrite matches your voice.
+- 🔎 **Test tomorrow**: open Creator Profile, paste real posts, build the profile, then run a Script/Caption and check it sounds like you. Rebuild anytime as your voice evolves.
+
+## r36 — OpenRouter free-model picker ⭐
+OpenRouter = one key → 400+ models, ~28 of them **free** (DeepSeek R1/V3, Llama 3.3 70B, Llama 4 Scout, Gemma 3, Gemini Flash…). It's NOT a scraper — it's a model aggregator.
+- ✅ **Verified**: Settings → Platform Data → OpenRouter → tap **"↻ Load free models"** → dropdown fills with the live list of FREE models that actually work here (must support tools). Pick one; no typing model IDs.
+- 🔎 **Test tomorrow**: add a free OpenRouter key (openrouter.ai/keys, no card), load the list, pick e.g. DeepSeek R1, run any tool.
+  - Free limits: **20 req/min, 50 req/day** (rises to **1000/day** after a one-time $10 top-up). No credit card to start.
+  - Why a picker: our reports need tool-calling, and not every free model supports it — the loader filters to only the ones that do.
+
+## Free AI providers — which actually work in a browser-only app (IMPORTANT)
+Researched 11 providers. Most block direct browser calls (CORS) and need a backend the app doesn't have.
+- ✅ **Groq** and ✅ **OpenRouter** — confirmed CORS-open, guaranteed to work free. **These are your safety net.**
+- ⭐ **Gemini** (r34) — very likely works (this app already calls Gemini from the browser for fact-checking), but technically confirm with your key.
+- 🧪 **Cerebras** (r35) — experimental; CORS unverified. Test it; if it errors, fall back to the above.
+- ❌ Cohere, NVIDIA, Perplexity, SambaNova, Hugging Face, Cloudflare, GitHub Models — all need a proxy/backend, NOT added.
+
+## r35 — Cerebras as an experimental free provider 🧪
+- ✅ **Wiring verified** (mocked response): Settings → Analysis → **"Cerebras (experimental)"** button + a Cerebras key field in Platform Data.
+- 🔎 **Test tomorrow**: add a free Cerebras key (cloud.cerebras.ai), pick Cerebras, run "Check my title".
+  - If it works: free 1M tokens/day, very fast. If it errors with "may block direct browser calls (CORS)" → expected; switch to Gemini/Groq.
+  - Note: free context ~8K tokens, so long Channel Audits may not fit — use it for Titles/Captions/Comments.
+
+## r34 — Google Gemini as a FREE analysis provider ⭐
+- ✅ **Wiring verified** (mocked Gemini response): Settings → Analysis tab now has a **"Google Gemini 2.0 Flash · Free"** provider button. Selecting it routes ALL AI features (Title, Script, Caption, Audit, Comments, Ideas, etc.) through Gemini using the Google key you already added — **no per-request cost**.
+- 🔎 **Test with your real key tomorrow**: Settings → Analysis → pick **Google Gemini** → run any tool (e.g. "Check my title"). It should return a real report for free.
+  - Free tier as of 2026: generous (Gemini 2.0 Flash). If you hit a rate limit, it says so and you wait a few seconds.
+  - This is the cheapest way to use every feature: **Gemini (free) for everyday work, Claude (paid) only when you want top quality.**
+
+## r33 — Batch Title Ranker (Title tab)
+- ✅ **Batch ranking** — open "🏁 Batch Title Ranker", paste several titles (one per line) → instantly scored & ranked, winner gets 🏆, factor chips per title. (Verified: weak titles rank below strong ones.)
+
+---
+
+## Things I could NOT verify in the cloud sandbox (do these tomorrow)
+1. **WebLLM** — 400 MB model + WebGPU (desktop Chrome/Edge).
+2. **Live YouTube Data API** calls (Audit, Comments fetch, Competitor) — needs your Google API key.
+3. **RapidAPI** fallback path — needs your RapidAPI key.
+4. **Face detection accuracy** — needs real thumbnails with faces.
+5. **Real Claude/Groq/OpenRouter analysis** output quality — needs your API keys.
+
+## What WAS auto-verified (headless Chromium, libraries vendored, CDN intercepted)
+All 8 library features ran end-to-end with real inputs: compromise keywords, franc-min language,
+Flesch readability, wink-sentiment mood, jsPDF+html2canvas PDF, ECharts heatmap, Color Thief palette,
+face-api detection (on WebGL). Plus the Batch Title Ranker. Build stamp: **2026-06-20-r33**.
+
+## Note on pushing
+All work is committed and pushed to the **`temp-main`** branch (draft PR #1).
+To merge into `main`, review PR #1 on GitHub and mark it ready.

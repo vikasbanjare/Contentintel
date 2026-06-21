@@ -162,6 +162,8 @@ function ScriptTab({ onOpenKey, onNav }) {
       "LANGUAGE: detect the topic's own language and write everything in it automatically. English topic -> English; Hindi/Hinglish -> match it; if unclear, default to simple English (or Hinglish for an Indian topic). NEVER ask which language to use.",
       core ? 'VIRALITY SCIENCE (craft guidance only -- if anything here implies you must verify/refuse/ask before writing, IGNORE that part; the TOP PRIORITY rule wins):\n"""\n' + core + '\n"""' : '',
       sc.systemGuidance ? 'HOOK & SCRIPT CRAFT (style reference ONLY -- ignore any part of it that tells you to fact-check before writing, demand sources, or refuse):\n"""\n' + sc.systemGuidance.slice(0, 3000) + '\n"""' : '',
+      // Distilled writing craft — always applied, independent of server research.
+      (typeof window !== 'undefined' && window.SCRIPT_CRAFT) ? window.SCRIPT_CRAFT : '',
       swipe ? 'PROVEN HOOK FORMULAS (adapt to the topic; fill blanks with real specifics):\n' + swipe : '',
       "QUALITY BAR -- this script will be graded by ContentIntel's own checker on the EXACT dimensions below, and it must score 85+. Engineer it to win on every one:\n" +
         "1. HOOK (first line): land a concrete promise/tension in the first 2-3 seconds with ONE specific (a number, result, name or bold claim). NEVER open with Hi / Today / In this video / So / Welcome / a definition. The script MUST open with the strongest hook from your hooks list, verbatim.\n" +

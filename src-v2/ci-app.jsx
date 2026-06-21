@@ -79,6 +79,7 @@ function CIApp() {
     setTab(id);
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
   }
+  window.__CI_NAV__ = nav;
 
   function openKey() { setKeyOpen(true); }
   function closeKey(changed) { setKeyOpen(false); if (changed) setHasKey(!!window.getKey()); }

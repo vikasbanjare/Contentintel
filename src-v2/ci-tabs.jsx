@@ -531,6 +531,161 @@ function ThumbnailTab({ onOpenKey }) {
 window.ThumbnailTab = ThumbnailTab;
 
 // ── TITLE ────────────────────────────────────────────────────────────────────
+// Opt-in local AI CTR predictor (WebLLM / MLC AI). Runs a small model fully in
+// the browser via WebGPU. Heavy (~400MB) so it is strictly gated behind an
+// explicit "Load model" click — it never downloads on its own.
+function LocalCTRPredictor({ title, mood }) {
+  const m = TM[mood] || TM.cyan;
+  const [open, setOpen] = React.useState(false);
+  const [status, setStatus] = React.useState('idle'); // idle|loading|ready|predicting|error
+  const [progress, setProgress] = React.useState('');
+  const [result, setResult] = React.useState(null);
+  const [err, setErr] = React.useState('');
+  const engineRef = React.useRef(null);
+  const MODEL = 'Qwen2.5-0.5B-Instruct-q4f32_1-MLC';
+  const hasGPU = typeof navigator !== 'undefined' && !!navigator.gpu;
+
+  async function loadModel() {
+    if (!hasGPU) { setErr('This needs WebGPU — use desktop Chrome or Edge.'); setStatus('error'); return; }
+    setStatus('loading'); setErr(''); setProgress('Starting…');
+    try {
+      const webllm = await import('https://esm.run/@mlc-ai/web-llm');
+      engineRef.current = await webllm.CreateMLCEngine(MODEL, { initProgressCallback: p => setProgress(p.text || '') });
+      setStatus('ready');
+    } catch (e) { setErr(e.message || 'Could not load the local model.'); setStatus('error'); }
+  }
+
+  async function predict() {
+    if (!engineRef.current || !title.trim()) return;
+    setStatus('predicting'); setResult(null); setErr('');
+    try {
+      const reply = await engineRef.current.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'You are a YouTube CTR expert. Given a video title, output ONLY a JSON object {"score": <integer 0-100>, "reason": "<max 12 words>"}. Score = predicted click-through appeal.' },
+          { role: 'user', content: 'Title: ' + title.trim() },
+        ],
+        temperature: 0.3, max_tokens: 80,
+      });
+      const txt = (reply.choices && reply.choices[0] && reply.choices[0].message.content) || '';
+      const mj = txt.match(/\{[\s\S]*\}/);
+      let parsed = null; if (mj) { try { parsed = JSON.parse(mj[0]); } catch (e) {} }
+      if (parsed && parsed.score != null) setResult({ score: Math.max(0, Math.min(100, Math.round(parsed.score))), reason: parsed.reason || '' });
+      else setResult({ score: null, reason: txt.slice(0, 120) });
+      setStatus('ready');
+    } catch (e) { setErr(e.message || 'Prediction failed.'); setStatus('error'); }
+  }
+
+  return (
+    <div style={{ marginTop: 14, border: '1px solid var(--stroke-1)', borderRadius: 12, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'var(--surface-2)', border: 'none', cursor: 'pointer', color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>
+        <span>🧠 Local AI CTR Predictor <span style={{ fontWeight: 400, color: 'var(--text-5)' }}>· runs offline in your browser, no API key</span></span>
+        <span style={{ color: 'var(--text-5)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: 14 }}>
+          {status === 'idle' && (
+            <div>
+              <p style={{ fontSize: 12.5, color: 'var(--text-3)', lineHeight: 1.5, margin: '0 0 10px' }}>
+                Downloads a small AI model (~400&nbsp;MB) <b>once</b> into your browser, then scores titles fully offline — nothing leaves your device. Needs desktop Chrome/Edge (WebGPU).
+              </p>
+              <button onClick={loadModel} disabled={!hasGPU}
+                style={{ height: 38, padding: '0 16px', borderRadius: 8, border: `1.5px solid ${m.accentFrom}`, background: m.accentFrom + '18', color: m.accentFrom, fontSize: 13, fontWeight: 700, cursor: hasGPU ? 'pointer' : 'not-allowed', opacity: hasGPU ? 1 : 0.5 }}>
+                {hasGPU ? 'Load model (~400 MB, one time)' : 'WebGPU not available in this browser'}
+              </button>
+            </div>
+          )}
+          {status === 'loading' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: 'var(--text-3)' }}>
+              <span style={{ display: 'inline-block', width: 13, height: 13, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ flex: 1 }}>{progress || 'Loading model…'}</span>
+            </div>
+          )}
+          {(status === 'ready' || status === 'predicting') && (
+            <div>
+              <button onClick={predict} disabled={status === 'predicting' || !title.trim()}
+                style={{ height: 38, padding: '0 16px', borderRadius: 8, border: `1.5px solid ${m.accentFrom}`, background: m.accentFrom + '18', color: m.accentFrom, fontSize: 13, fontWeight: 700, cursor: (status === 'predicting' || !title.trim()) ? 'not-allowed' : 'pointer', opacity: (status === 'predicting' || !title.trim()) ? 0.6 : 1 }}>
+                {status === 'predicting' ? 'Predicting…' : '⚡ Predict CTR for this title'}
+              </button>
+              {result && (
+                <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {result.score != null && (
+                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 26, color: result.score >= 70 ? '#8FD86A' : result.score >= 45 ? '#F0C85A' : '#F06A7E' }}>{result.score}</div>
+                  )}
+                  <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.45 }}>{result.reason}</div>
+                </div>
+              )}
+            </div>
+          )}
+          {status === 'error' && <div style={{ fontSize: 12.5, color: '#F06A7E', lineHeight: 1.5 }}>{err} <button className="ci-copybtn" style={{ height: 24, padding: '0 8px', fontSize: 11, marginLeft: 6 }} onClick={() => { setStatus('idle'); setErr(''); }}>Retry</button></div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Batch title ranker — paste several titles, score + rank them instantly with the
+// offline scoreTitleCTR heuristic. No API key, fully client-side.
+function BatchTitleRanker({ mood }) {
+  const m = TM[mood] || TM.cyan;
+  const [open, setOpen] = React.useState(false);
+  const [raw, setRaw] = React.useState('');
+  const scorer = window.scoreTitleCTR;
+  const ranked = React.useMemo(() => {
+    if (!scorer) return [];
+    const lines = raw.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
+    return lines
+      .map(t => { const r = scorer(t); return { title: t, score: r ? r.score : null, factors: r ? r.factors : [] }; })
+      .filter(x => x.score !== null)
+      .sort((a, b) => b.score - a.score);
+  }, [raw, scorer]);
+  const count = raw.split('\n').map(s => s.trim()).filter(Boolean).length;
+
+  return (
+    <div style={{ marginTop: 14, border: '1px solid var(--stroke-1)', borderRadius: 12, overflow: 'hidden' }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'var(--surface-2)', border: 'none', cursor: 'pointer', color: 'var(--text-2)', fontSize: 13, fontWeight: 600 }}>
+        <span>🏁 Batch Title Ranker <span style={{ fontWeight: 400, color: 'var(--text-5)' }}>· score & rank up to 8 titles instantly, offline</span></span>
+        <span style={{ color: 'var(--text-5)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding: 14 }}>
+          <textarea className="ci-input" rows={5}
+            placeholder={"Paste one title per line (up to 8):\n5 Mistakes Every Beginner Makes\nHow I Saved ₹1 Lakh in 60 Days\nThe Truth About Index Funds Nobody Tells You"}
+            value={raw} onChange={e => setRaw(e.target.value)}
+            style={{ resize: 'vertical', lineHeight: 1.6, fontSize: 13.5 }} />
+          <div style={{ fontSize: 11, color: 'var(--text-5)', marginTop: 4 }}>{count} title{count !== 1 ? 's' : ''}{count > 8 ? ' (only first 8 ranked)' : ''}</div>
+          {ranked.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              {ranked.map((r, i) => {
+                const col = r.score >= 72 ? '#8FD86A' : r.score >= 50 ? '#F0C85A' : '#F06A7E';
+                const winner = i === 0 && ranked.length > 1;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 10,
+                    background: winner ? m.accentFrom + '12' : 'var(--surface-2)', border: `1px solid ${winner ? m.accentFrom + '44' : 'var(--stroke-1)'}` }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 20, color: col, minWidth: 34, textAlign: 'center' }}>{r.score}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: winner ? 700 : 500, lineHeight: 1.4 }}>
+                        {winner && <span style={{ marginRight: 6 }}>🏆</span>}{r.title}
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 5 }}>
+                        {r.factors.slice(0, 6).map(f => (
+                          <span key={f.key} style={{ fontSize: 9.5, padding: '2px 6px', borderRadius: 999, background: f.col + '18', color: f.col, fontWeight: 600 }}>{f.label}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <CopyBlockButton text={r.title} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TitleTab({ onOpenKey }) {
   const mood = 'cyan';
   const m = TM[mood];
@@ -595,6 +750,8 @@ function TitleTab({ onOpenKey }) {
         </div>
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2800} label="Check my title"
           disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
+        <LocalCTRPredictor title={title} mood={mood} />
+        <BatchTitleRanker mood={mood} />
       </TB>
 
       {state === 'loading' && <div style={{ marginTop: 14 }}><TLR rows={3} /></div>}

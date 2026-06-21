@@ -53,6 +53,7 @@ function scoreTitleCTR(title) {
   const final = Math.max(12, Math.min(98, score));
   return { score: final, factors };
 }
+window.scoreTitleCTR = scoreTitleCTR;
 
 function TitleCTRBadge({ title }) {
   const result = React.useMemo(() => scoreTitleCTR(title), [title]);
@@ -89,6 +90,14 @@ const CAPTION_SYSTEM = [
   "• Hashtags block: YouTube (8–12 tags, NO # symbol), Instagram (20–25 tags with #), TikTok (5–7 trend tags with #).",
   "",
   "Output ONLY the submit_report tool call. No prose outside the tool.",
+  "",
+  "ANTI-AI WRITING (final filter on every caption/description — make it sound like a real person, not a fluent machine):",
+  "• Negative parallelism is the #1 tell: kill 'it's not X, it's Y' / 'less X, more Y' / 'stop X, start Y' when Y is vague. Delete the rejected half; rewrite the rest as a direct claim with a specific. Keep an A-vs-B contrast only if B is concrete (a number/instance/mechanism) and you deliver it.",
+  "• Specificity: replace category nouns with instances, adjectives with numbers. Never invent — soften if unsure.",
+  "• Cut vocab tells: delve, realm, harness, unlock, tapestry, leverage, synergy, seamless, robust, elevate, streamline, supercharge, game-changer, cutting-edge, revolutionize, transformative, intricate, crucial, pivotal, testament, foster, empower, holistic, frictionless, unparalleled, groundbreaking.",
+  "• Cut bloated verbs (serves as, stands as, marks a, plays a role in, helps to, aims to) → use is/has/uses/shows/causes. Cut dead openings ('In today's…', 'It's important to note', 'Let's dive in'), dead transitions (Furthermore, Moreover, That said), engagement bait ('Let that sink in', 'Read that again') and hype ('10x', 'future-proof').",
+  "• Avoid em dashes (use periods/commas/colons/parens); no emoji-and-hashtag spam; no rule-of-three when the real count is 2 or 4; no 'in a world where' openers; no false ranges ('from ancient to modern'). Vary sentence length. If ten other creators could have written it, find the one line only this creator would.",
+  "",
   "Use sections of type 'copy' — one section per platform, one final section for Hashtags.",
   "Each copy block should have a short label and the full ready-to-use text.",
   "Set verdict.level='green', verdict.title='Captions Ready', verdict.text=one sentence summarising what was generated.",
@@ -174,6 +183,97 @@ function SRTViewer({ srt, accentColor }) {
   );
 }
 
+// Lazy-load compromise.js and extract SEO keywords from text
+async function loadCompromise() {
+  if (window.nlp) return window.nlp;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/compromise@14.15.1/builds/compromise.js';
+    s.onload = () => resolve(window.nlp);
+    s.onerror = () => reject(new Error('Could not load NLP library'));
+    document.head.appendChild(s);
+  });
+}
+
+// Optional stopword-filtered single-word tags via keyword-extractor (esm.sh).
+let _kwExtractor = null;
+async function keywordExtractorTags(text) {
+  try {
+    if (!_kwExtractor) { const mod = await import('https://esm.sh/keyword-extractor@0.0.28'); _kwExtractor = mod.default || mod; }
+    return _kwExtractor.extract(text, { language: 'english', remove_digits: false, return_changed_case: false, remove_duplicates: true }) || [];
+  } catch (e) { return []; }
+}
+
+async function extractSEOKeywords(text) {
+  try {
+    const nlp = await loadCompromise();
+    const doc = nlp(text);
+    // Multi-word noun phrases first — these make the strongest YouTube tags
+    // (e.g. "index funds", "compound interest"). Then named topics, then nouns.
+    const phrases = doc.match('#Adjective? #Noun+').json().map(p => p.text.trim()).filter(p => p.split(/\s+/).length >= 2 && p.length > 6);
+    const topics  = doc.topics().json().map(t => t.text.trim()).filter(Boolean);
+    const nouns   = doc.nouns().json().map(n => n.text.trim()).filter(n => n.length > 3);
+    let extras = [];
+    try { extras = await keywordExtractorTags(text); } catch (e) {}
+    const seen = new Set();
+    const result = [];
+    for (const kw of [...phrases, ...topics, ...nouns, ...extras]) {
+      const k = kw.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+      if (k.length < 3 || seen.has(k)) continue;
+      seen.add(k); result.push(kw.trim());
+      if (result.length >= 14) break;
+    }
+    return result;
+  } catch (e) { return []; }
+}
+
+// Language detection via franc-min (ESM, lazy import). Returns a friendly name.
+const ISO6393_NAMES = {
+  eng: 'English', spa: 'Spanish', fra: 'French', deu: 'German', ita: 'Italian',
+  por: 'Portuguese', nld: 'Dutch', rus: 'Russian', jpn: 'Japanese', kor: 'Korean',
+  cmn: 'Chinese', arb: 'Arabic', hin: 'Hindi', ben: 'Bengali', urd: 'Urdu',
+  pan: 'Punjabi', tam: 'Tamil', tel: 'Telugu', mar: 'Marathi', guj: 'Gujarati',
+  tur: 'Turkish', vie: 'Vietnamese', ind: 'Indonesian', tha: 'Thai', pol: 'Polish',
+  ukr: 'Ukrainian', ron: 'Romanian', ell: 'Greek', heb: 'Hebrew', fas: 'Persian',
+  swe: 'Swedish', ces: 'Czech', hun: 'Hungarian', fin: 'Finnish', dan: 'Danish',
+};
+let _francMod = null;
+async function detectLanguage(text) {
+  const t = (text || '').trim();
+  if (t.length < 20) return null;
+  try {
+    if (!_francMod) _francMod = await import('https://esm.sh/franc-min@6?bundle');
+    const code = _francMod.franc(t, { minLength: 18 });
+    if (!code || code === 'und') return null;
+    return { code, name: ISO6393_NAMES[code] || code.toUpperCase() };
+  } catch (e) { return null; }
+}
+
+// Flesch readability — pure JS, no CDN (counts syllables/words/sentences).
+function countSyllables(word) {
+  word = word.toLowerCase().replace(/[^a-z]/g, '');
+  if (word.length <= 3) return word ? 1 : 0;
+  word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '').replace(/^y/, '');
+  const m = word.match(/[aeiouy]{1,2}/g);
+  return m ? m.length : 1;
+}
+function fleschReadability(text) {
+  const t = (text || '').trim();
+  if (t.length < 30) return null;
+  const sentences = (t.match(/[.!?]+(?:\s|$)/g) || []).length || 1;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 8) return null;
+  const syllables = words.reduce((a, w) => a + countSyllables(w), 0);
+  const wps = words.length / sentences, spw = syllables / words.length;
+  const ease = Math.max(0, Math.min(100, Math.round(206.835 - 1.015 * wps - 84.6 * spw)));
+  const grade = Math.max(1, Math.round(0.39 * wps + 11.8 * spw - 15.59));
+  let band, col;
+  if (ease >= 70) { band = 'Easy to read'; col = '#8FD86A'; }
+  else if (ease >= 50) { band = 'Fairly readable'; col = '#F0C85A'; }
+  else { band = 'Hard to read'; col = '#F06A7E'; }
+  return { ease, grade, band, col };
+}
+
 // Extract YouTube video ID from URLs or bare IDs
 function extractYTVideoId(s) {
   s = (s || '').trim();
@@ -239,6 +339,27 @@ function CaptionTab({ onOpenKey }) {
   const { state, report, usage, err, run, reset } = useAnalysis('caption');
   const loading = state === 'loading';
   const estIn   = window.estTokens ? window.estTokens(CAPTION_SYSTEM, title, desc, transcript) : 0;
+
+  const [keywords, setKeywords] = React.useState([]);
+  const [kwLoading, setKwLoading] = React.useState(false);
+  const [kwCopied, setKwCopied] = React.useState(null);
+  const [lang, setLang] = React.useState(null);
+
+  React.useEffect(() => {
+    const text = [title.trim(), transcript.trim()].filter(Boolean).join('. ');
+    if (text.length < 15) { setKeywords([]); setLang(null); return; }
+    setKwLoading(true);
+    const timer = setTimeout(async () => {
+      const [kw, lg] = await Promise.all([extractSEOKeywords(text), detectLanguage(text)]);
+      setKeywords(kw);
+      setLang(lg);
+      setKwLoading(false);
+    }, 900);
+    return () => { clearTimeout(timer); };
+  }, [title, transcript]);
+
+  // Readability of the key-points/summary text (instant, no CDN).
+  const readability = React.useMemo(() => fleschReadability(desc), [desc]);
 
   const PLATFORMS = [
     { id: 'youtube',   label: 'YouTube',   col: '#FF0000' },
@@ -332,7 +453,8 @@ function CaptionTab({ onOpenKey }) {
             </div>
             <input className="ci-input" style={{ fontSize: 15 }}
               placeholder="e.g. I invested ₹50,000 in index funds for 1 year — here's what happened"
-              value={title} onChange={e => { setTitle(e.target.value); reset(); }} />
+              value={title} onChange={e => { setTitle(e.target.value); reset(); }}
+              onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate(); }} />
             <TitleCTRBadge title={title} />
           </label>
 
@@ -343,7 +465,16 @@ function CaptionTab({ onOpenKey }) {
             <textarea className="ci-input" rows={3}
               placeholder="Key topics, takeaways, moments — the more you give, the better the captions"
               value={desc} onChange={e => { setDesc(e.target.value); reset(); }}
+              onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate(); }}
               style={{ resize: 'vertical', lineHeight: 1.55 }} />
+            {readability && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                <span style={{ fontSize: 10.5, padding: '3px 8px', borderRadius: 999, background: readability.col + '18', color: readability.col, fontWeight: 700, border: `1px solid ${readability.col}33` }}>
+                  📖 {readability.band}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-5)' }}>Flesch {readability.ease} · grade {readability.grade}</span>
+              </div>
+            )}
           </label>
 
           {/* Transcript toggle */}
@@ -381,6 +512,7 @@ function CaptionTab({ onOpenKey }) {
                     <textarea className="ci-input" rows={8}
                       placeholder={"Paste your full video script or transcript here.\n\nClaude will extract real hooks, key moments, and specific points to build captions that match your actual content — not just the title."}
                       value={transcript} onChange={e => { setTranscript(e.target.value); setSrtSegments(null); reset(); }}
+                      onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate(); }}
                       style={{ resize: 'vertical', lineHeight: 1.6, fontFamily: 'var(--font-mono)', fontSize: 12.5 }} />
                     {transcriptWords > 0 && (
                       <span style={{ fontSize: 11, color: 'var(--text-5)', display: 'block', textAlign: 'right', marginTop: 4 }}>
@@ -487,10 +619,36 @@ function CaptionTab({ onOpenKey }) {
           </div>
         </div>
 
+        {(keywords.length > 0 || kwLoading) && (
+          <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--stroke-1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.07em' }}>SEO Keywords</span>
+              {kwLoading && <span style={{ display: 'inline-block', width: 10, height: 10, border: '1.5px solid var(--text-4)', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+              {lang && <span style={{ fontSize: 10.5, padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)', color: 'var(--text-3)', fontWeight: 600 }}>🌐 {lang.name}</span>}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {keywords.map((kw, i) => (
+                <button key={i} onClick={() => {
+                  window.copyText ? window.copyText(kw) : navigator.clipboard.writeText(kw).catch(() => {});
+                  setKwCopied(i); setTimeout(() => setKwCopied(c => c === i ? null : c), 1200);
+                }}
+                  style={{ height: 28, padding: '0 10px', borderRadius: 999,
+                    border: `1px solid ${m.accentFrom}33`, background: kwCopied === i ? m.accentFrom + '25' : m.accentFrom + '10',
+                    color: kwCopied === i ? m.accentFrom : 'var(--text-2)',
+                    fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}>
+                  {kwCopied === i ? '✓ ' : ''}{kw}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-5)' }}>Click any keyword to copy • Use these in your tags and description</div>
+          </div>
+        )}
+
         <div style={{ marginTop: 20 }}>
           <AnalyzeButton mood={mood} label="Generate captions" loading={loading}
             estIn={estIn} estOut={2200} onClick={generate}
             disabled={!title.trim()} disabledHint="Enter a video title first" />
+          {title.trim() && <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-5)', textAlign: 'center' }}>Ctrl+Enter to generate</div>}
         </div>
       </div>
 

@@ -45,6 +45,62 @@ verdict.text sentence 1 = biggest genuine strength with actual data. sentence 2 
 bottomLine ONE specific video to make this week — topic, hook type, format, posting day.`;
 
 
+// GitHub-style posting calendar heatmap (ECharts, lazy CDN). Colors each day by
+// total views of videos published that day — reveals cadence and best days.
+function PostingCalendar({ videos, mood }) {
+  const ref = React.useRef(null);
+  const chartRef = React.useRef(null);
+  const m = MOODS[mood] || MOODS.lime;
+  React.useEffect(() => {
+    if (!videos || videos.length < 2) return;
+    let disposed = false;
+    (async () => {
+      try {
+        await window.loadScriptOnce('https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js', 'echarts');
+        if (disposed || !ref.current || !window.echarts) return;
+        const byDay = {}; let maxV = 1;
+        for (const v of videos) {
+          const d = new Date(v.published);
+          if (isNaN(d.getTime())) continue;
+          const ymd = d.toISOString().slice(0, 10);
+          byDay[ymd] = (byDay[ymd] || 0) + (parseInt(v.viewCount || '0', 10) || 0);
+          if (byDay[ymd] > maxV) maxV = byDay[ymd];
+        }
+        const data = Object.entries(byDay).map(([d, val]) => [d, val]);
+        if (data.length < 2) return;
+        const dates = data.map(d => d[0]).sort();
+        const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+        const chart = window.echarts.init(ref.current, null, { renderer: 'canvas' });
+        chartRef.current = chart;
+        chart.setOption({
+          tooltip: { formatter: p => `${p.value[0]}<br/>${Number(p.value[1]).toLocaleString()} views` },
+          visualMap: { min: 0, max: maxV, type: 'continuous', orient: 'horizontal', left: 'center', bottom: 0,
+            inRange: { color: [isDark ? '#1c2a1c' : '#e8f5e0', m.accentFrom] }, textStyle: { color: isDark ? '#888' : '#555', fontSize: 10 } },
+          calendar: { top: 24, left: 32, right: 12, cellSize: ['auto', 15], range: [dates[0], dates[dates.length - 1]],
+            itemStyle: { color: isDark ? '#15151a' : '#fafafa', borderColor: isDark ? '#26262e' : '#eee', borderWidth: 1 },
+            splitLine: { lineStyle: { color: isDark ? '#333' : '#ddd' } },
+            dayLabel: { color: isDark ? '#888' : '#666', fontSize: 10 }, monthLabel: { color: isDark ? '#aaa' : '#444', fontSize: 10 }, yearLabel: { show: false } },
+          series: { type: 'heatmap', coordinateSystem: 'calendar', data },
+        });
+        const onResize = () => chart.resize();
+        window.addEventListener('resize', onResize);
+        chart._onResize = onResize;
+      } catch (e) {}
+    })();
+    return () => {
+      disposed = true;
+      if (chartRef.current) { if (chartRef.current._onResize) window.removeEventListener('resize', chartRef.current._onResize); try { chartRef.current.dispose(); } catch (e) {} chartRef.current = null; }
+    };
+  }, [videos]);
+  if (!videos || videos.length < 2) return null;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>Posting Calendar — views by day</div>
+      <div ref={ref} style={{ width: '100%', height: 170 }} />
+    </div>
+  );
+}
+
 function AuditTab({ onOpenKey }) {
   const mood = 'lime';
   const m = MOODS[mood] || MOODS.burgundy;
@@ -62,6 +118,8 @@ function AuditTab({ onOpenKey }) {
   const loading = state === 'loading';
 
   const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';
+  const rapidKey = window.getRapidAPIKey ? window.getRapidAPIKey() : '';
+  const canFetch = !!ytKey || !!rapidKey;
 
   async function fetchChannel() {
     if (!handle.trim()) return;
@@ -125,9 +183,9 @@ function AuditTab({ onOpenKey }) {
 
       <div className="ci-block" style={{ padding: 24, marginTop: 24 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {!ytKey && (
+          {!canFetch && (
             <div style={{ padding: '12px 16px', borderRadius: 10, background: 'rgba(240,200,90,0.08)', border: '1px solid rgba(240,200,90,0.3)', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
-              <b style={{ color: '#F0C85A' }}>YouTube API key needed</b> — add it in Settings → Platform Data tab to auto-fetch any channel.{' '}
+              <b style={{ color: '#F0C85A' }}>YouTube or RapidAPI key needed</b> — add either in Settings → Platform Data tab to auto-fetch any channel.{' '}
               <button className="ci-copybtn" style={{ height: 28, padding: '0 10px', fontSize: 12, marginLeft: 8 }} onClick={onOpenKey}>Open Settings</button>
             </div>
           )}
@@ -136,10 +194,10 @@ function AuditTab({ onOpenKey }) {
             <div style={{ display: 'flex', gap: 8 }}>
               <input className="ci-input" placeholder="@YourChannel or youtube.com/@YourChannel"
                 value={handle} onChange={e => { setHandle(e.target.value); setFetchState('idle'); setChannelInfo(null); setTitles(''); reset(); }}
-                onKeyDown={e => { if (e.key === 'Enter' && ytKey) fetchChannel(); }}
+                onKeyDown={e => { if (e.key === 'Enter' && canFetch) fetchChannel(); }}
                 style={{ flex: 1 }} />
               <GlowButton mood={mood} onClick={fetchChannel}
-                style={{ whiteSpace: 'nowrap', opacity: (!handle.trim() || !ytKey || fetchState === 'fetching') ? 0.5 : 1 }}>
+                style={{ whiteSpace: 'nowrap', opacity: (!handle.trim() || !canFetch || fetchState === 'fetching') ? 0.5 : 1 }}>
                 {fetchState === 'fetching' ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderRightColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -183,6 +241,7 @@ function AuditTab({ onOpenKey }) {
                     {metrics.shorts > 0 && <span style={{ fontSize: 12, color: '#5CD9A0', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>Shorts: {metrics.shorts}</span>}
                     {metrics.longs > 0 && <span style={{ fontSize: 12, color: '#F0C85A', padding: '3px 8px', borderRadius: 999, background: 'var(--surface-2)' }}>Long-form: {metrics.longs}</span>}
                   </div>
+                  <PostingCalendar videos={videoData} mood={mood} />
                 </>
               )}
             </div>
@@ -202,6 +261,24 @@ function AuditTab({ onOpenKey }) {
         <div style={{ marginTop: 24 }}>
           <ReportView report={report} mood={mood} />
           {usage && <UsageBadge usage={usage} />}
+          <div style={{ marginTop: 20, display: 'flex', justifyContent: 'center' }}>
+            <button
+              onClick={() => {
+                const tip = report?.bottomLine || '';
+                const channel = channelInfo?.name || handle.trim();
+                // Seed the Script tab's create mode with the audit's recommended video.
+                // ScriptTab reads window.__ciScriptTopic on mount (same pattern as Builder→Script).
+                if (tip) window.__ciScriptTopic = channel ? `${tip}\n\n(From audit of ${channel})` : tip;
+                if (window.__CI_NAV__) window.__CI_NAV__('script');
+              }}
+              style={{ height: 44, padding: '0 24px', borderRadius: 10, border: `1.5px solid ${m.accentFrom}`,
+                background: m.accentFrom + '15', color: m.accentFrom, fontSize: 13.5, fontWeight: 700,
+                cursor: 'pointer', letterSpacing: '.01em', transition: 'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = m.accentFrom + '25'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = m.accentFrom + '15'; }}>
+              → Plan Scripts from This Audit
+            </button>
+          </div>
         </div>
       )}
     </div>
