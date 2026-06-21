@@ -43,6 +43,19 @@ Legend: ✅ = auto-verified headlessly in this environment · 🔎 = needs your 
 - 🔎 **RapidAPI key** — Settings → Platform Data → paste a RapidAPI key (no Google key needed). Then Channel Audit / Comments should fetch via youtube-v31.
   **COULD NOT auto-verify here** — needs a real RapidAPI key + live network. Note: a browser key is visible to site visitors → personal use only.
 
+## Free AI providers — which actually work in a browser-only app (IMPORTANT)
+Researched 11 providers. Most block direct browser calls (CORS) and need a backend the app doesn't have.
+- ✅ **Groq** and ✅ **OpenRouter** — confirmed CORS-open, guaranteed to work free. **These are your safety net.**
+- ⭐ **Gemini** (r34) — very likely works (this app already calls Gemini from the browser for fact-checking), but technically confirm with your key.
+- 🧪 **Cerebras** (r35) — experimental; CORS unverified. Test it; if it errors, fall back to the above.
+- ❌ Cohere, NVIDIA, Perplexity, SambaNova, Hugging Face, Cloudflare, GitHub Models — all need a proxy/backend, NOT added.
+
+## r35 — Cerebras as an experimental free provider 🧪
+- ✅ **Wiring verified** (mocked response): Settings → Analysis → **"Cerebras (experimental)"** button + a Cerebras key field in Platform Data.
+- 🔎 **Test tomorrow**: add a free Cerebras key (cloud.cerebras.ai), pick Cerebras, run "Check my title".
+  - If it works: free 1M tokens/day, very fast. If it errors with "may block direct browser calls (CORS)" → expected; switch to Gemini/Groq.
+  - Note: free context ~8K tokens, so long Channel Audits may not fit — use it for Titles/Captions/Comments.
+
 ## r34 — Google Gemini as a FREE analysis provider ⭐
 - ✅ **Wiring verified** (mocked Gemini response): Settings → Analysis tab now has a **"Google Gemini 2.0 Flash · Free"** provider button. Selecting it routes ALL AI features (Title, Script, Caption, Audit, Comments, Ideas, etc.) through Gemini using the Google key you already added — **no per-request cost**.
 - 🔎 **Test with your real key tomorrow**: Settings → Analysis → pick **Google Gemini** → run any tool (e.g. "Check my title"). It should return a real report for free.

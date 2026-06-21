@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r34";
+window.CI_BUILD = "2026-06-20-r35";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -99,6 +99,11 @@ const setOpenAIKeyLS = (k) => { try { k ? localStorage.setItem(LS_OPENAI, k) : l
 const LS_GROQ = "ci_groq_key";
 const getGroqKey   = () => { try { return localStorage.getItem(LS_GROQ) || ""; } catch (e) { return ""; } };
 const setGroqKeyLS = (k) => { try { k ? localStorage.setItem(LS_GROQ, k) : localStorage.removeItem(LS_GROQ); } catch (e) {} };
+// Cerebras — free tier (1M tokens/day), OpenAI-compatible, extremely fast. Browser
+// CORS is unverified (test in-browser); fails gracefully with a clear message if blocked.
+const LS_CEREBRAS = "ci_cerebras_key";
+const getCerebrasKey   = () => { try { return localStorage.getItem(LS_CEREBRAS) || ""; } catch (e) { return ""; } };
+const setCerebrasKeyLS = (k) => { try { k ? localStorage.setItem(LS_CEREBRAS, k) : localStorage.removeItem(LS_CEREBRAS); } catch (e) {} };
 // OpenRouter key -- 400+ models, many completely free (e.g. meta-llama/llama-3.3-70b-instruct:free).
 const LS_OPENROUTER = "ci_openrouter_key";
 const LS_OPENROUTER_MODEL = "ci_openrouter_model";
@@ -161,6 +166,7 @@ function canRunAnalysis() {
   if (prov === 'groq') return !!getGroqKey();
   if (prov === 'openrouter') return !!getOpenRouterKey();
   if (prov === 'gemini') return !!getGoogleKey() || !!getProxyUrl();
+  if (prov === 'cerebras') return !!getCerebrasKey();
   return canRun();
 }
 
@@ -1131,7 +1137,7 @@ function useAnalysis(type, opts = {}) {
     setErr(""); setReport(null); setUsage(null); setSources(null); setState("loading");
     const prov = getProvider();
     if (!canRunAnalysis()) {
-      if (hasSandbox() && !['groq', 'openrouter', 'gemini'].includes(prov)) {
+      if (hasSandbox() && !['groq', 'openrouter', 'gemini', 'cerebras'].includes(prov)) {
         // Inside a Claude artifact — show placeholder after brief delay
         const tid = setTimeout(() => { if (mountedRef.current) setState("done"); }, 850);
         return () => clearTimeout(tid);
@@ -1142,7 +1148,9 @@ function useAnalysis(type, opts = {}) {
           ? "Add an OpenRouter API key in Settings → Platform Data to use this provider."
           : prov === 'gemini'
             ? "Add a Google Gemini API key in Settings → Platform Data to use free AI analysis."
-            : "No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
+            : prov === 'cerebras'
+              ? "Add a Cerebras API key in Settings → Platform Data to use free AI analysis."
+              : "No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
       setState("error");
       return;
     }
@@ -1153,7 +1161,9 @@ function useAnalysis(type, opts = {}) {
           ? await callOpenRouterAnalysis({ system: system || buildSystem(type), userText, maxTokens })
           : prov === 'gemini'
             ? await callGeminiAnalysis({ system: system || buildSystem(type), userText, maxTokens })
-            : await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
+            : prov === 'cerebras'
+              ? await callCerebrasAnalysis({ system: system || buildSystem(type), userText, maxTokens })
+              : await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
         const body = (text || "").trim();
@@ -1187,7 +1197,7 @@ function useAnalysis(type, opts = {}) {
           report: json });
       } catch (e) {}
     } catch (e) {
-      if (["NO_KEY", "NO_GROQ_KEY", "NO_OPENROUTER_KEY", "NO_GOOGLE_KEY"].includes(String(e.message))) { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
+      if (["NO_KEY", "NO_GROQ_KEY", "NO_OPENROUTER_KEY", "NO_GOOGLE_KEY", "NO_CEREBRAS_KEY"].includes(String(e.message))) { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
@@ -1203,7 +1213,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
   const _prov = getProvider();
   const isGroq = _prov === 'groq';
   const isGemini = _prov === 'gemini';
-  const isFree = isGroq || _prov === 'openrouter' || isGemini;
+  const isCerebras = _prov === 'cerebras';
+  const isFree = isGroq || _prov === 'openrouter' || isGemini || isCerebras;
   const cost = isFree ? 0 : estCost(inTok, outTok, model);
   const hasKey = !!getKey();
   const free = !hasKey && hasSandbox(); // free Claude preview AI
@@ -1226,7 +1237,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
         {disabled && disabledHint
           ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span>
           : isFree
-            ? <span style={{ color: "#8FD86A" }}>{isGroq ? "Free — Groq Llama 3.3 70B" : isGemini ? "Free — Google Gemini 2.0 Flash" : "Free — OpenRouter " + getOpenRouterModel().split('/').pop()}</span>
+            ? <span style={{ color: "#8FD86A" }}>{isGroq ? "Free — Groq Llama 3.3 70B" : isGemini ? "Free — Google Gemini 2.0 Flash" : isCerebras ? "Free — Cerebras Llama 3.3 70B (experimental)" : "Free — OpenRouter " + getOpenRouterModel().split('/').pop()}</span>
             : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(outTok)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · live</span>}
         {!isFree && !hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
@@ -1240,7 +1251,7 @@ function UsageBadge({ usage, model }) {
   if (!usage) return null;
   const inT = usage.input_tokens || 0, outT = usage.output_tokens || 0;
   const _ubProv = getProvider();
-  const costStr = _ubProv === 'groq' ? "free (Groq)" : _ubProv === 'openrouter' ? "free (OpenRouter)" : _ubProv === 'gemini' ? "free (Gemini)" : "~" + fmtCost(estCost(inT, outT, model));
+  const costStr = _ubProv === 'groq' ? "free (Groq)" : _ubProv === 'openrouter' ? "free (OpenRouter)" : _ubProv === 'gemini' ? "free (Gemini)" : _ubProv === 'cerebras' ? "free (Cerebras)" : "~" + fmtCost(estCost(inT, outT, model));
   return (
     <div className="ci-usage">
       ✓ Real analysis · used {fmtTokens(inT)} in + {fmtTokens(outT)} out = <b>{fmtTokens(inT + outT)} tokens</b> · {costStr}
@@ -1938,6 +1949,47 @@ async function transcribeWithGroq(file, groqKey) {
 
 // Analysis via Groq (free tier — Llama 3.3 70B, OpenAI-compatible).
 // Returns { text, usage } in the same shape as callClaudeOnce so useAnalysis can swap providers.
+// Analysis via Cerebras (free 1M tokens/day, OpenAI-compatible, very fast).
+// Browser CORS is unverified — if blocked, the fetch throws and we surface a clear
+// message pointing the user to Gemini/Groq instead. Returns { text, usage }.
+async function callCerebrasAnalysis({ system, userText, maxTokens = 1800 }) {
+  const key = getCerebrasKey();
+  if (!key) throw new Error("NO_CEREBRAS_KEY");
+  const tool = { type: "function", function: { name: REPORT_TOOL.name, description: REPORT_TOOL.description, parameters: REPORT_TOOL.input_schema } };
+  const messages = [...(system ? [{ role: "system", content: system }] : []), { role: "user", content: userText }];
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 900 * Math.pow(2, attempt - 1) + Math.random() * 400));
+    let res;
+    try {
+      res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+        method: "POST",
+        headers: { "content-type": "application/json", "Authorization": "Bearer " + key },
+        body: JSON.stringify({ model: "llama-3.3-70b", max_tokens: maxTokens, messages, tools: [tool], tool_choice: { type: "function", function: { name: "submit_report" } } }),
+      });
+    } catch (e) { throw new Error("Couldn't reach Cerebras — it may block direct browser calls (CORS). Try Gemini or Groq instead."); }
+    if (res.status === 429) { lastErr = new Error("Cerebras rate limit hit. Wait a moment and try again."); continue; }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) throw new Error("Cerebras key rejected — check it in Settings → Platform Data.");
+      throw new Error((err.error && err.error.message) || ("Cerebras request failed (" + res.status + ")."));
+    }
+    const data = await res.json();
+    const msg = ((data.choices || [])[0] || {}).message || {};
+    const toolCall = (msg.tool_calls || [])[0];
+    const text = toolCall ? toolCall.function.arguments : (msg.content || "");
+    const gu = data.usage || {};
+    const usage = gu.prompt_tokens ? { input_tokens: gu.prompt_tokens, output_tokens: gu.completion_tokens || 0 } : null;
+    if (usage) {
+      window.CI_SESSION_USAGE.in  += usage.input_tokens;
+      window.CI_SESSION_USAGE.out += usage.output_tokens;
+      try { window.dispatchEvent(new Event('ci-usage-update')); } catch (e) {}
+    }
+    return { text, usage };
+  }
+  throw lastErr || new Error("Cerebras request failed after retries.");
+}
+
 async function callGroqAnalysis({ system, userText, maxTokens = 1800 }) {
   const groqKey = getGroqKey();
   if (!groqKey) throw new Error("NO_GROQ_KEY");
@@ -2108,16 +2160,17 @@ function KeyModal({ open, onClose }) {
   const [ytKey, setYtKey] = React.useState(() => { const k = getYouTubeKey ? getYouTubeKey() : ''; return k === '__proxy__' ? '' : k; });
   const [rapidKey, setRapidKey] = React.useState(getRapidAPIKey ? getRapidAPIKey() : '');
   const [groqKey, setGroqKey] = React.useState(getGroqKey ? getGroqKey() : '');
+  const [cerebrasKey, setCerebrasKey] = React.useState(getCerebrasKey ? getCerebrasKey() : '');
   const [orKey, setOrKey]     = React.useState(getOpenRouterKey ? getOpenRouterKey() : '');
   const [orModel, setOrModel] = React.useState(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL);
   const [provider, setProvider] = React.useState(getProvider());
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
   const [section, setSection] = React.useState(saasMode ? "image" : "analysis");
   React.useEffect(() => {
-    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setRapidKey(getRapidAPIKey ? getRapidAPIKey() : ''); setGroqKey(getGroqKey ? getGroqKey() : ''); setOrKey(getOpenRouterKey ? getOpenRouterKey() : ''); setOrModel(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL); setProvider(getProvider()); }
+    if (open) { setKey(getKey()); setGkey(getGoogleKey()); setOkey(getOpenAIKey()); setNvkey(getNvidiaKey()); setRvkey(getReveKey()); setProxy(getProxyUrl()); setModel(getModel()); setWebSearch(getWebSearch()); const yk = getYouTubeKey ? getYouTubeKey() : ''; setYtKey(yk === '__proxy__' ? '' : yk); setRapidKey(getRapidAPIKey ? getRapidAPIKey() : ''); setGroqKey(getGroqKey ? getGroqKey() : ''); setCerebrasKey(getCerebrasKey ? getCerebrasKey() : ''); setOrKey(getOpenRouterKey ? getOpenRouterKey() : ''); setOrModel(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL); setProvider(getProvider()); }
   }, [open]);
   if (!open) return null;
-  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setRapidAPIKeyLS(rapidKey.trim()); setGroqKeyLS(groqKey.trim()); setOpenRouterKeyLS(orKey.trim()); setOpenRouterModelLS(orModel.trim()); setProviderLS(provider); onClose(true); }
+  function save() { setKeyLS(key.trim()); setGoogleKeyLS(gkey.trim()); setOpenAIKeyLS(okey.trim()); setNvidiaKeyLS(nvkey.trim()); setReveKeyLS(rvkey.trim()); setProxyUrlLS(proxy.trim()); setModelLS(model); setWebSearchLS(webSearch); if (!saasMode && ytKey.trim()) setYouTubeKeyLS(ytKey.trim()); setRapidAPIKeyLS(rapidKey.trim()); setGroqKeyLS(groqKey.trim()); setCerebrasKeyLS(cerebrasKey.trim()); setOpenRouterKeyLS(orKey.trim()); setOpenRouterModelLS(orModel.trim()); setProviderLS(provider); onClose(true); }
   function clear() { setKeyLS(""); setKey(""); }
 
   const TabBtn = ({ id, label }) => (
@@ -2150,6 +2203,7 @@ function KeyModal({ open, onClose }) {
               { id: "gemini",      label: "Google Gemini 2.0 Flash", desc: "Free · generous quota" },
               { id: "groq",        label: "Groq — Llama 3.3 70B", desc: "Free · fast" },
               { id: "openrouter",  label: "OpenRouter", desc: "400+ models · many free" },
+              { id: "cerebras",    label: "Cerebras (experimental)", desc: "Free · 1M tok/day · may need test" },
             ].map(p => (
               <button key={p.id} onClick={() => setProvider(p.id)} style={{
                 flex: "1 0 120px", padding: "10px 12px", borderRadius: 10, border: "1px solid",
@@ -2182,6 +2236,13 @@ function KeyModal({ open, onClose }) {
               Uses your Google Gemini key (the same one in the Platform Data tab).{" "}
               <button className="ci-copybtn" style={{ height: 26, padding: "0 10px", fontSize: 11, marginLeft: 4 }} onClick={() => setSection("platforms")}>Platform Data →</button>
               {!gkey && <div style={{ marginTop: 8, color: "#F0C85A", fontSize: 12.5 }}>⚠ No Google Gemini key found — add it in Platform Data. Get one free at aistudio.google.com/apikey</div>}
+            </div>
+          ) : provider === "cerebras" ? (
+            <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(240,200,90,0.06)", border: "1px solid rgba(240,200,90,0.25)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6 }}>
+              <b style={{ color: "#F0C85A" }}>Experimental — Cerebras</b> — free 1M tokens/day, very fast (Llama 3.3 70B).<br />
+              <span style={{ color: "var(--text-3)" }}>It may block direct browser calls (CORS). Run a tool once — if it errors with a connection message, switch back to Gemini or Groq. Free context is ~8K tokens, so long Channel Audits may not fit.</span>{" "}
+              <button className="ci-copybtn" style={{ height: 26, padding: "0 10px", fontSize: 11, marginLeft: 4 }} onClick={() => setSection("platforms")}>Platform Data →</button>
+              {!cerebrasKey && <div style={{ marginTop: 8, color: "#F0C85A", fontSize: 12.5 }}>⚠ No Cerebras key found — add it in Platform Data. Get one free at cloud.cerebras.ai</div>}
             </div>
           ) : <>
             <label className="ci-label">Anthropic API key</label>
@@ -2269,6 +2330,13 @@ function KeyModal({ open, onClose }) {
             <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>console.groq.com</a>.
           </div>
 
+          <label className="ci-label" style={{ marginTop: 18 }}>Cerebras API key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(free 1M tok/day — experimental)</span></label>
+          <input className="ci-input" type="password" value={cerebrasKey} onChange={e => setCerebrasKey(e.target.value)} placeholder="csk-..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+            Very fast free analysis (select Cerebras in the Analysis tab). <b>Experimental</b> — may be blocked by browser CORS; if a tool errors with a connection message, use Gemini/Groq. Free key at{" "}
+            <a href="https://cloud.cerebras.ai" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>cloud.cerebras.ai</a>.
+          </div>
+
           <label className="ci-label" style={{ marginTop: 18 }}>OpenRouter API key <span style={{ color: "var(--text-4)", fontWeight: 400 }}>(400+ models, many free)</span></label>
           <input className="ci-input" type="password" value={orKey} onChange={e => setOrKey(e.target.value)} placeholder="sk-or-..." style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
           <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
@@ -2304,6 +2372,7 @@ Object.assign(window, {
   getRapidAPIKey, setRapidAPIKeyLS,
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
   getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
+  getCerebrasKey, setCerebrasKeyLS, callCerebrasAnalysis,
   getOpenRouterKey, setOpenRouterKeyLS, getOpenRouterModel, setOpenRouterModelLS, callOpenRouterAnalysis,
   callGeminiAnalysis,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
