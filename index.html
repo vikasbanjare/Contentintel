@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r33";
+window.CI_BUILD = "2026-06-20-r34";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2429,6 +2429,7 @@ function canRunAnalysis() {
   const prov = getProvider();
   if (prov === 'groq') return !!getGroqKey();
   if (prov === 'openrouter') return !!getOpenRouterKey();
+  if (prov === 'gemini') return !!getGoogleKey() || !!getProxyUrl();
   return canRun();
 }
 
@@ -3399,7 +3400,7 @@ function useAnalysis(type, opts = {}) {
     setErr(""); setReport(null); setUsage(null); setSources(null); setState("loading");
     const prov = getProvider();
     if (!canRunAnalysis()) {
-      if (hasSandbox() && !['groq', 'openrouter'].includes(prov)) {
+      if (hasSandbox() && !['groq', 'openrouter', 'gemini'].includes(prov)) {
         // Inside a Claude artifact — show placeholder after brief delay
         const tid = setTimeout(() => { if (mountedRef.current) setState("done"); }, 850);
         return () => clearTimeout(tid);
@@ -3408,7 +3409,9 @@ function useAnalysis(type, opts = {}) {
         ? "Add a Groq API key in Settings → Platform Data to use free AI analysis."
         : prov === 'openrouter'
           ? "Add an OpenRouter API key in Settings → Platform Data to use this provider."
-          : "No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
+          : prov === 'gemini'
+            ? "Add a Google Gemini API key in Settings → Platform Data to use free AI analysis."
+            : "No API key found. Open Settings (the key icon) and add your Claude API key to use this tool.");
       setState("error");
       return;
     }
@@ -3417,7 +3420,9 @@ function useAnalysis(type, opts = {}) {
         ? await callGroqAnalysis({ system: system || buildSystem(type), userText, maxTokens })
         : prov === 'openrouter'
           ? await callOpenRouterAnalysis({ system: system || buildSystem(type), userText, maxTokens })
-          : await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
+          : prov === 'gemini'
+            ? await callGeminiAnalysis({ system: system || buildSystem(type), userText, maxTokens })
+            : await callClaude({ system: system || buildSystem(type), userText, image, images, maxTokens, temperature: 0.4, forceJson: true });
       let json = parseReport(text);
       if (!json || typeof json !== "object") {
         const body = (text || "").trim();
@@ -3451,7 +3456,7 @@ function useAnalysis(type, opts = {}) {
           report: json });
       } catch (e) {}
     } catch (e) {
-      if (["NO_KEY", "NO_GROQ_KEY", "NO_OPENROUTER_KEY"].includes(String(e.message))) { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
+      if (["NO_KEY", "NO_GROQ_KEY", "NO_OPENROUTER_KEY", "NO_GOOGLE_KEY"].includes(String(e.message))) { setTimeout(() => { if (mountedRef.current) setState("done"); }, 600); return; }
       setErr(e.message || "Something went wrong."); setState("error");
     }
   }
@@ -3466,7 +3471,8 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
   const total = inTok + outTok;
   const _prov = getProvider();
   const isGroq = _prov === 'groq';
-  const isFree = isGroq || _prov === 'openrouter';
+  const isGemini = _prov === 'gemini';
+  const isFree = isGroq || _prov === 'openrouter' || isGemini;
   const cost = isFree ? 0 : estCost(inTok, outTok, model);
   const hasKey = !!getKey();
   const free = !hasKey && hasSandbox(); // free Claude preview AI
@@ -3481,7 +3487,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
           </>
         ) : (
           <>
-            {label} <span style={{ opacity: 0.7, fontWeight: 500 }}>{isGroq ? "· free" : `· ~${fmtTokens(total)} tokens`}</span> →
+            {label} <span style={{ opacity: 0.7, fontWeight: 500 }}>{isFree ? "· free" : `· ~${fmtTokens(total)} tokens`}</span> →
           </>
         )}
       </GlowButton>
@@ -3489,7 +3495,7 @@ function AnalyzeButton({ mood, onClick, loading, estIn, estOut, label = "Analyze
         {disabled && disabledHint
           ? <span style={{ color: "#F0C85A" }}>{disabledHint}</span>
           : isFree
-            ? <span style={{ color: "#8FD86A" }}>{isGroq ? "Free — Groq Llama 3.3 70B" : "Free — OpenRouter " + getOpenRouterModel().split('/').pop()}</span>
+            ? <span style={{ color: "#8FD86A" }}>{isGroq ? "Free — Groq Llama 3.3 70B" : isGemini ? "Free — Google Gemini 2.0 Flash" : "Free — OpenRouter " + getOpenRouterModel().split('/').pop()}</span>
             : <>est. {fmtTokens(inTok)} in + ~{fmtTokens(outTok)} out · ~{fmtCost(cost)}</>}
         {free && <span style={{ color: "var(--text-4)" }}> · live</span>}
         {!isFree && !hasKey && !free && !(typeof window !== 'undefined' && window.CI_SESSION && (window.CI_SAAS||{}).workerUrl) && <span style={{ color: "var(--text-4)" }}> · preview — connect a key for live results</span>}
@@ -3503,7 +3509,7 @@ function UsageBadge({ usage, model }) {
   if (!usage) return null;
   const inT = usage.input_tokens || 0, outT = usage.output_tokens || 0;
   const _ubProv = getProvider();
-  const costStr = _ubProv === 'groq' ? "free (Groq)" : _ubProv === 'openrouter' ? "free (OpenRouter)" : "~" + fmtCost(estCost(inT, outT, model));
+  const costStr = _ubProv === 'groq' ? "free (Groq)" : _ubProv === 'openrouter' ? "free (OpenRouter)" : _ubProv === 'gemini' ? "free (Gemini)" : "~" + fmtCost(estCost(inT, outT, model));
   return (
     <div className="ci-usage">
       ✓ Real analysis · used {fmtTokens(inT)} in + {fmtTokens(outT)} out = <b>{fmtTokens(inT + outT)} tokens</b> · {costStr}
@@ -4304,6 +4310,59 @@ async function callOpenRouterAnalysis({ system, userText, maxTokens = 1800 }) {
   throw lastErr || new Error("OpenRouter request failed after retries.");
 }
 
+// Analysis via Google Gemini (generous free tier, browser-CORS supported with an
+// AI Studio key). Uses JSON output mode and returns { text, usage } like the others.
+async function callGeminiAnalysis({ system, userText, maxTokens = 1800 }) {
+  const key = getGoogleKey();
+  const proxy = getProxyUrl();
+  if (!key && !proxy) throw new Error("NO_GOOGLE_KEY");
+  const mdl = "gemini-2.0-flash";
+  // Gemini's strict function-calling schema rejects open-ended objects (our
+  // sections[] items), so use JSON output mode + an explicit shape instruction.
+  const sysJson = (system || "") +
+    "\n\nIMPORTANT: Respond with ONLY a single minified JSON object — no markdown fences, no prose, no tool wrapper. " +
+    "It must contain: verdict {level (green|yellow|red), title, text}, overall (0-100 number), " +
+    "scores (array of {name, score, why}), sections (array of {type, ...} using the section types described above), " +
+    "bottomLine (string), and winner {pick, label, why} only when comparing two options.";
+  const payload = {
+    systemInstruction: { parts: [{ text: sysJson }] },
+    contents: [{ role: "user", parts: [{ text: userText }] }],
+    generationConfig: { responseMimeType: "application/json", maxOutputTokens: maxTokens, temperature: 0.4 },
+  };
+  const doFetch = async () => {
+    if (key) return fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent`, {
+      method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": key }, body: JSON.stringify(payload),
+    });
+    try { return await fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) }); }
+    catch (e) { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + ")."); }
+  };
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    try { res = await doFetch(); } catch (e) { if (String(e.message) === "NO_GOOGLE_KEY") throw e; throw new Error("Couldn't reach Gemini (network error). Check your connection."); }
+    if (res.ok) break;
+    if ((res.status === 429 || res.status === 500 || res.status === 503) && attempt < 2) {
+      await new Promise(r => setTimeout(r, 900 * Math.pow(2, attempt) + Math.random() * 400));
+      continue;
+    }
+    let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
+    if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid — check it in Settings → Platform Data.");
+    if (res.status === 429) throw new Error("Gemini free-tier rate limit hit. Wait a moment and try again.");
+    throw new Error(detail || ("Gemini request failed (" + res.status + ")."));
+  }
+  const data = await res.json();
+  const cand = (data.candidates || [])[0] || {};
+  const parts = ((cand.content || {}).parts) || [];
+  const text = parts.map(p => p.text || "").join("").trim();
+  const um = data.usageMetadata || {};
+  const usage = um.promptTokenCount ? { input_tokens: um.promptTokenCount, output_tokens: um.candidatesTokenCount || 0 } : null;
+  if (usage) {
+    window.CI_SESSION_USAGE.in  += usage.input_tokens;
+    window.CI_SESSION_USAGE.out += usage.output_tokens;
+    try { window.dispatchEvent(new Event('ci-usage-update')); } catch (e) {}
+  }
+  return { text, usage };
+}
+
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey]     = React.useState(getKey());
@@ -4357,6 +4416,7 @@ function KeyModal({ open, onClose }) {
           <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
             {[
               { id: "claude",      label: "Claude (Anthropic)", desc: "Paid · best quality" },
+              { id: "gemini",      label: "Google Gemini 2.0 Flash", desc: "Free · generous quota" },
               { id: "groq",        label: "Groq — Llama 3.3 70B", desc: "Free · fast" },
               { id: "openrouter",  label: "OpenRouter", desc: "400+ models · many free" },
             ].map(p => (
@@ -4384,6 +4444,13 @@ function KeyModal({ open, onClose }) {
               Uses your OpenRouter key from the Platform Data tab.{" "}
               <button className="ci-copybtn" style={{ height: 26, padding: "0 10px", fontSize: 11, marginLeft: 4 }} onClick={() => setSection("platforms")}>Platform Data →</button>
               {!orKey && <div style={{ marginTop: 8, color: "#F0C85A", fontSize: 12.5 }}>⚠ No OpenRouter key found — add it in Platform Data.</div>}
+            </div>
+          ) : provider === "gemini" ? (
+            <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(143,216,106,0.06)", border: "1px solid rgba(143,216,106,0.2)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.6 }}>
+              <b style={{ color: "#8FD86A" }}>Free analysis via Google Gemini</b> — Gemini 2.0 Flash, generous free tier.<br />
+              Uses your Google Gemini key (the same one in the Platform Data tab).{" "}
+              <button className="ci-copybtn" style={{ height: 26, padding: "0 10px", fontSize: 11, marginLeft: 4 }} onClick={() => setSection("platforms")}>Platform Data →</button>
+              {!gkey && <div style={{ marginTop: 8, color: "#F0C85A", fontSize: 12.5 }}>⚠ No Google Gemini key found — add it in Platform Data. Get one free at aistudio.google.com/apikey</div>}
             </div>
           ) : <>
             <label className="ci-label">Anthropic API key</label>
@@ -4507,6 +4574,7 @@ Object.assign(window, {
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
   getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
   getOpenRouterKey, setOpenRouterKeyLS, getOpenRouterModel, setOpenRouterModelLS, callOpenRouterAnalysis,
+  callGeminiAnalysis,
   getGoogleKey, setGoogleKeyLS, generateThumbnail, regenPromptFromReport,
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,

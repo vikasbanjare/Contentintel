@@ -43,6 +43,12 @@ Legend: ✅ = auto-verified headlessly in this environment · 🔎 = needs your 
 - 🔎 **RapidAPI key** — Settings → Platform Data → paste a RapidAPI key (no Google key needed). Then Channel Audit / Comments should fetch via youtube-v31.
   **COULD NOT auto-verify here** — needs a real RapidAPI key + live network. Note: a browser key is visible to site visitors → personal use only.
 
+## r34 — Google Gemini as a FREE analysis provider ⭐
+- ✅ **Wiring verified** (mocked Gemini response): Settings → Analysis tab now has a **"Google Gemini 2.0 Flash · Free"** provider button. Selecting it routes ALL AI features (Title, Script, Caption, Audit, Comments, Ideas, etc.) through Gemini using the Google key you already added — **no per-request cost**.
+- 🔎 **Test with your real key tomorrow**: Settings → Analysis → pick **Google Gemini** → run any tool (e.g. "Check my title"). It should return a real report for free.
+  - Free tier as of 2026: generous (Gemini 2.0 Flash). If you hit a rate limit, it says so and you wait a few seconds.
+  - This is the cheapest way to use every feature: **Gemini (free) for everyday work, Claude (paid) only when you want top quality.**
+
 ## r33 — Batch Title Ranker (Title tab)
 - ✅ **Batch ranking** — open "🏁 Batch Title Ranker", paste several titles (one per line) → instantly scored & ranked, winner gets 🏆, factor chips per title. (Verified: weak titles rank below strong ones.)
 
