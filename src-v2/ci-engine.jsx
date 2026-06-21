@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r38";
+window.CI_BUILD = "2026-06-20-r39";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -190,9 +190,12 @@ const SCRIPT_CRAFT = [
 "KILL AI TELLS even out loud: no hollow 'it's not X, it's Y' reframes where Y is vague significance (keep a contrast only if B is concrete and the line pays it off); no significance inflation ('a pivotal shift') on normal facts; no borrowed-authority filler. Take the position or cut the sentence.",
 "LENGTH: spoken delivery ≈ 2 words/second. 30s ≈ 60-75 words, 45s ≈ 110-130, 60s ≈ 150-170. Write to the runtime; cut beats, never the lens or the last dab.",
 ].join("\n");
+// Exposed so the Script CREATE path (ci-script.jsx) can always inject it too,
+// independent of whatever research the server/Worker provides.
+if (typeof window !== "undefined") window.SCRIPT_CRAFT = SCRIPT_CRAFT;
 
 const DEFAULT_RESEARCH = {
-  script:    { label: "Script",    systemGuidance: SCRIPT_CRAFT, rubric: [{ name: "Hook", what: "" }, { name: "Retention", what: "" }, { name: "CTA", what: "" }], notes: "" },
+  script:    { label: "Script",    systemGuidance: "Evaluate the script's hook, retention and CTA. Be specific and give rewrites.", rubric: [{ name: "Hook", what: "" }, { name: "Retention", what: "" }, { name: "CTA", what: "" }], notes: "" },
   thumbnail: { label: "Thumbnail", systemGuidance: "Judge whether the thumbnail earns the click in a feed.", rubric: [{ name: "Clarity", what: "" }, { name: "Face", what: "" }, { name: "Contrast", what: "" }], notes: "" },
   title:     { label: "Title",     systemGuidance: "Judge click-worthiness, clarity, truncation. Give 10 alternatives.", rubric: [{ name: "Click chance", what: "" }, { name: "Curiosity", what: "" }, { name: "Clarity", what: "" }], notes: "" },
   ads:       { label: "Ads",       systemGuidance: "Check limits, truncation, scroll-stopping power.", rubric: [{ name: "Scroll-stop", what: "" }, { name: "Copy", what: "" }, { name: "CTA fit", what: "" }], notes: "" },
@@ -1029,6 +1032,8 @@ function buildSystem(type, opts = {}) {
     core ? `RESEARCH CONTEXT (principles -- apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
     `${r.label || type}-SPECIFIC METHODOLOGY -- use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
+    // Script craft always applies, even if server research overrides systemGuidance.
+    (type === "script" ? SCRIPT_CRAFT : ""),
     library,
     opts.relax ? `EDIT FREEDOM: the user enabled BOLD REDESIGN -- you MAY change layout, composition and colours more boldly for a stronger thumbnail. But STILL keep the same person(s) and their count, the same topic, and the EXACT text & typography, unless the user explicitly asked to change them.` : "",
     rubric ? `Score these dimensions (0-100):\n${rubric}` : "",
