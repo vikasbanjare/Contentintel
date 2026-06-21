@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r35";
+window.CI_BUILD = "2026-06-20-r36";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -4415,6 +4415,19 @@ async function callGeminiAnalysis({ system, userText, maxTokens = 1800 }) {
   return { text, usage };
 }
 
+// Fetch OpenRouter's live catalog, filtered to FREE models that support tool
+// calling (required for our structured report). Public endpoint, no auth, CORS-open.
+async function fetchOpenRouterFreeModels() {
+  const res = await fetch("https://openrouter.ai/api/v1/models");
+  if (!res.ok) throw new Error("Couldn't load OpenRouter models (" + res.status + ").");
+  const data = await res.json();
+  const list = (data.data || [])
+    .filter(m => (m.id || "").endsWith(":free") && Array.isArray(m.supported_parameters) && m.supported_parameters.includes("tools"))
+    .map(m => ({ id: m.id, name: m.name || m.id, ctx: m.context_length || 0 }));
+  list.sort((a, b) => (b.ctx || 0) - (a.ctx || 0));
+  return list;
+}
+
 // ── KeyModal -- settings: paste key + pick model ──────────────────────────────
 function KeyModal({ open, onClose }) {
   const [key, setKey]     = React.useState(getKey());
@@ -4432,6 +4445,13 @@ function KeyModal({ open, onClose }) {
   const [cerebrasKey, setCerebrasKey] = React.useState(getCerebrasKey ? getCerebrasKey() : '');
   const [orKey, setOrKey]     = React.useState(getOpenRouterKey ? getOpenRouterKey() : '');
   const [orModel, setOrModel] = React.useState(getOpenRouterModel ? getOpenRouterModel() : OPENROUTER_DEFAULT_MODEL);
+  const [orModels, setOrModels] = React.useState([]);
+  const [orModelsState, setOrModelsState] = React.useState('idle'); // idle | loading | done | error
+  async function loadOrModels() {
+    setOrModelsState('loading');
+    try { const list = await fetchOpenRouterFreeModels(); setOrModels(list); setOrModelsState('done'); }
+    catch (e) { setOrModelsState('error'); }
+  }
   const [provider, setProvider] = React.useState(getProvider());
   const saasMode = typeof window !== "undefined" && !!((window.CI_SAAS || {}).workerUrl);
   const [section, setSection] = React.useState(saasMode ? "image" : "analysis");
@@ -4612,11 +4632,27 @@ function KeyModal({ open, onClose }) {
             Select <b>OpenRouter</b> as your provider in the Analysis tab to use any of 400+ models — including many with zero per-request cost. Get a free key at{" "}
             <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>openrouter.ai/keys</a>.
           </div>
-          <label className="ci-label" style={{ marginTop: 12 }}>OpenRouter model ID</label>
-          <input className="ci-input" value={orModel} onChange={e => setOrModel(e.target.value)} placeholder="meta-llama/llama-3.3-70b-instruct:free" style={{ fontFamily: "var(--font-mono)", fontSize: 13 }} />
-          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 4, lineHeight: 1.5 }}>
-            Default: <code style={{ background: "var(--surface-2)", padding: "1px 4px", borderRadius: 4 }}>meta-llama/llama-3.3-70b-instruct:free</code>. Browse all models at{" "}
-            <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>openrouter.ai/models</a> — any ID ending in <code style={{ background: "var(--surface-2)", padding: "1px 4px", borderRadius: 4 }}>:free</code> has zero cost.
+          <label className="ci-label" style={{ marginTop: 12 }}>OpenRouter model</label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input className="ci-input" value={orModel} onChange={e => setOrModel(e.target.value)} placeholder="meta-llama/llama-3.3-70b-instruct:free" style={{ flex: 1, minWidth: 200, fontFamily: "var(--font-mono)", fontSize: 13 }} />
+            <button className="ci-copybtn" style={{ height: 38, padding: "0 12px", whiteSpace: "nowrap" }} onClick={loadOrModels} disabled={orModelsState === 'loading'}>
+              {orModelsState === 'loading' ? "Loading…" : "↻ Load free models"}
+            </button>
+          </div>
+          {orModelsState === 'done' && orModels.length > 0 && (
+            <select className="ci-input" style={{ marginTop: 8, fontSize: 13 }} value={orModels.some(m => m.id === orModel) ? orModel : ""}
+              onChange={e => e.target.value && setOrModel(e.target.value)}>
+              <option value="">— pick a free model that works here ({orModels.length} found) —</option>
+              {orModels.map(m => (
+                <option key={m.id} value={m.id}>{m.name}{m.ctx ? ` · ${Math.round(m.ctx / 1000)}K ctx` : ""}</option>
+              ))}
+            </select>
+          )}
+          {orModelsState === 'error' && (
+            <div style={{ fontSize: 12, color: "#F0C85A", marginTop: 6 }}>Couldn't load the list — type a model ID manually, or browse <a href="https://openrouter.ai/models?supported_parameters=tools" target="_blank" rel="noreferrer" style={{ color: "var(--text-2)" }}>tool-capable models</a>.</div>
+          )}
+          <div style={{ fontSize: 12, color: "var(--text-4)", marginTop: 6, lineHeight: 1.5 }}>
+            Tap <b>↻ Load free models</b> to pick from the live list of FREE models that work here (they must support tools). Default: <code style={{ background: "var(--surface-2)", padding: "1px 4px", borderRadius: 4 }}>llama-3.3-70b-instruct:free</code>. Free tier: 20 req/min, 50/day (1000/day after a one-time $10 top-up).
           </div>
         </>}
 

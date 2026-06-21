@@ -43,6 +43,13 @@ Legend: ✅ = auto-verified headlessly in this environment · 🔎 = needs your 
 - 🔎 **RapidAPI key** — Settings → Platform Data → paste a RapidAPI key (no Google key needed). Then Channel Audit / Comments should fetch via youtube-v31.
   **COULD NOT auto-verify here** — needs a real RapidAPI key + live network. Note: a browser key is visible to site visitors → personal use only.
 
+## r36 — OpenRouter free-model picker ⭐
+OpenRouter = one key → 400+ models, ~28 of them **free** (DeepSeek R1/V3, Llama 3.3 70B, Llama 4 Scout, Gemma 3, Gemini Flash…). It's NOT a scraper — it's a model aggregator.
+- ✅ **Verified**: Settings → Platform Data → OpenRouter → tap **"↻ Load free models"** → dropdown fills with the live list of FREE models that actually work here (must support tools). Pick one; no typing model IDs.
+- 🔎 **Test tomorrow**: add a free OpenRouter key (openrouter.ai/keys, no card), load the list, pick e.g. DeepSeek R1, run any tool.
+  - Free limits: **20 req/min, 50 req/day** (rises to **1000/day** after a one-time $10 top-up). No credit card to start.
+  - Why a picker: our reports need tool-calling, and not every free model supports it — the loader filters to only the ones that do.
+
 ## Free AI providers — which actually work in a browser-only app (IMPORTANT)
 Researched 11 providers. Most block direct browser calls (CORS) and need a backend the app doesn't have.
 - ✅ **Groq** and ✅ **OpenRouter** — confirmed CORS-open, guaranteed to work free. **These are your safety net.**
