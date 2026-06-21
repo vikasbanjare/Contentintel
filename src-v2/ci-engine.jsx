@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r40";
+window.CI_BUILD = "2026-06-20-r41";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -332,7 +332,7 @@ async function compressForApi(im, maxPx = 1024, quality = 0.85) {
 }
 
 // ── The real call -- direct browser → Anthropic (BYO key) ─────────────────────
-async function callClaudeOnce({ system, userText, image, images, model, maxTokens = 1800, temperature, forceJson }) {
+async function callClaudeOnce({ system, userText, image, images, model, maxTokens = 1800, temperature, forceJson, webSearch }) {
   // Compress all images once here so both the SaaS and BYO paths use the
   // smaller versions — no duplication and no change to stored previews.
   const rawImgs = (images && images.length) ? images.filter(Boolean) : (image ? [image] : []);
@@ -358,7 +358,10 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
       : userText;
     const sysS = typeof system === "string" && system.length > 2000
       ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }] : system;
-    const saasEngine = (window.getEngine && window.getEngine()) || 'smart';
+    let saasEngine = (window.getEngine && window.getEngine()) || 'smart';
+    // When the caller forces web search (script generation), make sure this call
+    // runs on a searching engine — 'quick' never searches, so bump it to 'smart'.
+    if (webSearch && saasEngine === 'quick') saasEngine = 'smart';
     const saasWebExpected = ['smart', 'max'].includes(saasEngine);
     // When forceJson: include the report tool. Use { type:"any" } when web search is
     // also expected (model searches first, then calls submit_report); force the tool
@@ -387,7 +390,9 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
   // Web search: enabled only when the user has toggled it on AND the selected model
   // is not Haiku (Haiku doesn't support web_search_20250305). When disabled we inject
   // NO_TOOL_NOTE so the model never leaks <function_calls> XML to the UI.
-  const webOn = getWebSearch() && !(model || getModel()).includes("haiku");
+  // Web search runs when the user toggled it on, OR when the caller forces it
+  // (e.g. script generation always tries to verify facts). Never on Haiku.
+  const webOn = (webSearch || getWebSearch()) && !(model || getModel()).includes("haiku");
   const NO_TOOL_NOTE = "\n\nEXECUTION NOTE (highest priority): You have NO web_search tool and NO external tools in this session. Ignore any instruction above about searching the web or 'search first'. NEVER output tool-call or function-call syntax of any kind -- no <function_calls>, <invoke>, <function_results> or similar; such text is NOT executed and leaks to the user. Do not narrate searching. Answer only from your own knowledge; if a topic is recent or unverifiable, treat it as the user's stated premise and proceed. Output only the final answer in the exact format requested.";
   if (!webOn && typeof system === "string") system = system + NO_TOOL_NOTE;
   // imgs is already compressed above (shared with SaaS path).

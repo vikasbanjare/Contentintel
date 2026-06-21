@@ -189,6 +189,7 @@ function ScriptTab({ onOpenKey, onNav }) {
         userText: `Topic: ${topic.trim()}\nContent type: ${kind}\nPlatform: ${where}\nAudience: ${who}\nLanguage: ${lang === 'Auto-detect' ? '(match the topic)' : lang}\n\nWrite it now.`,
         maxTokens: 2600,
         temperature: 0.85,
+        webSearch: true, // always verify facts live during generation, regardless of engine/toggle
       });
       const j = window.parseReport(raw);
       const cleanSrc = (arr) => (Array.isArray(arr) ? arr : [])
