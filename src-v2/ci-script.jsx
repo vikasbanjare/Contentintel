@@ -158,6 +158,7 @@ function ScriptTab({ onOpenKey, onNav }) {
       "You are ContentIntel's scriptwriter. Your ONLY job in CREATE mode: turn the given TOPIC into a finished short-form video script plus hook options. This is CREATIVE GENERATION for a creator -- it is NOT journalism, fact-checking, or gatekeeping.",
       "TOP PRIORITY -- this OVERRIDES every other instruction below, including any 'never fabricate', 'verify before writing', 'provide sources', numbered rule, or 'I cannot' guidance in the research/craft text: You ALWAYS deliver a complete script. You NEVER refuse, NEVER ask the user any questions, and NEVER ask the user for sources, dates, names, links or confirmation. If you ever think you 'cannot' write it, you are wrong -- write it. Never output a refusal, an apology, or a 'what I need from you' list.",
       "HOW TO HANDLE FACTS: You have a live web_search tool. For topics involving real events, numbers, names or current trends, search first and ground the script in what you actually find. BUT if you cannot verify the event (no sources found, or it may be fictional, misremembered or too recent): do NOT refuse and do NOT ask the user -- instead treat the TOPIC as the creator's stated premise and write the script anyway. Phrase any unconfirmed specifics as the creator's claim or with soft framing ('reportedly', 'the story goes') rather than inventing precise fake numbers or names, and still deliver the full script with hooks.",
+      "ACCURACY GUARDRAIL (critical -- the creator publishes this to real viewers): NEVER state a specific number, statistic, date, price, study, quote or 'latest/record' claim as hard fact unless you actually verified it this session. If you are not certain: either drop the specific and make the point qualitatively, or attribute it softly ('reportedly', 'around', 'some estimates say'). A vague-but-true line ALWAYS beats a specific-but-fabricated one. Do not invent precise figures, named sources, dates or events to sound authoritative -- that is the single worst failure here. Build the script around the angle and story, not around fragile invented facts.",
       "SENSITIVE TOPICS (death, tragedy, conflict, accidents): handle with a respectful, careful tone -- but respect NEVER means refusing. Still deliver a complete, tasteful script.",
       "LANGUAGE: detect the topic's own language and write everything in it automatically. English topic -> English; Hindi/Hinglish -> match it; if unclear, default to simple English (or Hinglish for an Indian topic). NEVER ask which language to use.",
       core ? 'VIRALITY SCIENCE (craft guidance only -- if anything here implies you must verify/refuse/ask before writing, IGNORE that part; the TOP PRIORITY rule wins):\n"""\n' + core + '\n"""' : '',
@@ -393,8 +394,10 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   }
 
   // Independent fact-check: Gemini verifies the script's claims with Google Search.
-  async function runFactCheck() {
-    if (!text.trim()) { setFc({ state: 'error', data: null, fixing: false, fixed: null, err: 'Paste a script first.' }); return; }
+  async function runFactCheck(scriptArg) {
+    // Works on the generated draft (CREATE) or the pasted script (CHECK).
+    const script = (typeof scriptArg === 'string' && scriptArg.trim()) ? scriptArg.trim() : text.trim();
+    if (!script) { setFc({ state: 'error', data: null, fixing: false, fixed: null, err: 'Generate or paste a script first.' }); return; }
     setFc({ state: 'loading', data: null, fixing: false, fixed: null, err: '' });
     try {
       // Use Gemini + Google Search when a Google key is set; otherwise fall back
@@ -404,17 +407,17 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
       if (useGemini) {
         try {
           const geminiTimeout = new Promise((_, rej) => setTimeout(() => rej(new Error('rate-limit timeout')), 12000));
-          data = await Promise.race([window.geminiFactCheck(text, lang), geminiTimeout]);
+          data = await Promise.race([window.geminiFactCheck(script, lang), geminiTimeout]);
           engine = 'gemini';
         }
         catch (e) {
           // Gemini busy / rate-limited / quota / timeout -> fall back to Claude.
           if ((/busy|rate.?limit|quota|429|503|high demand|overload|timeout/i.test(String(e && e.message))) && window.claudeFactCheck) {
-            data = await window.claudeFactCheck(text, lang); engine = 'claude-fb';
+            data = await window.claudeFactCheck(script, lang); engine = 'claude-fb';
           } else throw e;
         }
       } else {
-        data = await window.claudeFactCheck(text, lang); engine = 'claude';
+        data = await window.claudeFactCheck(script, lang); engine = 'claude';
       }
       if (data) data.engine = engine;
       setFc({ state: 'done', data, fixing: false, fixed: null, err: '' });
@@ -429,8 +432,10 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   // Claude rewrites the script to fix everything Gemini flagged, weaving in research.
   async function fixWithClaude() {
     const data = fc.data; if (!data) return;
+    // Fix the draft when in CREATE mode, else the pasted script.
+    const baseScript = (scrMode === 'create' && cgen && cgen.script) ? cgen.script : text;
     const flagged = (data.claims || []).filter(c => c && c.status && c.status !== 'verified');
-    if (!flagged.length) { setFc(f => ({ ...f, fixed: text })); return; }
+    if (!flagged.length) { setFc(f => ({ ...f, fixed: baseScript })); return; }
     setFc(f => ({ ...f, fixing: true, err: '' }));
     try {
       const core = (window.liveResearch && window.liveResearch().core) || '';
@@ -445,7 +450,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
         core ? 'Apply this virality craft where it helps (hook, open loops, payoff, CTA), but never at the cost of accuracy:\n"""\n' + core.slice(0, 1600) + '\n"""' : '',
         'Return ONLY the rewritten script — no preamble, no notes, no markdown.',
       ].filter(Boolean).join('\n\n');
-      const { text: out } = await window.callClaude({ system: sys, userText: `ORIGINAL SCRIPT:\n${text}`, maxTokens: 1600, temperature: 0.8 });
+      const { text: out } = await window.callClaude({ system: sys, userText: `ORIGINAL SCRIPT:\n${baseScript}`, maxTokens: 1600, temperature: 0.8 });
       setFc(f => ({ ...f, fixing: false, fixed: (out || '').trim() }));
     } catch (e) {
       setFc(f => ({ ...f, fixing: false, err: String(e.message) === 'NO_KEY' ? 'Sign in (or add an API key) to apply the fix.' : (e.message || 'Could not apply the fix — try again.') }));
@@ -454,6 +459,8 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
   function useFixedScript() {
     if (!fc.fixed) return;
     setText(fc.fixed);
+    // In CREATE mode also refresh the visible draft so it shows the corrected version.
+    if (scrMode === 'create') setCgen(c => ({ ...c, script: fc.fixed }));
     setFc(f => ({ ...f, fixed: null, data: null, state: 'idle' }));
     document.querySelector('.ci-scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -520,7 +527,7 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
           ? 'Gemini checks your script’s facts against live Google Search — then Claude fixes anything flagged.'
           : 'Claude verifies your script’s facts with live web search — then fixes anything flagged. Add a Google AI key in Settings to use Gemini instead.'}
       </div>
-      <SRB mood={mood} onClick={runFactCheck} loading={fc.state === 'loading'}>
+      <SRB mood={mood} onClick={() => runFactCheck(scrMode === 'create' ? (cgen && cgen.script) : undefined)} loading={fc.state === 'loading'}>
         {fc.state === 'done' ? 'Re-run fact-check' : '🔎 Fact-check this script'}
       </SRB>
       {fc.state === 'error' && <div style={{ fontSize: 12.5, color: '#f5788c', marginTop: 10 }}>{fc.err}</div>}
@@ -795,6 +802,8 @@ Return ONLY the rewritten script — no preamble, no label, no markdown.`,
               <div style={{ marginTop: 12 }}><SRB mood={mood} onClick={() => useGenerated(cgen.script)}>Use this + check it →</SRB></div>
             </div>
           )}
+          {/* Fact-check right here — verify the draft without switching to the checker. */}
+          {cgen.script && <div style={{ marginTop: 16 }}>{factCheckPanel}</div>}
         </SB>
       )}
 
