@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r42";
+window.CI_BUILD = "2026-06-20-r43";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -1940,6 +1940,78 @@ function analyzeFormatPerformance(videos) {
   return rows.length ? { rows, best: rows[0] } : null;
 }
 
+// Cluster a channel's videos into content pillars (recurring topics) and score
+// each by avg views + engagement. Pure JS (words + bigrams, stopword-filtered).
+const CI_STOP = new Set(['the','a','an','to','of','in','on','for','and','or','my','your','our','how','why','what','when','is','are','was','i','you','he','she','it','this','that','with','from','at','by','as','be','do','did','does','can','will','vs','not','no','but','if','so','up','out','get','got','new','best','top','ever','most','all','one','two','more','than','then','now','here','there','they','them','their','his','her','we','us','me','am','pm','ft','feat']);
+function clusterContentPillars(videos) {
+  const withV = (videos || []).filter(v => parseInt(v.viewCount || 0) > 0);
+  if (withV.length < 4) return [];
+  const chAvg = withV.reduce((s, v) => s + parseInt(v.viewCount), 0) / withV.length;
+  const map = {};
+  const add = (term, v) => { (map[term] = map[term] || new Set()).add(v); };
+  for (const v of withV) {
+    const toks = (v.title || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !CI_STOP.has(w) && !/^\d+$/.test(w));
+    const uniq = [...new Set(toks)];
+    uniq.forEach(w => add(w, v));
+    for (let i = 0; i < toks.length - 1; i++) { add(toks[i] + ' ' + toks[i + 1], v); }
+  }
+  let pillars = Object.entries(map).filter(([, set]) => set.size >= 2).map(([topic, set]) => {
+    const vs = [...set];
+    const views = vs.map(v => parseInt(v.viewCount));
+    const avgViews = Math.round(views.reduce((s, x) => s + x, 0) / vs.length);
+    const engs = vs.map(v => { const vv = parseInt(v.viewCount); return vv ? ((parseInt(v.likeCount || 0) + parseInt(v.commentCount || 0)) / vv) * 100 : 0; });
+    const avgEng = Math.round((engs.reduce((s, x) => s + x, 0) / engs.length) * 100) / 100;
+    return { topic, count: vs.length, avgViews, avgEng, lift: chAvg > 0 ? Math.round((avgViews / chAvg - 1) * 100) : 0, isBigram: topic.includes(' ') };
+  });
+  // Prefer bigrams (clearer topics); drop single words already covered by a bigram.
+  const bigramWords = new Set(pillars.filter(p => p.isBigram).flatMap(p => p.topic.split(' ')));
+  pillars = pillars.filter(p => p.isBigram || !bigramWords.has(p.topic));
+  pillars.sort((a, b) => b.count - a.count || b.avgViews - a.avgViews);
+  return pillars.slice(0, 8);
+}
+
+// One comprehensive competitor profile: engagement depth, age-adjusted velocity,
+// view consistency, growth momentum, breakout hits, content pillars.
+function deepCompetitorAnalysis(videos) {
+  const withV = (videos || []).filter(v => parseInt(v.viewCount || 0) > 0);
+  if (withV.length < 3) return null;
+  const views = withV.map(v => parseInt(v.viewCount));
+  const mean = views.reduce((s, x) => s + x, 0) / views.length;
+  const sorted = [...views].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  // Engagement depth (likes vs comments separately — comments are the stronger signal)
+  const likeRate = Math.round((withV.reduce((s, v) => s + (parseInt(v.likeCount || 0) / Math.max(1, parseInt(v.viewCount))), 0) / withV.length) * 10000) / 100;
+  const commentRate = Math.round((withV.reduce((s, v) => s + (parseInt(v.commentCount || 0) / Math.max(1, parseInt(v.viewCount))), 0) / withV.length) * 10000) / 100;
+  // Age-adjusted velocity: views per day since publish (proxy for first-days demand)
+  const vel = withV.map(v => { const days = Math.max(1, (Date.now() - new Date(v.published)) / 86400000); return { v, vpd: parseInt(v.viewCount) / days }; });
+  const avgVpd = Math.round(vel.reduce((s, x) => s + x.vpd, 0) / vel.length);
+  const topVel = vel.slice().sort((a, b) => b.vpd - a.vpd)[0];
+  // View consistency: coefficient of variation (low = steady, high = relies on spikes)
+  const variance = views.reduce((s, x) => s + (x - mean) ** 2, 0) / views.length;
+  const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
+  const consistency = cv < 0.6 ? 'Steady' : cv < 1.2 ? 'Variable' : 'Spike-driven';
+  // Growth momentum: newest half vs oldest half avg views
+  const byDate = [...withV].sort((a, b) => new Date(b.published) - new Date(a.published));
+  const half = Math.floor(byDate.length / 2) || 1;
+  const recent = byDate.slice(0, half), older = byDate.slice(-half);
+  const recentAvg = Math.round(recent.reduce((s, v) => s + parseInt(v.viewCount), 0) / recent.length);
+  const olderAvg = Math.round(older.reduce((s, v) => s + parseInt(v.viewCount), 0) / older.length);
+  const momentumPct = olderAvg > 0 ? Math.round((recentAvg / olderAvg - 1) * 100) : 0;
+  const trend = momentumPct > 20 ? 'Growing' : momentumPct < -20 ? 'Declining' : 'Flat';
+  // Breakout hits: videos > 2.5x median
+  const breakouts = withV.filter(v => parseInt(v.viewCount) > median * 2.5)
+    .sort((a, b) => parseInt(b.viewCount) - parseInt(a.viewCount))
+    .slice(0, 3).map(v => ({ title: v.title, views: parseInt(v.viewCount), multiple: Math.round(parseInt(v.viewCount) / median * 10) / 10 }));
+  return {
+    medianViews: median, likeRate, commentRate,
+    avgViewsPerDay: avgVpd, topVelocity: topVel ? { title: topVel.v.title, vpd: Math.round(topVel.vpd) } : null,
+    consistency, cv: Math.round(cv * 100) / 100,
+    momentum: { recentAvg, olderAvg, pct: momentumPct, trend },
+    breakouts,
+    pillars: clusterContentPillars(videos),
+  };
+}
+
 // Full competitor analytics block for Claude prompt
 function formatCompetitorAnalytics(videos, channelInfo) {
   function fmt(n) { const v=parseInt(n||0); return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':String(v); }
@@ -2495,6 +2567,7 @@ Object.assign(window, {
   getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
   getRapidAPIKey, setRapidAPIKeyLS,
   formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics, analyzeTitlePatterns, analyzeFormatPerformance,
+  clusterContentPillars, deepCompetitorAnalysis,
   getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
   getCerebrasKey, setCerebrasKeyLS, callCerebrasAnalysis, callTextLLM,
   getOpenRouterKey, setOpenRouterKeyLS, getOpenRouterModel, setOpenRouterModelLS, callOpenRouterAnalysis,

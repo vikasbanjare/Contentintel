@@ -9,7 +9,7 @@ Call submit_report with these 5 sections. Field names are EXACT — do not renam
 
 ── SECTION 1 ── type "kv" title "Channel Stats at a Glance"
 One kv row per metric per competitor. Use format "CompetitorName — Metric" as k, real value as v.
-Cover every metric: Subscribers / Avg views / View-to-sub ratio / Engagement rate / Posts per month / Top posting day / Best format by views / Avg video length.
+Cover every metric using the COMPUTED INTELLIGENCE numbers provided: Subscribers / Avg views / Median views / Views-per-day (age-adjusted) / View-to-sub ratio / Engagement rate / Comment rate / Growth momentum (Growing/Declining + %) / View consistency / Posts per month / Top posting day / Best format by views / Top content pillar / Avg video length.
 level "green"=strong "yellow"=ok "red"=weak.
 
 ── SECTION 2 ── type "copy" title "What They're Doing & How They Post"
@@ -62,11 +62,18 @@ function CompareTable({ competitors, mood }) {
   const cols = competitors.filter(c => c.metrics && c.channelInfo);
   if (cols.length < 2) return null;
   const dur = s => s ? Math.floor(s / 60) + 'm' : '?';
+  const deep = {}; cols.forEach(c => { deep[c.id] = window.deepCompetitorAnalysis ? window.deepCompetitorAnalysis(c.videoData) : null; });
+  const D = (c, f, d = 0) => { const x = deep[c.id]; return x ? f(x) : d; };
   const rows = [
     { label: 'Subscribers', get: c => parseInt(c.channelInfo.subs || 0), disp: c => cfmt(c.channelInfo.subs), better: 'high' },
     { label: 'Avg views', get: c => c.metrics.avgViews || 0, disp: c => cfmt(c.metrics.avgViews), better: 'high' },
+    { label: 'Median views', get: c => D(c, x => x.medianViews), disp: c => D(c, x => cfmt(x.medianViews), '—') || '—', better: 'high' },
     { label: 'View/sub %', get: c => { const s = parseInt(c.channelInfo.subs || 0); return s ? (c.metrics.avgViews / s) * 100 : 0; }, disp: c => { const s = parseInt(c.channelInfo.subs || 0); return s ? ((c.metrics.avgViews / s) * 100).toFixed(0) + '%' : '—'; }, better: 'high' },
+    { label: 'Views/day', get: c => D(c, x => x.avgViewsPerDay), disp: c => D(c, x => cfmt(x.avgViewsPerDay), '—') || '—', better: 'high' },
     { label: 'Engagement', get: c => c.metrics.avgEngRate || 0, disp: c => c.metrics.avgEngRate + '%', better: 'high' },
+    { label: 'Comment rate', get: c => D(c, x => x.commentRate), disp: c => D(c, x => x.commentRate + '%', '—') || '—', better: 'high' },
+    { label: 'Momentum', get: c => D(c, x => x.momentum.pct), disp: c => D(c, x => `${x.momentum.trend} ${x.momentum.pct > 0 ? '+' : ''}${x.momentum.pct}%`, '—') || '—', better: 'high' },
+    { label: 'Consistency', get: () => 0, disp: c => D(c, x => x.consistency, '—') || '—', better: 'none' },
     { label: 'Posts/month', get: c => c.metrics.postsPerMonth || 0, disp: c => c.metrics.postsPerMonth != null ? '~' + c.metrics.postsPerMonth : 'N/A', better: 'high' },
     { label: 'Avg length', get: () => 0, disp: c => dur(c.metrics.avgDurSecs), better: 'none' },
     { label: 'Top day', get: () => 0, disp: c => c.metrics.topDay || '—', better: 'none' },
@@ -101,32 +108,52 @@ function CompareTable({ competitors, mood }) {
   );
 }
 
-// Per-competitor edge: winning title patterns + format performance + posting calendar.
+// Per-competitor deep edge: momentum, consistency, velocity, engagement depth,
+// content pillars, format performance, breakout hits, posting calendar.
 function CompEdge({ comp, mood }) {
   const m = MOODS[mood] || MOODS.navy;
-  const patterns = React.useMemo(() => window.analyzeTitlePatterns ? window.analyzeTitlePatterns(comp.videoData) : [], [comp.videoData]);
+  const deep = React.useMemo(() => window.deepCompetitorAnalysis ? window.deepCompetitorAnalysis(comp.videoData) : null, [comp.videoData]);
   const fmtPerf = React.useMemo(() => window.analyzeFormatPerformance ? window.analyzeFormatPerformance(comp.videoData) : null, [comp.videoData]);
-  const top = patterns.filter(p => p.lift > 5).slice(0, 3);
   const Cal = window.PostingCalendar;
+  const calEl = (Cal && comp.videoData && comp.videoData.length >= 2) ? <Cal videos={comp.videoData} mood={mood} /> : null;
+  if (!deep) return calEl ? <div style={{ marginTop: 10 }}>{calEl}</div> : null;
+  const chip = (txt, col, bg, title) => <span title={title} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: bg || 'var(--surface-2)', color: col || 'var(--text-3)', fontWeight: 600 }}>{txt}</span>;
+  const Label = ({ children }) => <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', margin: '9px 0 5px' }}>{children}</div>;
+  const tCol = deep.momentum.trend === 'Growing' ? '#8FD86A' : deep.momentum.trend === 'Declining' ? '#F06A7E' : '#F0C85A';
   return (
     <div style={{ marginTop: 10, borderTop: '1px solid var(--stroke-1)', paddingTop: 10 }}>
-      {top.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>Title patterns that win for them</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {top.map(p => <span key={p.key} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: 'rgba(143,216,106,0.12)', color: '#8FD86A', fontWeight: 600 }} title={`${p.count} videos, avg ${cfmt(p.avgViews)} views`}>{p.label} +{p.lift}%</span>)}
-          </div>
+      <Label>Channel signals</Label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+        {chip(`${deep.momentum.trend} ${deep.momentum.pct > 0 ? '+' : ''}${deep.momentum.pct}%`, tCol, tCol + '18', 'Recent videos vs older videos')}
+        {chip(`${deep.consistency} views`, deep.consistency === 'Steady' ? '#8FD86A' : '#F0C85A', null, 'How reliable their view counts are')}
+        {chip(`${cfmt(deep.avgViewsPerDay)}/day`, m.accentFrom, m.accentFrom + '18', 'Age-adjusted: avg views per day since publish')}
+        {chip(`👍 ${deep.likeRate}%`, null, null, 'Avg like rate')}
+        {chip(`💬 ${deep.commentRate}%`, null, null, 'Avg comment rate (stronger loyalty signal)')}
+      </div>
+      {deep.pillars.length > 0 && (<>
+        <Label>Content pillars — topic · avg views · vs their avg</Label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          {deep.pillars.slice(0, 6).map(p => {
+            const col = p.lift > 15 ? '#8FD86A' : p.lift < -15 ? '#F06A7E' : 'var(--text-2)';
+            return chip(`${p.topic} · ${cfmt(p.avgViews)} ${p.lift > 0 ? '+' + p.lift : p.lift}%`, col, 'var(--surface-2)', `${p.count} videos · ${p.avgEng}% engagement`);
+          })}
         </div>
-      )}
-      {fmtPerf && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>Format performance (avg views)</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {fmtPerf.rows.map(r => <span key={r.format} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: r === fmtPerf.best ? m.accentFrom + '22' : 'var(--surface-2)', color: r === fmtPerf.best ? m.accentFrom : 'var(--text-3)', fontWeight: 600 }}>{r.format}: {cfmt(r.avgViews)} ({r.count})</span>)}
-          </div>
+      </>)}
+      {fmtPerf && (<>
+        <Label>Format performance (avg views)</Label>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          {fmtPerf.rows.map(r => chip(`${r.format}: ${cfmt(r.avgViews)} (${r.count})`, r === fmtPerf.best ? m.accentFrom : 'var(--text-3)', r === fmtPerf.best ? m.accentFrom + '22' : 'var(--surface-2)'))}
         </div>
-      )}
-      {Cal && comp.videoData && comp.videoData.length >= 2 && <Cal videos={comp.videoData} mood={mood} />}
+      </>)}
+      {deep.breakouts.length > 0 && (<>
+        <Label>Breakout hits (vs their median)</Label>
+        {deep.breakouts.map((b, i) => (
+          <div key={i} style={{ fontSize: 11.5, color: 'var(--text-3)', lineHeight: 1.55 }}>
+            <b style={{ color: '#8FD86A' }}>{b.multiple}×</b> "{b.title.slice(0, 50)}{b.title.length > 50 ? '…' : ''}" — {cfmt(b.views)}
+          </div>
+        ))}
+      </>)}
+      {calEl}
     </div>
   );
 }
@@ -202,11 +229,20 @@ function CompetitorTab({ onOpenKey }) {
       let body = '';
       if (comp.videoData.length > 0 && window.formatCompetitorAnalytics) {
         body = window.formatCompetitorAnalytics(comp.videoData, comp.channelInfo);
-        // Append client-computed edges so the AI quotes real, accurate patterns.
+        // Append client-computed deep edges so the AI quotes real, accurate numbers.
         const pats = window.analyzeTitlePatterns ? window.analyzeTitlePatterns(comp.videoData) : [];
         const fp = window.analyzeFormatPerformance ? window.analyzeFormatPerformance(comp.videoData) : null;
-        if (pats.length) body += '\n\nWINNING TITLE PATTERNS (lift vs their own avg views): ' + pats.filter(p => p.lift > 0).slice(0, 6).map(p => `${p.label} +${p.lift}% over ${p.count} videos`).join('; ') + '.';
-        if (fp) body += '\nFORMAT PERFORMANCE (avg views): ' + fp.rows.map(r => `${r.format} ${r.avgViews} (${r.count} videos)`).join('; ') + `. Best-performing format: ${fp.best.format}.`;
+        const dp = window.deepCompetitorAnalysis ? window.deepCompetitorAnalysis(comp.videoData) : null;
+        if (dp) {
+          body += `\n\n=== COMPUTED INTELLIGENCE (use these exact numbers) ===`;
+          body += `\nGrowth momentum: ${dp.momentum.trend} (recent avg ${dp.momentum.recentAvg} vs older ${dp.momentum.olderAvg} views, ${dp.momentum.pct > 0 ? '+' : ''}${dp.momentum.pct}%).`;
+          body += `\nView consistency: ${dp.consistency} (CV ${dp.cv}). Median views: ${dp.medianViews}. Age-adjusted velocity: ${dp.avgViewsPerDay} views/day.`;
+          body += `\nEngagement depth: like rate ${dp.likeRate}%, comment rate ${dp.commentRate}% (comments = loyalty).`;
+          if (dp.pillars.length) body += `\nContent pillars (topic | avg views | lift vs their avg): ` + dp.pillars.slice(0, 6).map(p => `${p.topic} | ${p.avgViews} | ${p.lift > 0 ? '+' : ''}${p.lift}% (${p.count} vids)`).join('; ') + '.';
+          if (dp.breakouts.length) body += `\nBreakout hits (×median): ` + dp.breakouts.map(b => `"${b.title.slice(0, 50)}" ${b.multiple}× (${b.views})`).join('; ') + '.';
+        }
+        if (pats.length) body += `\nTitle patterns (lift vs their avg): ` + pats.filter(p => p.lift > 0).slice(0, 5).map(p => `${p.label} +${p.lift}%`).join('; ') + '.';
+        if (fp) body += `\nFormat performance (avg views): ` + fp.rows.map(r => `${r.format} ${r.avgViews} (${r.count})`).join('; ') + `. Best: ${fp.best.format}.`;
       } else if (comp.recent.trim()) {
         body = (comp.title.trim() ? `Standout title: ${comp.title.trim()}\n` : '') + `Recent titles:\n${comp.recent.trim()}`;
       } else if (comp.title.trim()) {
