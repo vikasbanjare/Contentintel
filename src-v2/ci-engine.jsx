@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r43";
+window.CI_BUILD = "2026-06-20-r44";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -1485,6 +1485,7 @@ async function exportElementToPDF(el, filename) {
     const pxPerPt = canvas.width / imgW;
     while (srcY < canvas.height) {
       const sliceH = Math.min(pageContentH * pxPerPt, canvas.height - srcY);
+      if (!(sliceH > 0)) break; // guard against a zero-height slice looping forever
       const part = document.createElement('canvas');
       part.width = canvas.width; part.height = sliceH;
       part.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
@@ -1983,7 +1984,7 @@ function deepCompetitorAnalysis(videos) {
   const likeRate = Math.round((withV.reduce((s, v) => s + (parseInt(v.likeCount || 0) / Math.max(1, parseInt(v.viewCount))), 0) / withV.length) * 10000) / 100;
   const commentRate = Math.round((withV.reduce((s, v) => s + (parseInt(v.commentCount || 0) / Math.max(1, parseInt(v.viewCount))), 0) / withV.length) * 10000) / 100;
   // Age-adjusted velocity: views per day since publish (proxy for first-days demand)
-  const vel = withV.map(v => { const days = Math.max(1, (Date.now() - new Date(v.published)) / 86400000); return { v, vpd: parseInt(v.viewCount) / days }; });
+  const vel = withV.map(v => { const t = new Date(v.published).getTime(); const days = Math.max(1, isNaN(t) ? 1 : (Date.now() - t) / 86400000); return { v, vpd: parseInt(v.viewCount) / days }; });
   const avgVpd = Math.round(vel.reduce((s, x) => s + x.vpd, 0) / vel.length);
   const topVel = vel.slice().sort((a, b) => b.vpd - a.vpd)[0];
   // View consistency: coefficient of variation (low = steady, high = relies on spikes)
