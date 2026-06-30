@@ -100,6 +100,7 @@ function PostingCalendar({ videos, mood }) {
     </div>
   );
 }
+window.PostingCalendar = PostingCalendar;
 
 function AuditTab({ onOpenKey }) {
   const mood = 'lime';

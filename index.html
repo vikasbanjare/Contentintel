@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r41";
+window.CI_BUILD = "2026-06-20-r42";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -4172,6 +4172,43 @@ function analyzeChannelMetrics(videos) {
     totalVideos: videos.length, withStats: withStats.length, topVideo, bottomVideo };
 }
 
+// Which title patterns over-perform a channel's own average (data-backed, client-side).
+function analyzeTitlePatterns(videos) {
+  const withV = (videos || []).filter(v => parseInt(v.viewCount || 0) > 0);
+  if (withV.length < 3) return [];
+  const avgAll = withV.reduce((s, v) => s + parseInt(v.viewCount), 0) / withV.length;
+  const PATTERNS = [
+    { key: 'listicle', label: 'Numbered list', test: t => /\b\d+\s+(ways|tips|things|reasons|mistakes|steps|secrets|signs|habits|rules)\b/i.test(t) },
+    { key: 'number', label: 'Has a number', test: t => /\d/.test(t) },
+    { key: 'question', label: 'Question', test: t => /\?/.test(t) },
+    { key: 'howwhy', label: 'How/Why/What', test: t => /^(how|why|what|when)\b/i.test(t) },
+    { key: 'negative', label: 'Negative framing', test: t => /\b(mistake|wrong|fail|worst|stop|never|avoid|don.?t)\b/i.test(t) },
+    { key: 'power', label: 'Power word', test: t => /\b(secret|never|always|best|worst|truth|only|revealed|shocking|proven|ultimate|free|nobody|everyone)\b/i.test(t) },
+    { key: 'bracket', label: 'Bracket/qualifier', test: t => /[\[(].{1,}[\])]/.test(t) },
+    { key: 'year', label: 'Year', test: t => /20\d\d/.test(t) },
+  ];
+  const out = [];
+  for (const p of PATTERNS) {
+    const hits = withV.filter(v => p.test(v.title || ''));
+    if (!hits.length) continue;
+    const avg = hits.reduce((s, v) => s + parseInt(v.viewCount), 0) / hits.length;
+    out.push({ key: p.key, label: p.label, count: hits.length, avgViews: Math.round(avg), lift: avgAll > 0 ? Math.round((avg / avgAll - 1) * 100) : 0 });
+  }
+  return out.sort((a, b) => b.lift - a.lift);
+}
+
+// Average views by format (Shorts/Mid/Long) — reveals which format actually wins.
+function analyzeFormatPerformance(videos) {
+  function durSecs(iso) { if (!iso) return 0; const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/); if (!m) return 0; return parseInt(m[1] || 0) * 3600 + parseInt(m[2] || 0) * 60 + parseInt(m[3] || 0); }
+  const withV = (videos || []).filter(v => parseInt(v.viewCount || 0) > 0);
+  if (!withV.length) return null;
+  const buckets = { Shorts: [], Mid: [], 'Long-form': [] };
+  for (const v of withV) { const d = durSecs(v.duration); buckets[d <= 60 ? 'Shorts' : d <= 600 ? 'Mid' : 'Long-form'].push(parseInt(v.viewCount)); }
+  const rows = Object.entries(buckets).filter(([, a]) => a.length).map(([format, a]) => ({ format, count: a.length, avgViews: Math.round(a.reduce((s, x) => s + x, 0) / a.length) }));
+  rows.sort((a, b) => b.avgViews - a.avgViews);
+  return rows.length ? { rows, best: rows[0] } : null;
+}
+
 // Full competitor analytics block for Claude prompt
 function formatCompetitorAnalytics(videos, channelInfo) {
   function fmt(n) { const v=parseInt(n||0); return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':String(v); }
@@ -4726,7 +4763,7 @@ Object.assign(window, {
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
   getRapidAPIKey, setRapidAPIKeyLS,
-  formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
+  formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics, analyzeTitlePatterns, analyzeFormatPerformance,
   getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
   getCerebrasKey, setCerebrasKeyLS, callCerebrasAnalysis, callTextLLM,
   getOpenRouterKey, setOpenRouterKeyLS, getOpenRouterModel, setOpenRouterModelLS, callOpenRouterAnalysis,
@@ -12436,6 +12473,7 @@ function PostingCalendar({ videos, mood }) {
     </div>
   );
 }
+window.PostingCalendar = PostingCalendar;
 
 function AuditTab({ onOpenKey }) {
   const mood = 'lime';
@@ -12680,6 +12718,83 @@ const EMPTY_COMPETITOR = () => ({
   metrics: null,
 });
 
+const cfmt = (n) => { const v = parseInt(n || 0); return v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1000 ? (v / 1000).toFixed(0) + 'K' : String(v); };
+
+// Side-by-side comparison grid of every fetched competitor, leader highlighted.
+function CompareTable({ competitors, mood }) {
+  const m = MOODS[mood] || MOODS.navy;
+  const cols = competitors.filter(c => c.metrics && c.channelInfo);
+  if (cols.length < 2) return null;
+  const dur = s => s ? Math.floor(s / 60) + 'm' : '?';
+  const rows = [
+    { label: 'Subscribers', get: c => parseInt(c.channelInfo.subs || 0), disp: c => cfmt(c.channelInfo.subs), better: 'high' },
+    { label: 'Avg views', get: c => c.metrics.avgViews || 0, disp: c => cfmt(c.metrics.avgViews), better: 'high' },
+    { label: 'View/sub %', get: c => { const s = parseInt(c.channelInfo.subs || 0); return s ? (c.metrics.avgViews / s) * 100 : 0; }, disp: c => { const s = parseInt(c.channelInfo.subs || 0); return s ? ((c.metrics.avgViews / s) * 100).toFixed(0) + '%' : '—'; }, better: 'high' },
+    { label: 'Engagement', get: c => c.metrics.avgEngRate || 0, disp: c => c.metrics.avgEngRate + '%', better: 'high' },
+    { label: 'Posts/month', get: c => c.metrics.postsPerMonth || 0, disp: c => c.metrics.postsPerMonth != null ? '~' + c.metrics.postsPerMonth : 'N/A', better: 'high' },
+    { label: 'Avg length', get: () => 0, disp: c => dur(c.metrics.avgDurSecs), better: 'none' },
+    { label: 'Top day', get: () => 0, disp: c => c.metrics.topDay || '—', better: 'none' },
+  ];
+  const th = { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', borderBottom: '1px solid var(--stroke-1)', whiteSpace: 'nowrap' };
+  const td = { padding: '9px 10px', borderBottom: '1px solid var(--stroke-1)', whiteSpace: 'nowrap' };
+  return (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>📊 Side-by-side comparison</div>
+      <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid var(--stroke-1)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <thead><tr><th style={th}>Metric</th>{cols.map(c => <th key={c.id} style={{ ...th, color: m.accentFrom }}>{(c.channelInfo.name || '').slice(0, 16)}</th>)}</tr></thead>
+          <tbody>
+            {rows.map(r => {
+              const vals = cols.map(r.get);
+              const best = r.better === 'high' ? Math.max(...vals) : null;
+              const tie = best != null && vals.filter(v => v === best).length === cols.length;
+              return (
+                <tr key={r.label}>
+                  <td style={{ ...td, color: 'var(--text-4)', fontWeight: 500 }}>{r.label}</td>
+                  {cols.map((c, i) => {
+                    const win = best != null && !tie && vals[i] === best;
+                    return <td key={c.id} style={{ ...td, color: win ? '#8FD86A' : 'var(--text-1)', fontWeight: win ? 800 : 600 }}>{r.disp(c)}{win ? ' ▲' : ''}</td>;
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Per-competitor edge: winning title patterns + format performance + posting calendar.
+function CompEdge({ comp, mood }) {
+  const m = MOODS[mood] || MOODS.navy;
+  const patterns = React.useMemo(() => window.analyzeTitlePatterns ? window.analyzeTitlePatterns(comp.videoData) : [], [comp.videoData]);
+  const fmtPerf = React.useMemo(() => window.analyzeFormatPerformance ? window.analyzeFormatPerformance(comp.videoData) : null, [comp.videoData]);
+  const top = patterns.filter(p => p.lift > 5).slice(0, 3);
+  const Cal = window.PostingCalendar;
+  return (
+    <div style={{ marginTop: 10, borderTop: '1px solid var(--stroke-1)', paddingTop: 10 }}>
+      {top.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>Title patterns that win for them</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {top.map(p => <span key={p.key} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: 'rgba(143,216,106,0.12)', color: '#8FD86A', fontWeight: 600 }} title={`${p.count} videos, avg ${cfmt(p.avgViews)} views`}>{p.label} +{p.lift}%</span>)}
+          </div>
+        </div>
+      )}
+      {fmtPerf && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-4)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>Format performance (avg views)</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+            {fmtPerf.rows.map(r => <span key={r.format} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: r === fmtPerf.best ? m.accentFrom + '22' : 'var(--surface-2)', color: r === fmtPerf.best ? m.accentFrom : 'var(--text-3)', fontWeight: 600 }}>{r.format}: {cfmt(r.avgViews)} ({r.count})</span>)}
+          </div>
+        </div>
+      )}
+      {Cal && comp.videoData && comp.videoData.length >= 2 && <Cal videos={comp.videoData} mood={mood} />}
+    </div>
+  );
+}
+
 function CompetitorTab({ onOpenKey }) {
   const mood = 'navy';
   const m = MOODS[mood] || MOODS.burgundy;
@@ -12751,6 +12866,11 @@ function CompetitorTab({ onOpenKey }) {
       let body = '';
       if (comp.videoData.length > 0 && window.formatCompetitorAnalytics) {
         body = window.formatCompetitorAnalytics(comp.videoData, comp.channelInfo);
+        // Append client-computed edges so the AI quotes real, accurate patterns.
+        const pats = window.analyzeTitlePatterns ? window.analyzeTitlePatterns(comp.videoData) : [];
+        const fp = window.analyzeFormatPerformance ? window.analyzeFormatPerformance(comp.videoData) : null;
+        if (pats.length) body += '\n\nWINNING TITLE PATTERNS (lift vs their own avg views): ' + pats.filter(p => p.lift > 0).slice(0, 6).map(p => `${p.label} +${p.lift}% over ${p.count} videos`).join('; ') + '.';
+        if (fp) body += '\nFORMAT PERFORMANCE (avg views): ' + fp.rows.map(r => `${r.format} ${r.avgViews} (${r.count} videos)`).join('; ') + `. Best-performing format: ${fp.best.format}.`;
       } else if (comp.recent.trim()) {
         body = (comp.title.trim() ? `Standout title: ${comp.title.trim()}\n` : '') + `Recent titles:\n${comp.recent.trim()}`;
       } else if (comp.title.trim()) {
@@ -12900,6 +13020,7 @@ function CompetitorTab({ onOpenKey }) {
                             <span>"{comp.metrics.bottomVideo.title.slice(0, 55)}{comp.metrics.bottomVideo.title.length > 55 ? '…' : ''}" — {fmt(comp.metrics.bottomVideo.viewCount)} views</span>
                           </div>
                         )}
+                        {comp.videoData && comp.videoData.length > 0 && <CompEdge comp={comp} mood={mood} />}
                       </div>
                     )}
                   </>
@@ -12920,6 +13041,9 @@ function CompetitorTab({ onOpenKey }) {
             </div>
           ))}
         </div>
+
+        {/* Side-by-side comparison across all fetched competitors */}
+        <CompareTable competitors={competitors} mood={mood} />
 
         {competitors.length < 4 && (
           <button onClick={addCompetitor}
