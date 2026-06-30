@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r41";
+window.CI_BUILD = "2026-06-20-r42";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -1903,6 +1903,43 @@ function analyzeChannelMetrics(videos) {
     totalVideos: videos.length, withStats: withStats.length, topVideo, bottomVideo };
 }
 
+// Which title patterns over-perform a channel's own average (data-backed, client-side).
+function analyzeTitlePatterns(videos) {
+  const withV = (videos || []).filter(v => parseInt(v.viewCount || 0) > 0);
+  if (withV.length < 3) return [];
+  const avgAll = withV.reduce((s, v) => s + parseInt(v.viewCount), 0) / withV.length;
+  const PATTERNS = [
+    { key: 'listicle', label: 'Numbered list', test: t => /\b\d+\s+(ways|tips|things|reasons|mistakes|steps|secrets|signs|habits|rules)\b/i.test(t) },
+    { key: 'number', label: 'Has a number', test: t => /\d/.test(t) },
+    { key: 'question', label: 'Question', test: t => /\?/.test(t) },
+    { key: 'howwhy', label: 'How/Why/What', test: t => /^(how|why|what|when)\b/i.test(t) },
+    { key: 'negative', label: 'Negative framing', test: t => /\b(mistake|wrong|fail|worst|stop|never|avoid|don.?t)\b/i.test(t) },
+    { key: 'power', label: 'Power word', test: t => /\b(secret|never|always|best|worst|truth|only|revealed|shocking|proven|ultimate|free|nobody|everyone)\b/i.test(t) },
+    { key: 'bracket', label: 'Bracket/qualifier', test: t => /[\[(].{1,}[\])]/.test(t) },
+    { key: 'year', label: 'Year', test: t => /20\d\d/.test(t) },
+  ];
+  const out = [];
+  for (const p of PATTERNS) {
+    const hits = withV.filter(v => p.test(v.title || ''));
+    if (!hits.length) continue;
+    const avg = hits.reduce((s, v) => s + parseInt(v.viewCount), 0) / hits.length;
+    out.push({ key: p.key, label: p.label, count: hits.length, avgViews: Math.round(avg), lift: avgAll > 0 ? Math.round((avg / avgAll - 1) * 100) : 0 });
+  }
+  return out.sort((a, b) => b.lift - a.lift);
+}
+
+// Average views by format (Shorts/Mid/Long) — reveals which format actually wins.
+function analyzeFormatPerformance(videos) {
+  function durSecs(iso) { if (!iso) return 0; const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/); if (!m) return 0; return parseInt(m[1] || 0) * 3600 + parseInt(m[2] || 0) * 60 + parseInt(m[3] || 0); }
+  const withV = (videos || []).filter(v => parseInt(v.viewCount || 0) > 0);
+  if (!withV.length) return null;
+  const buckets = { Shorts: [], Mid: [], 'Long-form': [] };
+  for (const v of withV) { const d = durSecs(v.duration); buckets[d <= 60 ? 'Shorts' : d <= 600 ? 'Mid' : 'Long-form'].push(parseInt(v.viewCount)); }
+  const rows = Object.entries(buckets).filter(([, a]) => a.length).map(([format, a]) => ({ format, count: a.length, avgViews: Math.round(a.reduce((s, x) => s + x, 0) / a.length) }));
+  rows.sort((a, b) => b.avgViews - a.avgViews);
+  return rows.length ? { rows, best: rows[0] } : null;
+}
+
 // Full competitor analytics block for Claude prompt
 function formatCompetitorAnalytics(videos, channelInfo) {
   function fmt(n) { const v=parseInt(n||0); return v>=1e6?(v/1e6).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':String(v); }
@@ -2457,7 +2494,7 @@ Object.assign(window, {
   nicheNames, splitPlaybookBlocks, loadHistory, saveHistory, clearHistory, updateHistory,
   getYouTubeKey, setYouTubeKeyLS, fetchYTChannel, fetchYTVideos, fetchYTComments, parseYTVideoId,
   getRapidAPIKey, setRapidAPIKeyLS,
-  formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics,
+  formatVideoStats, analyzeChannelMetrics, formatCompetitorAnalytics, analyzeTitlePatterns, analyzeFormatPerformance,
   getGroqKey, setGroqKeyLS, transcribeWithGroq, getProvider, setProviderLS, canRunAnalysis, callGroqAnalysis,
   getCerebrasKey, setCerebrasKeyLS, callCerebrasAnalysis, callTextLLM,
   getOpenRouterKey, setOpenRouterKeyLS, getOpenRouterModel, setOpenRouterModelLS, callOpenRouterAnalysis,
