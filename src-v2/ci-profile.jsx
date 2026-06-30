@@ -65,7 +65,7 @@ function ProfileModal({ open, onClose }) {
       setP(prev => ({ ...prev, voiceDna: profile.trim() })); setSaved(false); setVState('idle');
     } catch (e) {
       const m = String(e.message || '');
-      setVErr(/NO_\w+_KEY|No API key/i.test(m) ? 'Add an API key (or pick a free provider) in Settings first.' : (m || 'Could not build voice profile.'));
+      setVErr(/NO_\w*KEY|No API key/i.test(m) ? 'Add an API key (or pick a free provider) in Settings first.' : (m || 'Could not build voice profile.'));
       setVState('error');
     }
   }

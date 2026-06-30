@@ -542,17 +542,26 @@ function LocalCTRPredictor({ title, mood }) {
   const [result, setResult] = React.useState(null);
   const [err, setErr] = React.useState('');
   const engineRef = React.useRef(null);
+  const mountedRef = React.useRef(true);
   const MODEL = 'Qwen2.5-0.5B-Instruct-q4f32_1-MLC';
   const hasGPU = typeof navigator !== 'undefined' && !!navigator.gpu;
+
+  // Release the GPU engine and stop state updates once this tab unmounts.
+  React.useEffect(() => () => {
+    mountedRef.current = false;
+    try { engineRef.current && engineRef.current.unload && engineRef.current.unload(); } catch (e) {}
+  }, []);
 
   async function loadModel() {
     if (!hasGPU) { setErr('This needs WebGPU — use desktop Chrome or Edge.'); setStatus('error'); return; }
     setStatus('loading'); setErr(''); setProgress('Starting…');
     try {
       const webllm = await import('https://esm.run/@mlc-ai/web-llm');
-      engineRef.current = await webllm.CreateMLCEngine(MODEL, { initProgressCallback: p => setProgress(p.text || '') });
+      const eng = await webllm.CreateMLCEngine(MODEL, { initProgressCallback: p => { if (mountedRef.current) setProgress(p.text || ''); } });
+      if (!mountedRef.current) { try { eng.unload && eng.unload(); } catch (e) {} return; }
+      engineRef.current = eng;
       setStatus('ready');
-    } catch (e) { setErr(e.message || 'Could not load the local model.'); setStatus('error'); }
+    } catch (e) { if (mountedRef.current) { setErr(e.message || 'Could not load the local model.'); setStatus('error'); } }
   }
 
   async function predict() {
@@ -566,13 +575,14 @@ function LocalCTRPredictor({ title, mood }) {
         ],
         temperature: 0.3, max_tokens: 80,
       });
+      if (!mountedRef.current) return;
       const txt = (reply.choices && reply.choices[0] && reply.choices[0].message.content) || '';
       const mj = txt.match(/\{[\s\S]*\}/);
       let parsed = null; if (mj) { try { parsed = JSON.parse(mj[0]); } catch (e) {} }
       if (parsed && parsed.score != null) setResult({ score: Math.max(0, Math.min(100, Math.round(parsed.score))), reason: parsed.reason || '' });
       else setResult({ score: null, reason: txt.slice(0, 120) });
       setStatus('ready');
-    } catch (e) { setErr(e.message || 'Prediction failed.'); setStatus('error'); }
+    } catch (e) { if (mountedRef.current) { setErr(e.message || 'Prediction failed.'); setStatus('error'); } }
   }
 
   return (

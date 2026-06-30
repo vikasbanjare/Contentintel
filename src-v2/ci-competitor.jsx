@@ -67,12 +67,12 @@ function CompareTable({ competitors, mood }) {
   const rows = [
     { label: 'Subscribers', get: c => parseInt(c.channelInfo.subs || 0), disp: c => cfmt(c.channelInfo.subs), better: 'high' },
     { label: 'Avg views', get: c => c.metrics.avgViews || 0, disp: c => cfmt(c.metrics.avgViews), better: 'high' },
-    { label: 'Median views', get: c => D(c, x => x.medianViews), disp: c => D(c, x => cfmt(x.medianViews), '—') || '—', better: 'high' },
+    { label: 'Median views', get: c => D(c, x => x.medianViews, null), disp: c => D(c, x => cfmt(x.medianViews), '—') || '—', better: 'high' },
     { label: 'View/sub %', get: c => { const s = parseInt(c.channelInfo.subs || 0); return s ? (c.metrics.avgViews / s) * 100 : 0; }, disp: c => { const s = parseInt(c.channelInfo.subs || 0); return s ? ((c.metrics.avgViews / s) * 100).toFixed(0) + '%' : '—'; }, better: 'high' },
-    { label: 'Views/day', get: c => D(c, x => x.avgViewsPerDay), disp: c => D(c, x => cfmt(x.avgViewsPerDay), '—') || '—', better: 'high' },
+    { label: 'Views/day', get: c => D(c, x => x.avgViewsPerDay, null), disp: c => D(c, x => cfmt(x.avgViewsPerDay), '—') || '—', better: 'high' },
     { label: 'Engagement', get: c => c.metrics.avgEngRate || 0, disp: c => c.metrics.avgEngRate + '%', better: 'high' },
-    { label: 'Comment rate', get: c => D(c, x => x.commentRate), disp: c => D(c, x => x.commentRate + '%', '—') || '—', better: 'high' },
-    { label: 'Momentum', get: c => D(c, x => x.momentum.pct), disp: c => D(c, x => `${x.momentum.trend} ${x.momentum.pct > 0 ? '+' : ''}${x.momentum.pct}%`, '—') || '—', better: 'high' },
+    { label: 'Comment rate', get: c => D(c, x => x.commentRate, null), disp: c => D(c, x => x.commentRate + '%', '—') || '—', better: 'high' },
+    { label: 'Momentum', get: c => D(c, x => x.momentum.pct, null), disp: c => D(c, x => `${x.momentum.trend} ${x.momentum.pct > 0 ? '+' : ''}${x.momentum.pct}%`, '—') || '—', better: 'high' },
     { label: 'Consistency', get: () => 0, disp: c => D(c, x => x.consistency, '—') || '—', better: 'none' },
     { label: 'Posts/month', get: c => c.metrics.postsPerMonth || 0, disp: c => c.metrics.postsPerMonth != null ? '~' + c.metrics.postsPerMonth : 'N/A', better: 'high' },
     { label: 'Avg length', get: () => 0, disp: c => dur(c.metrics.avgDurSecs), better: 'none' },
@@ -89,13 +89,15 @@ function CompareTable({ competitors, mood }) {
           <tbody>
             {rows.map(r => {
               const vals = cols.map(r.get);
-              const best = r.better === 'high' ? Math.max(...vals) : null;
-              const tie = best != null && vals.filter(v => v === best).length === cols.length;
+              const nums = vals.filter(v => typeof v === 'number' && isFinite(v));
+              const best = (r.better === 'high' && nums.length) ? Math.max(...nums) : null;
+              // No highlight when every competitor ties on this metric.
+              const allTied = best != null && nums.length === cols.length && nums.every(v => v === best);
               return (
                 <tr key={r.label}>
                   <td style={{ ...td, color: 'var(--text-4)', fontWeight: 500 }}>{r.label}</td>
                   {cols.map((c, i) => {
-                    const win = best != null && !tie && vals[i] === best;
+                    const win = best != null && !allTied && typeof vals[i] === 'number' && isFinite(vals[i]) && vals[i] === best;
                     return <td key={c.id} style={{ ...td, color: win ? '#8FD86A' : 'var(--text-1)', fontWeight: win ? 800 : 600 }}>{r.disp(c)}{win ? ' ▲' : ''}</td>;
                   })}
                 </tr>

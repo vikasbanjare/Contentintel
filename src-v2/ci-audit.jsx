@@ -58,6 +58,8 @@ function PostingCalendar({ videos, mood }) {
       try {
         await window.loadScriptOnce('https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js', 'echarts');
         if (disposed || !ref.current || !window.echarts) return;
+        // If a prior chart was left on this node (deps changed mid-load), dispose it first.
+        try { const prev = window.echarts.getInstanceByDom(ref.current); if (prev) prev.dispose(); } catch (e) {}
         const byDay = {}; let maxV = 1;
         for (const v of videos) {
           const d = new Date(v.published);

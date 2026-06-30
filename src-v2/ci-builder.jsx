@@ -373,12 +373,14 @@ function BuilderTab({ onNav }) {
 
   React.useEffect(() => {
     if (!analyseImg) { setColorPalette([]); setImageQuality(null); setFaceInfo(null); setFaceState('idle'); return; }
-    extractColorPalette(analyseImg.preview).then(setColorPalette).catch(() => setColorPalette([]));
-    analyzeImageQuality(analyseImg.preview).then(setImageQuality).catch(() => setImageQuality(null));
+    let cancelled = false; // ignore late results if the image changes / tab unmounts
+    extractColorPalette(analyseImg.preview).then(r => { if (!cancelled) setColorPalette(r); }).catch(() => { if (!cancelled) setColorPalette([]); });
+    analyzeImageQuality(analyseImg.preview).then(r => { if (!cancelled) setImageQuality(r); }).catch(() => { if (!cancelled) setImageQuality(null); });
     setFaceState('detecting'); setFaceInfo(null);
     detectThumbnailFaces(analyseImg.preview)
-      .then(r => { setFaceInfo(r); setFaceState('done'); })
-      .catch(() => setFaceState('error'));
+      .then(r => { if (!cancelled) { setFaceInfo(r); setFaceState('done'); } })
+      .catch(() => { if (!cancelled) setFaceState('error'); });
+    return () => { cancelled = true; };
   }, [analyseImg]);
 
   const [extraNote, setExtraNote] = React.useState(bootFresh && bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
