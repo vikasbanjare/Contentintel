@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r44";
+window.CI_BUILD = "2026-06-20-r45";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -1450,10 +1450,17 @@ function loadScriptOnce(src, globalName) {
   return new Promise((resolve, reject) => {
     if (globalName && window[globalName]) return resolve(window[globalName]);
     const existing = document.querySelector(`script[data-cdn="${src}"]`);
-    if (existing) { existing.addEventListener('load', () => resolve(globalName ? window[globalName] : true)); existing.addEventListener('error', reject); return; }
+    if (existing) {
+      // If the in-flight script already finished before we attached a listener,
+      // its 'load' event will never fire again — resolve from the marker/global.
+      if ((globalName && window[globalName]) || existing.dataset.loaded === '1') return resolve(globalName ? window[globalName] : true);
+      existing.addEventListener('load', () => resolve(globalName ? window[globalName] : true));
+      existing.addEventListener('error', reject);
+      return;
+    }
     const s = document.createElement('script');
     s.src = src; s.async = true; s.dataset.cdn = src;
-    s.onload = () => resolve(globalName ? window[globalName] : true);
+    s.onload = () => { s.dataset.loaded = '1'; resolve(globalName ? window[globalName] : true); };
     s.onerror = () => reject(new Error('Failed to load ' + src));
     document.head.appendChild(s);
   });

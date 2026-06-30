@@ -89,8 +89,9 @@ function CommentsTab({ onOpenKey }) {
       ? fetchedComments.map(c => c.text)
       : (comments.trim() ? comments.split(/\n---\n|\n–––\n/).map(s => s.trim()).filter(Boolean) : []);
     if (texts.length < 2) { setSentiment(null); return; }
-    const timer = setTimeout(async () => { setSentiment(await scoreSentimentBatch(texts)); }, 700);
-    return () => clearTimeout(timer);
+    let live = true;
+    const timer = setTimeout(async () => { const r = await scoreSentimentBatch(texts); if (live) setSentiment(r); }, 700);
+    return () => { live = false; clearTimeout(timer); };
   }, [mode, fetchedComments, comments]);
 
   const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';

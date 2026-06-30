@@ -290,8 +290,11 @@ function parseYTTimedText(xml) {
   while ((m = re.exec(xml)) !== null) {
     const start = parseFloat(m[1]);
     const end   = start + parseFloat(m[2]);
-    const text  = m[3].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
-                       .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim();
+    const text  = m[3].replace(/<[^>]+>/g,'')
+                       .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+                       .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)))
+                       .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'")
+                       .replace(/&amp;/g,'&').trim(); // &amp; last so it can't create false entities
     if (text) segs.push({ i: segs.length + 1, start, end, text });
   }
   if (!segs.length) return '';
@@ -348,14 +351,16 @@ function CaptionTab({ onOpenKey }) {
   React.useEffect(() => {
     const text = [title.trim(), transcript.trim()].filter(Boolean).join('. ');
     if (text.length < 15) { setKeywords([]); setLang(null); return; }
+    let live = true; // ignore results if input changed again or component unmounted
     setKwLoading(true);
     const timer = setTimeout(async () => {
       const [kw, lg] = await Promise.all([extractSEOKeywords(text), detectLanguage(text)]);
+      if (!live) return;
       setKeywords(kw);
       setLang(lg);
       setKwLoading(false);
     }, 900);
-    return () => { clearTimeout(timer); };
+    return () => { live = false; clearTimeout(timer); };
   }, [title, transcript]);
 
   // Readability of the key-points/summary text (instant, no CDN).

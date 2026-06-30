@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r44";
+window.CI_BUILD = "2026-06-20-r45";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -3719,10 +3719,17 @@ function loadScriptOnce(src, globalName) {
   return new Promise((resolve, reject) => {
     if (globalName && window[globalName]) return resolve(window[globalName]);
     const existing = document.querySelector(`script[data-cdn="${src}"]`);
-    if (existing) { existing.addEventListener('load', () => resolve(globalName ? window[globalName] : true)); existing.addEventListener('error', reject); return; }
+    if (existing) {
+      // If the in-flight script already finished before we attached a listener,
+      // its 'load' event will never fire again — resolve from the marker/global.
+      if ((globalName && window[globalName]) || existing.dataset.loaded === '1') return resolve(globalName ? window[globalName] : true);
+      existing.addEventListener('load', () => resolve(globalName ? window[globalName] : true));
+      existing.addEventListener('error', reject);
+      return;
+    }
     const s = document.createElement('script');
     s.src = src; s.async = true; s.dataset.cdn = src;
-    s.onload = () => resolve(globalName ? window[globalName] : true);
+    s.onload = () => { s.dataset.loaded = '1'; resolve(globalName ? window[globalName] : true); };
     s.onerror = () => reject(new Error('Failed to load ' + src));
     document.head.appendChild(s);
   });
@@ -7431,17 +7438,26 @@ function LocalCTRPredictor({ title, mood }) {
   const [result, setResult] = React.useState(null);
   const [err, setErr] = React.useState('');
   const engineRef = React.useRef(null);
+  const mountedRef = React.useRef(true);
   const MODEL = 'Qwen2.5-0.5B-Instruct-q4f32_1-MLC';
   const hasGPU = typeof navigator !== 'undefined' && !!navigator.gpu;
+
+  // Release the GPU engine and stop state updates once this tab unmounts.
+  React.useEffect(() => () => {
+    mountedRef.current = false;
+    try { engineRef.current && engineRef.current.unload && engineRef.current.unload(); } catch (e) {}
+  }, []);
 
   async function loadModel() {
     if (!hasGPU) { setErr('This needs WebGPU — use desktop Chrome or Edge.'); setStatus('error'); return; }
     setStatus('loading'); setErr(''); setProgress('Starting…');
     try {
       const webllm = await import('https://esm.run/@mlc-ai/web-llm');
-      engineRef.current = await webllm.CreateMLCEngine(MODEL, { initProgressCallback: p => setProgress(p.text || '') });
+      const eng = await webllm.CreateMLCEngine(MODEL, { initProgressCallback: p => { if (mountedRef.current) setProgress(p.text || ''); } });
+      if (!mountedRef.current) { try { eng.unload && eng.unload(); } catch (e) {} return; }
+      engineRef.current = eng;
       setStatus('ready');
-    } catch (e) { setErr(e.message || 'Could not load the local model.'); setStatus('error'); }
+    } catch (e) { if (mountedRef.current) { setErr(e.message || 'Could not load the local model.'); setStatus('error'); } }
   }
 
   async function predict() {
@@ -7455,13 +7471,14 @@ function LocalCTRPredictor({ title, mood }) {
         ],
         temperature: 0.3, max_tokens: 80,
       });
+      if (!mountedRef.current) return;
       const txt = (reply.choices && reply.choices[0] && reply.choices[0].message.content) || '';
       const mj = txt.match(/\{[\s\S]*\}/);
       let parsed = null; if (mj) { try { parsed = JSON.parse(mj[0]); } catch (e) {} }
       if (parsed && parsed.score != null) setResult({ score: Math.max(0, Math.min(100, Math.round(parsed.score))), reason: parsed.reason || '' });
       else setResult({ score: null, reason: txt.slice(0, 120) });
       setStatus('ready');
-    } catch (e) { setErr(e.message || 'Prediction failed.'); setStatus('error'); }
+    } catch (e) { if (mountedRef.current) { setErr(e.message || 'Prediction failed.'); setStatus('error'); } }
   }
 
   return (
@@ -8391,12 +8408,14 @@ function BuilderTab({ onNav }) {
 
   React.useEffect(() => {
     if (!analyseImg) { setColorPalette([]); setImageQuality(null); setFaceInfo(null); setFaceState('idle'); return; }
-    extractColorPalette(analyseImg.preview).then(setColorPalette).catch(() => setColorPalette([]));
-    analyzeImageQuality(analyseImg.preview).then(setImageQuality).catch(() => setImageQuality(null));
+    let cancelled = false; // ignore late results if the image changes / tab unmounts
+    extractColorPalette(analyseImg.preview).then(r => { if (!cancelled) setColorPalette(r); }).catch(() => { if (!cancelled) setColorPalette([]); });
+    analyzeImageQuality(analyseImg.preview).then(r => { if (!cancelled) setImageQuality(r); }).catch(() => { if (!cancelled) setImageQuality(null); });
     setFaceState('detecting'); setFaceInfo(null);
     detectThumbnailFaces(analyseImg.preview)
-      .then(r => { setFaceInfo(r); setFaceState('done'); })
-      .catch(() => setFaceState('error'));
+      .then(r => { if (!cancelled) { setFaceInfo(r); setFaceState('done'); } })
+      .catch(() => { if (!cancelled) setFaceState('error'); });
+    return () => { cancelled = true; };
   }, [analyseImg]);
 
   const [extraNote, setExtraNote] = React.useState(bootFresh && bootCreate.brief ? ('Scene context from the script: ' + bootCreate.brief) : '');
@@ -11119,7 +11138,7 @@ function ProfileModal({ open, onClose }) {
       setP(prev => ({ ...prev, voiceDna: profile.trim() })); setSaved(false); setVState('idle');
     } catch (e) {
       const m = String(e.message || '');
-      setVErr(/NO_\w+_KEY|No API key/i.test(m) ? 'Add an API key (or pick a free provider) in Settings first.' : (m || 'Could not build voice profile.'));
+      setVErr(/NO_\w*KEY|No API key/i.test(m) ? 'Add an API key (or pick a free provider) in Settings first.' : (m || 'Could not build voice profile.'));
       setVState('error');
     }
   }
@@ -11541,8 +11560,11 @@ function parseYTTimedText(xml) {
   while ((m = re.exec(xml)) !== null) {
     const start = parseFloat(m[1]);
     const end   = start + parseFloat(m[2]);
-    const text  = m[3].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
-                       .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/<[^>]+>/g,'').trim();
+    const text  = m[3].replace(/<[^>]+>/g,'')
+                       .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+                       .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCharCode(parseInt(n, 16)))
+                       .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'")
+                       .replace(/&amp;/g,'&').trim(); // &amp; last so it can't create false entities
     if (text) segs.push({ i: segs.length + 1, start, end, text });
   }
   if (!segs.length) return '';
@@ -11599,14 +11621,16 @@ function CaptionTab({ onOpenKey }) {
   React.useEffect(() => {
     const text = [title.trim(), transcript.trim()].filter(Boolean).join('. ');
     if (text.length < 15) { setKeywords([]); setLang(null); return; }
+    let live = true; // ignore results if input changed again or component unmounted
     setKwLoading(true);
     const timer = setTimeout(async () => {
       const [kw, lg] = await Promise.all([extractSEOKeywords(text), detectLanguage(text)]);
+      if (!live) return;
       setKeywords(kw);
       setLang(lg);
       setKwLoading(false);
     }, 900);
-    return () => { clearTimeout(timer); };
+    return () => { live = false; clearTimeout(timer); };
   }, [title, transcript]);
 
   // Readability of the key-points/summary text (instant, no CDN).
@@ -12244,8 +12268,9 @@ function CommentsTab({ onOpenKey }) {
       ? fetchedComments.map(c => c.text)
       : (comments.trim() ? comments.split(/\n---\n|\n–––\n/).map(s => s.trim()).filter(Boolean) : []);
     if (texts.length < 2) { setSentiment(null); return; }
-    const timer = setTimeout(async () => { setSentiment(await scoreSentimentBatch(texts)); }, 700);
-    return () => clearTimeout(timer);
+    let live = true;
+    const timer = setTimeout(async () => { const r = await scoreSentimentBatch(texts); if (live) setSentiment(r); }, 700);
+    return () => { live = false; clearTimeout(timer); };
   }, [mode, fetchedComments, comments]);
 
   const ytKey = window.getYouTubeKey ? window.getYouTubeKey() : '';
@@ -12505,6 +12530,8 @@ function PostingCalendar({ videos, mood }) {
       try {
         await window.loadScriptOnce('https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js', 'echarts');
         if (disposed || !ref.current || !window.echarts) return;
+        // If a prior chart was left on this node (deps changed mid-load), dispose it first.
+        try { const prev = window.echarts.getInstanceByDom(ref.current); if (prev) prev.dispose(); } catch (e) {}
         const byDay = {}; let maxV = 1;
         for (const v of videos) {
           const d = new Date(v.published);
