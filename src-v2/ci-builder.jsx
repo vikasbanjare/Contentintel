@@ -80,16 +80,34 @@ function BuilderUpgradeCard({ u, i, m, sourceImage, aspect }) {
     }
   }
 
+  // Free, no-key generation via Pollinations (Flux).
+  async function generateFree() {
+    if (genState === 'loading') return;
+    setGenState('loading'); setGenImg(null); setGenErr('');
+    try {
+      const url = await window.generateImageFree(u.prompt, aspect);
+      setGenImg(url); setGenState('done');
+    } catch (e) {
+      setGenErr(String(e?.message || 'Free generation failed — try again.'));
+      setGenState('error');
+    }
+  }
+
   return (
     <div style={{ padding: '13px 14px', borderRadius: 12, background: 'var(--inset)', border: '1px solid var(--stroke-1)' }}>
       <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6 }}>{i + 1}. {u.tier || ('Option ' + (i + 1))}</div>
       <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{u.prompt}</div>
       <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button className="ci-copybtn"
+          style={{ height: 32, padding: '0 13px', fontSize: 12, background: '#8FD86A22', borderColor: '#8FD86A55', color: '#8FD86A', fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
+          onClick={generateFree} disabled={genState === 'loading'} title="Generate a thumbnail free — no API key, no signup">
+          {genState === 'loading' ? '⏳ Generating…' : '🆓 Generate free'}
+        </button>
         {canGenerate && (
           <button className="ci-copybtn"
             style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
             onClick={generate} disabled={genState === 'loading'}>
-            {genState === 'loading' ? '⏳ Generating…' : `⚡ Generate${sourceImage ? ' (edit)' : ''}`}
+            {genState === 'loading' ? '⏳ Generating…' : `⚡ ${sourceImage ? 'Edit with key' : 'Generate (key)'}`}
           </button>
         )}
         <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12, background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700 }} onClick={() => window.openInChatGPT(u.prompt)}>🎨 ChatGPT</button>
@@ -885,7 +903,7 @@ function BuilderTab({ onNav }) {
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-1)', marginBottom: 4, fontFamily: 'var(--font-display)' }}>3 ways to upgrade it</div>
               <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 12, lineHeight: 1.5 }}>
-                Pick a level — send to ChatGPT or Gemini{(window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.()) ? ', or hit ⚡ Generate to create it here instantly' : ''}. {analyseImg ? 'Generation uses your uploaded thumbnail as a base.' : ''}
+                Pick a level, then hit <b style={{ color: '#8FD86A' }}>🆓 Generate free</b> to create it right here — no key, no signup. Or send to ChatGPT / Gemini. {analyseImg ? 'Generation uses your uploaded thumbnail as a base.' : ''}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {upgrades.map((u, i) => (

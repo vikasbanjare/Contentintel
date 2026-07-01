@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r46";
+window.CI_BUILD = "2026-06-20-r47";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -850,6 +850,24 @@ async function generateImageInApp(promptText, aspect) {
   if (gKey) return await generateThumbnail({ instruction: processed, aspect });
   if (oKey || proxy) return await generateImageDalle({ prompt: processed });
   throw new Error("NO_IMAGE_KEY");
+}
+
+// FREE image generation — Pollinations (Flux), no key, no signup. Loads as a
+// plain image URL (no fetch → no CORS). Preloads so the caller gets a ready
+// image and errors surface. This is what makes thumbnail generation free.
+async function generateImageFree(promptText, aspect) {
+  const processed = preprocessForImageGen(promptText) || promptText || '';
+  const [w, h] = aspect === '9:16' ? [720, 1280] : aspect === '1:1' ? [1024, 1024] : [1280, 720];
+  const seed = Math.floor(Math.random() * 1e7);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(processed).slice(0, 900))}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}`;
+  await new Promise((resolve, reject) => {
+    const im = new Image();
+    const to = setTimeout(() => reject(new Error('Free generator timed out — try again, or use a key for faster results.')), 60000);
+    im.onload = () => { clearTimeout(to); resolve(); };
+    im.onerror = () => { clearTimeout(to); reject(new Error('Free generator is busy — try again in a moment.')); };
+    im.src = url;
+  });
+  return url;
 }
 
 // Image editing -- uses the source image to drive Gemini's in-context edit.
@@ -2584,6 +2602,6 @@ Object.assign(window, {
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
-  getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp,
+  getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp, generateImageFree,
   preprocessForImageGen, geminiFactCheck, claudeFactCheck, groundThumbPrompt, packageScript,
 });
