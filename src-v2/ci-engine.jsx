@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r47";
+window.CI_BUILD = "2026-06-20-r48";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -521,11 +521,10 @@ function preprocessForImageGen(raw) {
     const change = (changeM ? changeM[1] : "").replace(/\n+/g, "; ").replace(/;\s*;/g, ";").trim();
     p = [keep && `Visual context: ${keep}`, change && `Improvements to apply: ${change}`].filter(Boolean).join(". ");
   }
-  return [
-    "Professional high-CTR YouTube thumbnail, 1280×720, commercial photography quality.",
-    p,
-    "Requirements: ultra-sharp, vibrant saturated colors, dramatic professional lighting, bold clear composition with one dominant focal point, readable text at 120px thumbnail size, photorealistic quality.",
-  ].filter(Boolean).join(" ");
+  // Subject-first, ONE short quality clause. No meta jargon ("high-CTR",
+  // "1280x720") and no duplicated adjective piles — those bury the actual
+  // subject and weaken image-model adherence.
+  return p ? `${p} Sharp focus, high contrast, dramatic lighting, one clear focal point, photorealistic.` : p;
 }
 
 // From a finished SCRIPT, produce platform-tuned packaging -- 3 title options each
@@ -582,7 +581,7 @@ async function groundThumbPrompt(brief, opts = {}) {
     (th.layouts && th.layouts.length) ? "LAYOUT ARCHETYPES (pick ONE that fits):\n" + cat(th.layouts) : "",
     (th.colorSchemes && th.colorSchemes.length) ? "COLOUR SCHEMES (pick ONE that fits):\n" + cat(th.colorSchemes) : "",
     st.systemGuidance ? "IMAGE-PROMPT QUALITY SCIENCE:\n" + st.systemGuidance.slice(0, 2600) : "",
-    `OUTPUT: a single tight paragraph describing the FINISHED thumbnail (${ratio}, 1280x720) in this order -- [subject: who, position, expression, clothing]. [exact on-image text: the words, weight, colour, placement]. [background + the chosen colour scheme]. [composition using the chosen layout + lighting]. End with: ultra-sharp, high-contrast, cinematic professional lighting, one dominant focal point, legible at 120px; render ONLY the specified words with no gibberish lettering. Output ONLY the prompt text -- no preamble, no explanation, no markdown.`,
+    `OUTPUT: 2-4 tight sentences describing the FINISHED thumbnail, SUBJECT FIRST -- [subject: who, position, exact expression/emotion, clothing]. [background + the chosen colour scheme]. [composition using the chosen layout + lighting]. If the brief has a short 2-4 word text, add it simply as: the words "X" in bold sans-serif, <colour>, <corner>. Keep the whole prompt concrete and short. End with only: sharp focus, high contrast, one clear focal point, photorealistic. Do NOT include meta words like "1280x720", "high-CTR", "YouTube thumbnail" or "legible at 120px". Output ONLY the prompt text -- no preamble, no markdown.`,
   ].filter(Boolean).join("\n\n");
   const { text } = await callClaude({ system: sys, userText: "CREATOR BRIEF:\n" + brief, maxTokens: 700, temperature: 0.7 });
   return (text || "").trim();
@@ -1358,16 +1357,30 @@ function GenPromptCard({ block, mood }) {
     }
   }
 
+  async function generateFree() {
+    if (genState === "loading") return;
+    setGenState("loading"); setGenImg(null); setGenErr("");
+    try {
+      const url = await generateImageFree(block.text);
+      setGenImg(url); setGenState("done");
+    } catch (e) { setGenErr(String(e && e.message || "Free generation failed — try again.")); setGenState("error"); }
+  }
+
   return (
     <div style={{ padding: "13px 14px", borderRadius: 12, background: "var(--inset)", border: "1px solid var(--stroke-1)" }}>
       {block.label && <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6, letterSpacing: "0.01em" }}>{block.label}</div>}
       <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{block.text}</div>
       <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap", alignItems: "center" }}>
+        <button className="ci-copybtn"
+          style={{ height: 32, padding: "0 13px", fontSize: 12, background: "#8FD86A22", borderColor: "#8FD86A55", color: "#8FD86A", fontWeight: 700, opacity: genState === "loading" ? 0.65 : 1 }}
+          onClick={generateFree} disabled={genState === "loading"} title="Generate free — no key, no signup">
+          {genState === "loading" ? "⏳ Generating…" : "🆓 Generate free"}
+        </button>
         {canGenerate && (
           <button className="ci-copybtn"
             style={{ height: 32, padding: "0 13px", fontSize: 12, background: `linear-gradient(135deg,${m.accentFrom}28,${m.accentFrom}12)`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === "loading" ? 0.65 : 1 }}
             onClick={generate} disabled={genState === "loading"}>
-            {genState === "loading" ? "⏳ Generating…" : "⚡ Generate"}
+            {genState === "loading" ? "⏳ Generating…" : "⚡ Generate (key)"}
           </button>
         )}
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInChatGPT(block.text)}>🎨 ChatGPT</button>
@@ -1621,7 +1634,7 @@ function ReportView({ report, mood, onApplyText, sources }) {
         if (sec.type === "copy") {
           // Thumbnail upgrade prompts: show them OPEN and prominent, each with a
           // one-click "send to ChatGPT / Gemini" so the user can generate it.
-          if (/upgrade|redesign|generate/i.test(sec.title || ""))
+          if (/upgrade|redesign|generate|concept/i.test(sec.title || ""))
             return (
               <Block key={"r" + i} title={sec.title || "Ways to upgrade it"} mood={mood}>
                 {sec.desc && <div style={{ fontSize: 12.5, color: "var(--text-3)", margin: "0 0 12px", lineHeight: 1.5 }}>{sec.desc}</div>}
