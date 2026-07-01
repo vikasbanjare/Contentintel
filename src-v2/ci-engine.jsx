@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r48";
+window.CI_BUILD = "2026-06-20-r49";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -632,13 +632,32 @@ async function generateThumbnail({ instruction, image, model, aspect }) {
     return fetch(proxy, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ provider: "gemini", model: mdl, payload }) })
       .catch(e => { throw new Error("Couldn't reach your proxy URL (" + (e && e.message || "network/CORS") + "). Check it in Settings."); });
   };
+  // Quota-aware, low-burn retry policy. Google's free image quota (~10 req/min,
+  // ~500/day) is shared across EVERY Gemini call this app makes (text analysis,
+  // fact-check, images) on the same key/project -- the old policy retried up to
+  // 3x per model across 4 models (up to 12 requests for ONE click), which could
+  // exhaust that shared budget almost instantly. Now: a hard quota/billing error
+  // fails immediately (other models will hit the same wall); a plain rate-limit
+  // gets exactly one short retry; transient server overload (503/500) gets one
+  // backoff retry -- so a single generate click costs at most ~2 requests per
+  // model tried, not up to 3.
   let lastDetail = "";
   for (const mdl of CANDIDATES) {
     let res;
-    for (let a = 0; ; a++) {           // transient overload backoff, per model
+    for (let a = 0; ; a++) {
       res = await attempt(mdl);
-      if (res.ok || !(res.status === 429 || res.status === 503 || res.status === 500) || a >= 2) break;
-      await new Promise(r => setTimeout(r, 900 * Math.pow(2, a) + Math.random() * 400));
+      if (res.ok) break;
+      if (res.status === 429) {
+        let detail = ""; try { detail = (await res.clone().json())?.error?.message || ""; } catch (e) {}
+        if (/quota|billing/i.test(detail)) {
+          throw new Error("This Google key hit its free image quota (shared across every Gemini feature in this app). Use the 🆓 Generate free button instead -- no key, no quota -- or wait a bit and try again / enable billing in Google AI Studio.");
+        }
+        if (a >= 1) break;               // one short retry for a plain rate limit, then move on
+        await new Promise(r => setTimeout(r, 1200));
+        continue;
+      }
+      if (!(res.status === 503 || res.status === 500) || a >= 1) break; // one backoff retry for transient overload
+      await new Promise(r => setTimeout(r, 1000 + Math.random() * 400));
     }
     if (res.ok) {
       const data = await res.json();
@@ -653,10 +672,9 @@ async function generateThumbnail({ instruction, image, model, aspect }) {
     let detail = ""; try { detail = (await res.json())?.error?.message || ""; } catch (e) {}
     lastDetail = detail || ("HTTP " + res.status);
     if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid -- check it in Settings.");
-    if (res.status === 429 && /quota|billing/i.test(detail)) throw new Error("This Google key is out of image quota / needs billing enabled. Add billing in Google AI Studio, or try again later.");
     // 403 (API not enabled) / 404 (model unavailable) / other -> try the next model
   }
-  throw new Error("Couldn't generate the image with this key. " + (lastDetail ? "(" + lastDetail + ") " : "") + "Make sure image generation is enabled for your Google AI key (Generative Language API + billing).");
+  throw new Error("Couldn't generate with this key. " + (lastDetail ? "(" + lastDetail + ") " : "") + "Try the 🆓 Generate free button instead (no key, no quota), or check that image generation is enabled for your Google AI key (Generative Language API + billing).");
 }
 
 // Independent fact-check via Gemini, grounded with Google Search. Browser-direct
@@ -1331,6 +1349,38 @@ function Collapsible({ title, desc, children, startOpen }) {
   );
 }
 
+// Preview a thumbnail at the real sizes YouTube actually shows it at. Text and
+// faces that read fine in a big editor often blur into mush at the sizes most
+// viewers actually see -- this catches that before publishing. Pure client-side
+// (canvas-free, just CSS sizing), no API cost.
+function ThumbnailSizePreview({ src }) {
+  if (!src) return null;
+  const SIZES = [
+    { label: "Home feed (desktop)", w: 246, h: 138, real: "1280×720 source" },
+    { label: "Suggested videos", w: 168, h: 94, real: "336×188 on screen" },
+    { label: "Mobile / end screen", w: 120, h: 68, real: "as small as 120×90" },
+  ];
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-4)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>
+        Preview at real YouTube sizes
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
+        {SIZES.map(s => (
+          <div key={s.label} style={{ textAlign: "center" }}>
+            <div style={{ width: s.w, height: s.h, borderRadius: 6, overflow: "hidden", border: "1px solid var(--stroke-1)", background: "#000" }}>
+              <img src={src} alt={s.label} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--text-3)", marginTop: 5, fontWeight: 600 }}>{s.label}</div>
+            <div style={{ fontSize: 9.5, color: "var(--text-5)" }}>{s.real}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+window.ThumbnailSizePreview = ThumbnailSizePreview;
+
 // One ranked upgrade prompt -- copy it, send to ChatGPT/Gemini, or generate in-app.
 function GenPromptCard({ block, mood }) {
   const m = EM[mood] || EM.navy;
@@ -1405,6 +1455,7 @@ function GenPromptCard({ block, mood }) {
             <button className="ci-copybtn" style={{ height: 30, padding: "0 12px", fontSize: 12 }} onClick={generate}>↺ Regenerate</button>
             <button className="ci-copybtn" style={{ height: 30, padding: "0 12px", fontSize: 12 }} onClick={() => { setGenState("idle"); setGenImg(null); }}>✕ Clear</button>
           </div>
+          <ThumbnailSizePreview src={genImg} />
         </div>
       )}
     </div>
