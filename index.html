@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r47";
+window.CI_BUILD = "2026-06-20-r48";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2790,11 +2790,10 @@ function preprocessForImageGen(raw) {
     const change = (changeM ? changeM[1] : "").replace(/\n+/g, "; ").replace(/;\s*;/g, ";").trim();
     p = [keep && `Visual context: ${keep}`, change && `Improvements to apply: ${change}`].filter(Boolean).join(". ");
   }
-  return [
-    "Professional high-CTR YouTube thumbnail, 1280×720, commercial photography quality.",
-    p,
-    "Requirements: ultra-sharp, vibrant saturated colors, dramatic professional lighting, bold clear composition with one dominant focal point, readable text at 120px thumbnail size, photorealistic quality.",
-  ].filter(Boolean).join(" ");
+  // Subject-first, ONE short quality clause. No meta jargon ("high-CTR",
+  // "1280x720") and no duplicated adjective piles — those bury the actual
+  // subject and weaken image-model adherence.
+  return p ? `${p} Sharp focus, high contrast, dramatic lighting, one clear focal point, photorealistic.` : p;
 }
 
 // From a finished SCRIPT, produce platform-tuned packaging -- 3 title options each
@@ -2851,7 +2850,7 @@ async function groundThumbPrompt(brief, opts = {}) {
     (th.layouts && th.layouts.length) ? "LAYOUT ARCHETYPES (pick ONE that fits):\n" + cat(th.layouts) : "",
     (th.colorSchemes && th.colorSchemes.length) ? "COLOUR SCHEMES (pick ONE that fits):\n" + cat(th.colorSchemes) : "",
     st.systemGuidance ? "IMAGE-PROMPT QUALITY SCIENCE:\n" + st.systemGuidance.slice(0, 2600) : "",
-    `OUTPUT: a single tight paragraph describing the FINISHED thumbnail (${ratio}, 1280x720) in this order -- [subject: who, position, expression, clothing]. [exact on-image text: the words, weight, colour, placement]. [background + the chosen colour scheme]. [composition using the chosen layout + lighting]. End with: ultra-sharp, high-contrast, cinematic professional lighting, one dominant focal point, legible at 120px; render ONLY the specified words with no gibberish lettering. Output ONLY the prompt text -- no preamble, no explanation, no markdown.`,
+    `OUTPUT: 2-4 tight sentences describing the FINISHED thumbnail, SUBJECT FIRST -- [subject: who, position, exact expression/emotion, clothing]. [background + the chosen colour scheme]. [composition using the chosen layout + lighting]. If the brief has a short 2-4 word text, add it simply as: the words "X" in bold sans-serif, <colour>, <corner>. Keep the whole prompt concrete and short. End with only: sharp focus, high contrast, one clear focal point, photorealistic. Do NOT include meta words like "1280x720", "high-CTR", "YouTube thumbnail" or "legible at 120px". Output ONLY the prompt text -- no preamble, no markdown.`,
   ].filter(Boolean).join("\n\n");
   const { text } = await callClaude({ system: sys, userText: "CREATOR BRIEF:\n" + brief, maxTokens: 700, temperature: 0.7 });
   return (text || "").trim();
@@ -3627,16 +3626,30 @@ function GenPromptCard({ block, mood }) {
     }
   }
 
+  async function generateFree() {
+    if (genState === "loading") return;
+    setGenState("loading"); setGenImg(null); setGenErr("");
+    try {
+      const url = await generateImageFree(block.text);
+      setGenImg(url); setGenState("done");
+    } catch (e) { setGenErr(String(e && e.message || "Free generation failed — try again.")); setGenState("error"); }
+  }
+
   return (
     <div style={{ padding: "13px 14px", borderRadius: 12, background: "var(--inset)", border: "1px solid var(--stroke-1)" }}>
       {block.label && <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6, letterSpacing: "0.01em" }}>{block.label}</div>}
       <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{block.text}</div>
       <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap", alignItems: "center" }}>
+        <button className="ci-copybtn"
+          style={{ height: 32, padding: "0 13px", fontSize: 12, background: "#8FD86A22", borderColor: "#8FD86A55", color: "#8FD86A", fontWeight: 700, opacity: genState === "loading" ? 0.65 : 1 }}
+          onClick={generateFree} disabled={genState === "loading"} title="Generate free — no key, no signup">
+          {genState === "loading" ? "⏳ Generating…" : "🆓 Generate free"}
+        </button>
         {canGenerate && (
           <button className="ci-copybtn"
             style={{ height: 32, padding: "0 13px", fontSize: 12, background: `linear-gradient(135deg,${m.accentFrom}28,${m.accentFrom}12)`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === "loading" ? 0.65 : 1 }}
             onClick={generate} disabled={genState === "loading"}>
-            {genState === "loading" ? "⏳ Generating…" : "⚡ Generate"}
+            {genState === "loading" ? "⏳ Generating…" : "⚡ Generate (key)"}
           </button>
         )}
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInChatGPT(block.text)}>🎨 ChatGPT</button>
@@ -3890,7 +3903,7 @@ function ReportView({ report, mood, onApplyText, sources }) {
         if (sec.type === "copy") {
           // Thumbnail upgrade prompts: show them OPEN and prominent, each with a
           // one-click "send to ChatGPT / Gemini" so the user can generate it.
-          if (/upgrade|redesign|generate/i.test(sec.title || ""))
+          if (/upgrade|redesign|generate|concept/i.test(sec.title || ""))
             return (
               <Block key={"r" + i} title={sec.title || "Ways to upgrade it"} mood={mood}>
                 {sec.desc && <div style={{ fontSize: 12.5, color: "var(--text-3)", margin: "0 0 12px", lineHeight: 1.5 }}>{sec.desc}</div>}
@@ -7147,12 +7160,12 @@ function ThumbnailTab({ onOpenKey }) {
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
   // Vision works for single AND multi-image (A/B/C) when a key is present.
   const imgs = hasVision ? (compare ? imgsAll.slice(0, count).filter(Boolean) : (imgA ? [imgA] : [])) : [];
-  // Ask for 3 ranked, ready-to-generate upgrade prompts (basic -> mild -> bold).
+  // Ideation = 5 DIFFERENT creative directions (not one idea at escalating intensity).
   const upgradeAsk = compare ? '' :
-    '\n\nALSO: end the report with a "copy" section titled "3 ways to upgrade this thumbnail" containing EXACTLY 3 blocks, each a complete, ready-to-paste, DETAILED image prompt for ChatGPT/Gemini. The three MUST differ sharply in scope -- do NOT write three similar prompts; each must clearly change MORE than the one before, and read very differently:\n' +
-    '- block 1 label "1 - Basic polish (keep the photo)": keep the EXACT same photo, person, face and expression and the same composition -- change NOTHING about the people. Only polish the design: bigger/bolder text with stronger contrast and better placement, sharpen the focal point, add/clean ONE highlight (box/outline/arrow), lift contrast. A quick edit, not a regeneration.\n' +
-    '- block 2 label "2 - Mild redesign (same person & text, new design)": keep the same person, topic and EXACT text, but do NOT keep the existing layout -- redesign creatively: different composition and background, reposition/relight the subject, change or add visual elements, a bolder colour scheme.\n' +
-    '- block 3 label "3 - Full reimagining (change everything)": reimagine the whole thumbnail -- you MAY change the expression, pose, composition, background, elements, colour and layout; keep ONLY the topic and exact text. The boldest, most scroll-stopping concept.';
+    '\n\nALSO: end the report with a "copy" section titled "5 thumbnail concepts to try" containing EXACTLY 5 blocks. Each block is a genuinely DIFFERENT creative DIRECTION — not the same idea five times. Choose the 5 that best fit this topic from: reaction close-up (huge emotive face), object/result hero shot, before→after split, big-number/stat, contrast or "X vs Y", caught-in-the-moment candid, bold minimalist.\n' +
+    '- Each block LABEL = the direction name + a punchy 2-4 word OVERLAY TEXT for that concept. You MAY improve on the original words to a stronger hook (keep the same topic). Example label: \'Reaction close-up — "I WAS WRONG"\'.\n' +
+    '- Each block TEXT = a TIGHT image-generator prompt (2-4 sentences), SUBJECT FIRST: describe the finished SCENE — the person (position, exact expression/emotion, clothing) or the hero object, then background + ONE bold colour scheme, then composition + lighting. Be concrete and specific to THIS video. Do NOT bake long on-image text into the scene (the overlay words are in the label). End with only: sharp focus, high contrast, one clear focal point, photorealistic. NEVER include meta like "1280x720", "high-CTR", "legible at 120px", or "KEEP:".\n' +
+    'The 5 concepts must look clearly different from each other AND from the current thumbnail.';
   // Niche routing + edit mode are baked into the system prompt (one source of truth).
   // compactPlaybook trims the playbook when auto-detecting -> fewer input tokens.
   const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict, compactPlaybook: true });
@@ -8092,17 +8105,13 @@ const OUTPUT_TOOLS = [
   { id: 'gemini',  label: 'Google Gemini', icon: '✨', url: 'https://gemini.google.com/app', useQ: false, note: 'Free -- prompt copied, paste it in and attach your photo(s)' },
 ];
 
-// The three upgrade tiers MUST be sharply different in scope (shared spec).
+// Ideation = 5 DIFFERENT creative DIRECTIONS (not one idea at 5 intensities).
 const TIER_SPEC =
-`THE THREE UPGRADE PROMPTS MUST DIFFER SHARPLY IN SCOPE and each must be a COMPLETE SELF-CONTAINED VISUAL SPECIFICATION -- because these prompts will be sent DIRECTLY to an AI image generator (Gemini Imagen, DALL-E) without the original image. Write what the FINISHED thumbnail LOOKS LIKE, not what to change. Do NOT use "KEEP:", "CHANGE ONLY:", "preserve" or "maintain".
+`Produce 5 thumbnail concepts that are genuinely DIFFERENT creative DIRECTIONS — not the same idea five times. Pick the 5 that best fit THIS topic from these proven angles: reaction close-up (huge emotive face), object/result hero shot, before→after split, big-number/stat, contrast or "X vs Y", caught-in-the-moment candid, bold minimalist. Each concept must feel like a different video could not have the same thumbnail.
 
-FORMAT FOR EVERY PROMPT: "[Subject: who is in the frame, their position, expression, clothing]. [Text on thumbnail: exact words, font weight, color, placement]. [Background and color scheme]. [Composition and lighting]. Photo quality: ultra-sharp, vibrant saturated colors, cinematic professional lighting, commercial photography quality, 1280×720 YouTube thumbnail."
+You MAY propose a STRONGER 2-4 word hook for each concept (keep the same topic) — do not stay locked to a weak original phrase.
 
-TIER 1 — BASIC POLISH: Same overall composition as the original but with professional execution. Same number of people in the same approximate positions with the same expression. EXACT same text words, displayed in a BOLDER, LARGER, higher-contrast treatment. Same background type but cleaner/more vivid. This should look like a professionally retouched version with stronger text and contrast.
-
-TIER 2 — MILD REDESIGN: Same person(s) and EXACT same text words, but a different creative composition. New background (different color or scene), different positioning, bolder visual treatment. The subject and text are the same; everything else is redesigned for stronger CTR.
-
-TIER 3 — FULL REIMAGINING: Bold new visual concept for the same topic. Different composition, lighting style, visual metaphor. Keep only the EXACT text words (and the same person if there is one). Maximise scroll-stopping impact at 120px thumbnail size.`;
+FORMAT FOR EACH CONCEPT — describe the SCENE only, subject FIRST, and keep it TIGHT (2-4 sentences). Do NOT bake paragraphs of on-image text into the scene; the short overlay words are named separately in the label. Order: [subject: who or the hero object — position, exact expression/emotion, clothing]. [background + ONE bold colour scheme]. [composition + lighting]. End with only: sharp focus, high contrast, one clear focal point, photorealistic. NEVER include meta words like "1280x720", "high-CTR", "YouTube thumbnail", "legible at 120px", "KEEP:", "preserve".`;
 
 // Upgrade tier card with inline ⚡ Generate button.
 // When sourceImage is available (Builder tab), passes it to Gemini for image-editing mode;

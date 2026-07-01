@@ -39,17 +39,13 @@ const OUTPUT_TOOLS = [
   { id: 'gemini',  label: 'Google Gemini', icon: '✨', url: 'https://gemini.google.com/app', useQ: false, note: 'Free -- prompt copied, paste it in and attach your photo(s)' },
 ];
 
-// The three upgrade tiers MUST be sharply different in scope (shared spec).
+// Ideation = 5 DIFFERENT creative DIRECTIONS (not one idea at 5 intensities).
 const TIER_SPEC =
-`THE THREE UPGRADE PROMPTS MUST DIFFER SHARPLY IN SCOPE and each must be a COMPLETE SELF-CONTAINED VISUAL SPECIFICATION -- because these prompts will be sent DIRECTLY to an AI image generator (Gemini Imagen, DALL-E) without the original image. Write what the FINISHED thumbnail LOOKS LIKE, not what to change. Do NOT use "KEEP:", "CHANGE ONLY:", "preserve" or "maintain".
+`Produce 5 thumbnail concepts that are genuinely DIFFERENT creative DIRECTIONS — not the same idea five times. Pick the 5 that best fit THIS topic from these proven angles: reaction close-up (huge emotive face), object/result hero shot, before→after split, big-number/stat, contrast or "X vs Y", caught-in-the-moment candid, bold minimalist. Each concept must feel like a different video could not have the same thumbnail.
 
-FORMAT FOR EVERY PROMPT: "[Subject: who is in the frame, their position, expression, clothing]. [Text on thumbnail: exact words, font weight, color, placement]. [Background and color scheme]. [Composition and lighting]. Photo quality: ultra-sharp, vibrant saturated colors, cinematic professional lighting, commercial photography quality, 1280×720 YouTube thumbnail."
+You MAY propose a STRONGER 2-4 word hook for each concept (keep the same topic) — do not stay locked to a weak original phrase.
 
-TIER 1 — BASIC POLISH: Same overall composition as the original but with professional execution. Same number of people in the same approximate positions with the same expression. EXACT same text words, displayed in a BOLDER, LARGER, higher-contrast treatment. Same background type but cleaner/more vivid. This should look like a professionally retouched version with stronger text and contrast.
-
-TIER 2 — MILD REDESIGN: Same person(s) and EXACT same text words, but a different creative composition. New background (different color or scene), different positioning, bolder visual treatment. The subject and text are the same; everything else is redesigned for stronger CTR.
-
-TIER 3 — FULL REIMAGINING: Bold new visual concept for the same topic. Different composition, lighting style, visual metaphor. Keep only the EXACT text words (and the same person if there is one). Maximise scroll-stopping impact at 120px thumbnail size.`;
+FORMAT FOR EACH CONCEPT — describe the SCENE only, subject FIRST, and keep it TIGHT (2-4 sentences). Do NOT bake paragraphs of on-image text into the scene; the short overlay words are named separately in the label. Order: [subject: who or the hero object — position, exact expression/emotion, clothing]. [background + ONE bold colour scheme]. [composition + lighting]. End with only: sharp focus, high contrast, one clear focal point, photorealistic. NEVER include meta words like "1280x720", "high-CTR", "YouTube thumbnail", "legible at 120px", "KEEP:", "preserve".`;
 
 // Upgrade tier card with inline ⚡ Generate button.
 // When sourceImage is available (Builder tab), passes it to Gemini for image-editing mode;

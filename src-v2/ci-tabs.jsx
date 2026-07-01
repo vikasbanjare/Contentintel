@@ -233,12 +233,12 @@ function ThumbnailTab({ onOpenKey }) {
       `Judge whether this thumbnail will earn the click.`) + guidanceBlock;
   // Vision works for single AND multi-image (A/B/C) when a key is present.
   const imgs = hasVision ? (compare ? imgsAll.slice(0, count).filter(Boolean) : (imgA ? [imgA] : [])) : [];
-  // Ask for 3 ranked, ready-to-generate upgrade prompts (basic -> mild -> bold).
+  // Ideation = 5 DIFFERENT creative directions (not one idea at escalating intensity).
   const upgradeAsk = compare ? '' :
-    '\n\nALSO: end the report with a "copy" section titled "3 ways to upgrade this thumbnail" containing EXACTLY 3 blocks, each a complete, ready-to-paste, DETAILED image prompt for ChatGPT/Gemini. The three MUST differ sharply in scope -- do NOT write three similar prompts; each must clearly change MORE than the one before, and read very differently:\n' +
-    '- block 1 label "1 - Basic polish (keep the photo)": keep the EXACT same photo, person, face and expression and the same composition -- change NOTHING about the people. Only polish the design: bigger/bolder text with stronger contrast and better placement, sharpen the focal point, add/clean ONE highlight (box/outline/arrow), lift contrast. A quick edit, not a regeneration.\n' +
-    '- block 2 label "2 - Mild redesign (same person & text, new design)": keep the same person, topic and EXACT text, but do NOT keep the existing layout -- redesign creatively: different composition and background, reposition/relight the subject, change or add visual elements, a bolder colour scheme.\n' +
-    '- block 3 label "3 - Full reimagining (change everything)": reimagine the whole thumbnail -- you MAY change the expression, pose, composition, background, elements, colour and layout; keep ONLY the topic and exact text. The boldest, most scroll-stopping concept.';
+    '\n\nALSO: end the report with a "copy" section titled "5 thumbnail concepts to try" containing EXACTLY 5 blocks. Each block is a genuinely DIFFERENT creative DIRECTION — not the same idea five times. Choose the 5 that best fit this topic from: reaction close-up (huge emotive face), object/result hero shot, before→after split, big-number/stat, contrast or "X vs Y", caught-in-the-moment candid, bold minimalist.\n' +
+    '- Each block LABEL = the direction name + a punchy 2-4 word OVERLAY TEXT for that concept. You MAY improve on the original words to a stronger hook (keep the same topic). Example label: \'Reaction close-up — "I WAS WRONG"\'.\n' +
+    '- Each block TEXT = a TIGHT image-generator prompt (2-4 sentences), SUBJECT FIRST: describe the finished SCENE — the person (position, exact expression/emotion, clothing) or the hero object, then background + ONE bold colour scheme, then composition + lighting. Be concrete and specific to THIS video. Do NOT bake long on-image text into the scene (the overlay words are in the label). End with only: sharp focus, high contrast, one clear focal point, photorealistic. NEVER include meta like "1280x720", "high-CTR", "legible at 120px", or "KEEP:".\n' +
+    'The 5 concepts must look clearly different from each other AND from the current thumbnail.';
   // Niche routing + edit mode are baked into the system prompt (one source of truth).
   // compactPlaybook trims the playbook when auto-detecting -> fewer input tokens.
   const system = window.buildSystem('thumbnail', { niche: nicheSel, relax: !strict, compactPlaybook: true });
