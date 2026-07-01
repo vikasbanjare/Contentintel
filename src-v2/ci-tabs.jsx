@@ -35,21 +35,24 @@ function readImage(file, cb) {
   reader.readAsDataURL(file);
 }
 
-function ImageDrop({ image, onPick, label }) {
+function ImageDrop({ image, onPick, label, showSizePreview }) {
   const id = React.useRef('drop-' + Math.random().toString(36).slice(2, 7)).current;
   return (
-    <label htmlFor={id} className="ci-drop" style={{ minHeight: 150, flexDirection: 'column', gap: 8, overflow: 'hidden', padding: image ? 0 : 14 }}>
-      <input id={id} type="file" accept="image/*" style={{ display: 'none' }}
-        onChange={e => readImage(e.target.files[0], onPick)} />
-      {image
-        ? <div style={{ width: '100%', aspectRatio: '16/9', background: '#04060a', borderRadius: 11, display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-            <img src={image.preview} alt="thumbnail preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
-          </div>
-        : <>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
-            <span>{label}</span>
-          </>}
-    </label>
+    <div>
+      <label htmlFor={id} className="ci-drop" style={{ minHeight: 150, flexDirection: 'column', gap: 8, overflow: 'hidden', padding: image ? 0 : 14 }}>
+        <input id={id} type="file" accept="image/*" style={{ display: 'none' }}
+          onChange={e => readImage(e.target.files[0], onPick)} />
+        {image
+          ? <div style={{ width: '100%', aspectRatio: '16/9', background: '#04060a', borderRadius: 11, display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+              <img src={image.preview} alt="thumbnail preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+            </div>
+          : <>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3 16l5-5 4 4 3-3 6 6"/></svg>
+              <span>{label}</span>
+            </>}
+      </label>
+      {showSizePreview && image && window.ThumbnailSizePreview && <window.ThumbnailSizePreview src={image.preview} />}
+    </div>
   );
 }
 
@@ -121,14 +124,32 @@ function ThumbGenCard({ prompt, source, m }) {
     }
   }
 
+  // Free path (Pollinations) is text-to-image only -- it can't use the uploaded
+  // photo for an in-context edit, so only offer it when there's no source photo.
+  async function generateFree() {
+    if (genState === 'loading') return;
+    setGenState('loading'); setGenImg(null); setGenErr('');
+    try {
+      const url = await window.generateImageFree(prompt, '16:9');
+      setGenImg(url); setGenState('done');
+    } catch (e) { setGenErr(String(e?.message || 'Free generation failed — try again.')); setGenState('error'); }
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {!source && (
+          <button className="ci-copybtn"
+            style={{ height: 32, padding: '0 13px', fontSize: 12, background: '#8FD86A22', borderColor: '#8FD86A55', color: '#8FD86A', fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
+            onClick={generateFree} disabled={genState === 'loading'} title="Generate free — no key, no signup">
+            {genState === 'loading' ? '⏳ Generating…' : '🆓 Generate free'}
+          </button>
+        )}
         {canGenerate && (
           <button className="ci-copybtn"
             style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
             onClick={generate} disabled={genState === 'loading'}>
-            {genState === 'loading' ? '⏳ Generating…' : `⚡ Generate${source ? ' (uses your photo)' : ''}`}
+            {genState === 'loading' ? '⏳ Generating…' : `⚡ ${source ? 'Generate (uses your photo)' : 'Generate (key)'}`}
           </button>
         )}
         <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.copyText(prompt)}>⧉ Copy prompt</button>
@@ -155,6 +176,7 @@ function ThumbGenCard({ prompt, source, m }) {
             <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={generate}>↺ Regenerate</button>
             <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={() => { setGenState('idle'); setGenImg(null); }}>✕ Clear</button>
           </div>
+          {window.ThumbnailSizePreview && <window.ThumbnailSizePreview src={genImg} />}
         </div>
       )}
     </div>
@@ -324,7 +346,7 @@ function ThumbnailTab({ onOpenKey }) {
           {Array.from({ length: count }).map((_, i) => (
             <div key={i}>
               {compare && <div style={{ fontSize: 12, fontWeight: 700, color: m.accentFrom, marginBottom: 6, letterSpacing: '.04em' }}>{LBL[i]}</div>}
-              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image -- JPG or PNG' : `Drop image ${LBL[i]}`} />
+              <ImageDrop image={imgsAll[i]} onPick={setImgs[i]} label={i === 0 ? 'Drop your image -- JPG or PNG' : `Drop image ${LBL[i]}`} showSizePreview={cmpMode === 'Single'} />
             </div>
           ))}
         </div>

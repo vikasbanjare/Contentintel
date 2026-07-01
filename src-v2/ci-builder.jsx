@@ -125,6 +125,7 @@ function BuilderUpgradeCard({ u, i, m, sourceImage, aspect }) {
             <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={generate}>↺ Regenerate</button>
             <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={() => { setGenState('idle'); setGenImg(null); }}>✕ Clear</button>
           </div>
+          {window.ThumbnailSizePreview && <window.ThumbnailSizePreview src={genImg} />}
         </div>
       )}
     </div>
@@ -139,7 +140,6 @@ function GenerateHere({ prompt, sourceImage, m, aspect }) {
   const [err, setErr] = React.useState('');
   const canGen = !!(window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.());
   const usingGoogle = !!window.getGoogleKey?.();
-  if (!canGen) return null;
   async function go() {
     if (st === 'loading' || !prompt.trim()) return;
     setSt('loading'); setImg(null); setErr('');
@@ -154,18 +154,36 @@ function GenerateHere({ prompt, sourceImage, m, aspect }) {
       setSt('error');
     }
   }
+  // Free path (Pollinations) is text-to-image only -- can't edit an uploaded photo.
+  async function goFree() {
+    if (st === 'loading' || !prompt.trim()) return;
+    setSt('loading'); setImg(null); setErr('');
+    try { setImg(await window.generateImageFree(prompt, aspect)); setSt('done'); }
+    catch (e) { setErr(String(e?.message || 'Free generation failed — try again.')); setSt('error'); }
+  }
   return (
     <div style={{ padding: '14px 16px', borderRadius: 12, background: `linear-gradient(135deg, ${m.accentFrom}1f, var(--inset))`, border: `1.5px solid ${m.accentGlow}`, marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-1)' }}>⚡ Generate it right here {usingGoogle ? 'with Gemini' : ''}</div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{sourceImage ? 'Edits your uploaded thumbnail as the base.' : 'Creates the image in-app — no copy/paste needed.'}</div>
+          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-1)' }}>Generate it right here</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{sourceImage ? 'Edits your uploaded thumbnail as the base (needs a key).' : 'Creates the image in-app — no copy/paste needed.'}</div>
         </div>
-        <button className="ci-copybtn"
-          style={{ height: 36, padding: '0 16px', fontSize: 13, background: `${m.accentFrom}30`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: st === 'loading' ? 0.65 : 1 }}
-          onClick={go} disabled={st === 'loading'}>
-          {st === 'loading' ? '⏳ Generating…' : st === 'done' ? '↺ Regenerate' : '⚡ Generate'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {!sourceImage && (
+            <button className="ci-copybtn"
+              style={{ height: 36, padding: '0 16px', fontSize: 13, background: '#8FD86A22', borderColor: '#8FD86A55', color: '#8FD86A', fontWeight: 700, opacity: st === 'loading' ? 0.65 : 1 }}
+              onClick={goFree} disabled={st === 'loading'} title="Generate free — no key, no signup">
+              {st === 'loading' ? '⏳ Generating…' : '🆓 Generate free'}
+            </button>
+          )}
+          {canGen && (
+            <button className="ci-copybtn"
+              style={{ height: 36, padding: '0 16px', fontSize: 13, background: `${m.accentFrom}30`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: st === 'loading' ? 0.65 : 1 }}
+              onClick={go} disabled={st === 'loading'}>
+              {st === 'loading' ? '⏳ Generating…' : st === 'done' ? '↺ Regenerate (key)' : `⚡ Generate${usingGoogle ? ' (Gemini)' : ' (key)'}`}
+            </button>
+          )}
+        </div>
       </div>
       {st === 'loading' && (
         <div style={{ marginTop: 14, padding: '22px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
@@ -181,6 +199,7 @@ function GenerateHere({ prompt, sourceImage, m, aspect }) {
             <a href={img} download="thumbnail.png" className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>⬇ Download</a>
             <button className="ci-copybtn" style={{ height: 30, padding: '0 12px', fontSize: 12 }} onClick={() => { setSt('idle'); setImg(null); }}>✕ Clear</button>
           </div>
+          {window.ThumbnailSizePreview && <window.ThumbnailSizePreview src={img} />}
         </div>
       )}
     </div>
@@ -694,6 +713,7 @@ function BuilderTab({ onNav }) {
                 )}
               </div>
             </div>
+            {window.ThumbnailSizePreview && <window.ThumbnailSizePreview src={analyseImg.preview} />}
           </div>
         )}
         {!analyseImg && (
