@@ -40,12 +40,17 @@ const OUTPUT_TOOLS = [
 ];
 
 // Ideation = 5 DIFFERENT creative DIRECTIONS (not one idea at 5 intensities).
-const TIER_SPEC =
-`Produce 5 thumbnail concepts that are genuinely DIFFERENT creative DIRECTIONS — not the same idea five times. Pick the 5 that best fit THIS topic from these proven angles: reaction close-up (huge emotive face), object/result hero shot, before→after split, big-number/stat, contrast or "X vs Y", caught-in-the-moment candid, bold minimalist. Each concept must feel like a different video could not have the same thumbnail.
+// Directions + format are shared (window.THUMBNAIL_*) with the title-only
+// concept generator in ci-tabs.jsx so both paths hit the same quality bar.
+function getTierSpec() {
+  const dirs = window.THUMBNAIL_CONCEPT_DIRECTIONS || "reaction close-up, object hero shot, before/after, big-number, contrast, candid, minimalist";
+  const fmt  = window.THUMBNAIL_PROMPT_FORMAT || "";
+  return `Produce 5 thumbnail concepts that are genuinely DIFFERENT creative DIRECTIONS — not the same idea five times. Pick the 5 that best fit THIS topic from these proven angles: ${dirs}. Each concept must feel like a different video could not have the same thumbnail.
 
 You MAY propose a STRONGER 2-4 word hook for each concept (keep the same topic) — do not stay locked to a weak original phrase.
 
-FORMAT FOR EACH CONCEPT — describe the SCENE only, subject FIRST, and keep it TIGHT (2-4 sentences). Do NOT bake paragraphs of on-image text into the scene; the short overlay words are named separately in the label. Order: [subject: who or the hero object — position, exact expression/emotion, clothing]. [background + ONE bold colour scheme]. [composition + lighting]. End with only: sharp focus, high contrast, one clear focal point, photorealistic. NEVER include meta words like "1280x720", "high-CTR", "YouTube thumbnail", "legible at 120px", "KEEP:", "preserve".`;
+FORMAT FOR EACH CONCEPT — ${fmt} Do NOT bake paragraphs of on-image text into the scene; the short overlay words are named separately in the label.`;
+}
 
 // Upgrade tier card with inline ⚡ Generate button.
 // When sourceImage is available (Builder tab), passes it to Gemini for image-editing mode;
@@ -76,34 +81,16 @@ function BuilderUpgradeCard({ u, i, m, sourceImage, aspect }) {
     }
   }
 
-  // Free, no-key generation via Pollinations (Flux).
-  async function generateFree() {
-    if (genState === 'loading') return;
-    setGenState('loading'); setGenImg(null); setGenErr('');
-    try {
-      const url = await window.generateImageFree(u.prompt, aspect);
-      setGenImg(url); setGenState('done');
-    } catch (e) {
-      setGenErr(String(e?.message || 'Free generation failed — try again.'));
-      setGenState('error');
-    }
-  }
-
   return (
     <div style={{ padding: '13px 14px', borderRadius: 12, background: 'var(--inset)', border: '1px solid var(--stroke-1)' }}>
       <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6 }}>{i + 1}. {u.tier || ('Option ' + (i + 1))}</div>
       <div style={{ fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{u.prompt}</div>
       <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button className="ci-copybtn"
-          style={{ height: 32, padding: '0 13px', fontSize: 12, background: '#8FD86A22', borderColor: '#8FD86A55', color: '#8FD86A', fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
-          onClick={generateFree} disabled={genState === 'loading'} title="Generate a thumbnail free — no API key, no signup">
-          {genState === 'loading' ? '⏳ Generating…' : '🆓 Generate free'}
-        </button>
         {canGenerate && (
           <button className="ci-copybtn"
             style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
             onClick={generate} disabled={genState === 'loading'}>
-            {genState === 'loading' ? '⏳ Generating…' : `⚡ ${sourceImage ? 'Edit with key' : 'Generate (key)'}`}
+            {genState === 'loading' ? '⏳ Generating…' : `⚡ ${sourceImage ? 'Edit' : 'Generate'}`}
           </button>
         )}
         <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12, background: `${m.accentFrom}18`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700 }} onClick={() => window.openInChatGPT(u.prompt)}>🎨 ChatGPT</button>
@@ -134,18 +121,25 @@ function BuilderUpgradeCard({ u, i, m, sourceImage, aspect }) {
 
 // In-app generation for the MAIN builder prompt -- creates the thumbnail right here
 // with Gemini (Google AI key) or DALL-E (OpenAI/proxy). Only renders when a key is set.
-function GenerateHere({ prompt, sourceImage, m, aspect }) {
+// sourceImage = an existing thumbnail to edit IN PLACE (from "Check & fix").
+// refImage / personPhoto = real reference pixels for a NEW thumbnail (style match
+// + accurate face) -- fed directly into Gemini's multi-image input, not just
+// described in words. sourceImage takes priority when both are present.
+function GenerateHere({ prompt, sourceImage, refImage, personPhoto, m, aspect }) {
   const [st, setSt] = React.useState('idle');
   const [img, setImg] = React.useState(null);
   const [err, setErr] = React.useState('');
   const canGen = !!(window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.());
   const usingGoogle = !!window.getGoogleKey?.();
+  if (!canGen) return null;
+  const usingRefs = !sourceImage && (refImage || personPhoto);
   async function go() {
     if (st === 'loading' || !prompt.trim()) return;
     setSt('loading'); setImg(null); setErr('');
     try {
       let url;
       if (sourceImage && window.editThumbnailInApp) url = await window.editThumbnailInApp(prompt, sourceImage, aspect);
+      else if (usingRefs && window.generateThumbnailWithRefs) url = await window.generateThumbnailWithRefs({ instruction: prompt, styleRef: refImage, personPhoto, aspect });
       else url = await window.generateImageInApp(prompt, aspect);
       setImg(url); setSt('done');
     } catch (e) {
@@ -154,36 +148,22 @@ function GenerateHere({ prompt, sourceImage, m, aspect }) {
       setSt('error');
     }
   }
-  // Free path (Pollinations) is text-to-image only -- can't edit an uploaded photo.
-  async function goFree() {
-    if (st === 'loading' || !prompt.trim()) return;
-    setSt('loading'); setImg(null); setErr('');
-    try { setImg(await window.generateImageFree(prompt, aspect)); setSt('done'); }
-    catch (e) { setErr(String(e?.message || 'Free generation failed — try again.')); setSt('error'); }
-  }
   return (
     <div style={{ padding: '14px 16px', borderRadius: 12, background: `linear-gradient(135deg, ${m.accentFrom}1f, var(--inset))`, border: `1.5px solid ${m.accentGlow}`, marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-1)' }}>Generate it right here</div>
-          <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{sourceImage ? 'Edits your uploaded thumbnail as the base (needs a key).' : 'Creates the image in-app — no copy/paste needed.'}</div>
+          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-1)' }}>⚡ Generate it right here {usingGoogle ? 'with Gemini' : ''}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
+            {sourceImage ? 'Edits your uploaded thumbnail as the base.'
+              : usingRefs ? `Uses your real ${refImage && personPhoto ? 'reference image and photo' : refImage ? 'reference image' : 'photo'} directly — not just a text description.`
+              : 'Creates the image in-app — no copy/paste needed.'}
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {!sourceImage && (
-            <button className="ci-copybtn"
-              style={{ height: 36, padding: '0 16px', fontSize: 13, background: '#8FD86A22', borderColor: '#8FD86A55', color: '#8FD86A', fontWeight: 700, opacity: st === 'loading' ? 0.65 : 1 }}
-              onClick={goFree} disabled={st === 'loading'} title="Generate free — no key, no signup">
-              {st === 'loading' ? '⏳ Generating…' : '🆓 Generate free'}
-            </button>
-          )}
-          {canGen && (
-            <button className="ci-copybtn"
-              style={{ height: 36, padding: '0 16px', fontSize: 13, background: `${m.accentFrom}30`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: st === 'loading' ? 0.65 : 1 }}
-              onClick={go} disabled={st === 'loading'}>
-              {st === 'loading' ? '⏳ Generating…' : st === 'done' ? '↺ Regenerate (key)' : `⚡ Generate${usingGoogle ? ' (Gemini)' : ' (key)'}`}
-            </button>
-          )}
-        </div>
+        <button className="ci-copybtn"
+          style={{ height: 36, padding: '0 16px', fontSize: 13, background: `${m.accentFrom}30`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: st === 'loading' ? 0.65 : 1 }}
+          onClick={go} disabled={st === 'loading'}>
+          {st === 'loading' ? '⏳ Generating…' : st === 'done' ? '↺ Regenerate' : '⚡ Generate'}
+        </button>
       </div>
       {st === 'loading' && (
         <div style={{ marginTop: 14, padding: '22px 0', textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
@@ -473,8 +453,8 @@ function BuilderTab({ onNav }) {
       r.systemGuidance ? 'THUMBNAIL METHODOLOGY:\n' + r.systemGuidance : '',
       st.systemGuidance ? 'IMAGE-PROMPT QUALITY SCIENCE (every upgrade prompt MUST follow these rules):\n' + st.systemGuidance : '',
       'You will get a thumbnail as an image if one is attached, otherwise as a text description. Analyse it and return ONLY a single valid JSON object (no markdown, no text around it) in EXACTLY this shape:',
-      '{ "whatsWrong": ["specific problem tied to a real click-through principle", "... up to 6"], "upgrades": [ { "tier": "Basic polish (keep the photo)", "prompt": "..." }, { "tier": "Mild redesign (same person & text, new design)", "prompt": "..." }, { "tier": "Full reimagining (change everything)", "prompt": "..." } ], "headline": "exact main text or empty", "subline": "secondary text or empty", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only from: ' + BUILDER_ELEMENTS.join(', ') + '"] }',
-      TIER_SPEC,
+      '{ "whatsWrong": ["specific problem tied to a real click-through principle", "... up to 6"], "upgrades": [ { "tier": "the direction name + a punchy 2-4 word hook, e.g. \'Reaction close-up — I WAS WRONG\'", "prompt": "..." } x5 ], "headline": "exact main text or empty", "subline": "secondary text or empty", "people": [{ "desc": "appearance", "expression": "excited|shocked|serious|pointing|laughing|love|none" }], "elements": ["only from: ' + BUILDER_ELEMENTS.join(', ') + '"] }',
+      getTierSpec(),
       'Every prompt must be concrete and DETAILED about composition, subject, colour, contrast and text size/placement. Never invent text, people or brands not present. Write in the same language as the thumbnail content.',
     ].filter(Boolean).join('\n\n');
   }
@@ -516,7 +496,7 @@ function BuilderTab({ onNav }) {
       setElements(Array.isArray(parsed.elements) ? parsed.elements.filter(e => BUILDER_ELEMENTS.includes(e)) : []);
       setFeedback(Array.isArray(parsed.whatsWrong) ? parsed.whatsWrong.filter(Boolean).slice(0, 6) : []);
       // Three tiers (basic / mild / full). Fall back to a single improvedPrompt if present.
-      let ups = Array.isArray(parsed.upgrades) ? parsed.upgrades.filter(u => u && u.prompt).slice(0, 3) : [];
+      let ups = Array.isArray(parsed.upgrades) ? parsed.upgrades.filter(u => u && u.prompt).slice(0, 5) : [];
       if (!ups.length && parsed.improvedPrompt) ups = [{ tier: 'Improved version', prompt: String(parsed.improvedPrompt) }];
       setUpgrades(ups);
       if (ups.length) { setPrompt(ups[0].prompt); setBuilt(true); }
@@ -919,7 +899,7 @@ function BuilderTab({ onNav }) {
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-1)', marginBottom: 4, fontFamily: 'var(--font-display)' }}>3 ways to upgrade it</div>
               <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 12, lineHeight: 1.5 }}>
-                Pick a level, then hit <b style={{ color: '#8FD86A' }}>🆓 Generate free</b> to create it right here — no key, no signup. Or send to ChatGPT / Gemini. {analyseImg ? 'Generation uses your uploaded thumbnail as a base.' : ''}
+                Pick a level — send to ChatGPT or Gemini{(window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.()) ? ', or hit ⚡ Generate to create it here instantly' : ''}. {analyseImg ? 'Generation uses your uploaded thumbnail as a base.' : ''}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {upgrades.map((u, i) => (
@@ -965,10 +945,10 @@ function BuilderTab({ onNav }) {
             <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 4 }}>Your prompt (edit if needed):</div>
             <textarea className="ci-textarea" style={{ minHeight: 130, fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}
               value={prompt} onChange={e => setPrompt(e.target.value)} />
-            <GenerateHere prompt={prompt} sourceImage={analyseImg} m={m} aspect={currentRatio.label} />
-            {(photoPeople.length > 0) && (window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.()) && (
+            <GenerateHere prompt={prompt} sourceImage={analyseImg} refImage={refImg} personPhoto={photoPeople[0] && photoPeople[0].photo} m={m} aspect={currentRatio.label} />
+            {(photoPeople.length > 1) && (window.getGoogleKey?.() || window.getOpenAIKey?.() || window.getProxyUrl?.()) && (
               <div style={{ fontSize: 11, color: 'var(--text-4)', margin: '-4px 0 12px', lineHeight: 1.5 }}>
-                Tip: in-app generation won't lock in a real uploaded face — for accurate likeness, use ChatGPT or Gemini below with your photo attached.
+                Tip: in-app generation uses your first person's real photo. For multiple people's exact likeness, use ChatGPT or Gemini below with all photos attached.
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

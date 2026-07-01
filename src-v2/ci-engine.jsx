@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r49";
+window.CI_BUILD = "2026-06-20-r50";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -587,6 +587,16 @@ async function groundThumbPrompt(brief, opts = {}) {
   return (text || "").trim();
 }
 
+// Shared across every "generate thumbnail concepts" prompt (title-only creation
+// AND reimagining an existing thumbnail) so they stay in sync and hit the same
+// quality bar. One source of truth instead of near-duplicate text per caller.
+const THUMBNAIL_CONCEPT_DIRECTIONS =
+  "reaction close-up (huge emotive face), object/result hero shot, before→after split, big-number/stat, contrast or \"X vs Y\", caught-in-the-moment candid, bold minimalist";
+const THUMBNAIL_PROMPT_FORMAT =
+  "Describe the finished SCENE only, SUBJECT FIRST, tight (2-4 sentences): [subject: who or the hero object -- position, exact expression/emotion, clothing]. [background + ONE bold colour scheme]. [composition + lighting]. End with only: sharp focus, high contrast, one clear focal point, photorealistic. NEVER include meta words like \"1280x720\", \"high-CTR\", \"YouTube thumbnail\", \"legible at 120px\", \"KEEP:\", \"preserve\".";
+window.THUMBNAIL_CONCEPT_DIRECTIONS = THUMBNAIL_CONCEPT_DIRECTIONS;
+window.THUMBNAIL_PROMPT_FORMAT = THUMBNAIL_PROMPT_FORMAT;
+
 // The non-negotiable design rules every generated thumbnail must obey -- distilled
 // from the thumbnail research, plus an explicit anti-gibberish text rule (the #1
 // thing image models get wrong). Pulled into EVERY generation, edit or text-to-image.
@@ -602,7 +612,13 @@ function thumbDesignLaw() {
   ].filter(Boolean).join("\n");
 }
 
-async function generateThumbnail({ instruction, image, model, aspect }) {
+// `images`: optional array of { image: {data,mime}, role: "label describing what this image is for" }.
+// Gemini 2.5 Flash Image genuinely supports multi-image fusion/style-transfer --
+// feeding the REAL reference/photo pixels alongside a natural-language role for
+// each one is far more faithful than describing them in words only. Each image
+// is preceded by a short text part naming its role, per Google's documented
+// pattern ("Image A is the style reference... Image B is the real face...").
+async function generateThumbnail({ instruction, image, images, model, aspect }) {
   // Try Google's image models in order so a key/region that doesn't expose the
   // newest one still works: Nano Banana (GA) → its preview → 2.0 preview → 2.0 exp.
   const CANDIDATES = model ? [model] : [
@@ -616,9 +632,17 @@ async function generateThumbnail({ instruction, image, model, aspect }) {
   const proxy = getProxyUrl();
   if (!key && !proxy) throw new Error("NO_GOOGLE_KEY");
   const ratio = aspect || "16:9";
+  // Normalise to one list: prefer `images` (multi-ref), else wrap the legacy
+  // single `image` param so every existing caller keeps working unchanged.
+  const refList = (Array.isArray(images) && images.length)
+    ? images.filter(r => r && r.image && r.image.data)
+    : (image && image.data ? [{ image, role: "" }] : []);
   const buildPayload = (mdl) => {
     const parts = [{ text: fullInstruction }];
-    if (image && image.data) parts.push({ inline_data: { mime_type: image.mime || "image/png", data: image.data } });
+    refList.forEach((r, i) => {
+      if (r.role) parts.push({ text: `REFERENCE IMAGE ${i + 1} — ${r.role}` });
+      parts.push({ inline_data: { mime_type: r.image.mime || "image/png", data: r.image.data } });
+    });
     const generationConfig = { responseModalities: ["TEXT", "IMAGE"] };
     // Only the 2.5 image model accepts imageConfig.aspectRatio; older ones 400 on it.
     if (/2\.5-flash-image/.test(mdl)) generationConfig.imageConfig = { aspectRatio: ratio };
@@ -650,7 +674,7 @@ async function generateThumbnail({ instruction, image, model, aspect }) {
       if (res.status === 429) {
         let detail = ""; try { detail = (await res.clone().json())?.error?.message || ""; } catch (e) {}
         if (/quota|billing/i.test(detail)) {
-          throw new Error("This Google key hit its free image quota (shared across every Gemini feature in this app). Use the 🆓 Generate free button instead -- no key, no quota -- or wait a bit and try again / enable billing in Google AI Studio.");
+          throw new Error("This Google key hit its free image quota (shared across every Gemini feature in this app). Wait a bit and try again, or enable billing in Google AI Studio for a higher limit.");
         }
         if (a >= 1) break;               // one short retry for a plain rate limit, then move on
         await new Promise(r => setTimeout(r, 1200));
@@ -674,7 +698,7 @@ async function generateThumbnail({ instruction, image, model, aspect }) {
     if (res.status === 400 && /API key|invalid/i.test(detail)) throw new Error("That Google AI key looks invalid -- check it in Settings.");
     // 403 (API not enabled) / 404 (model unavailable) / other -> try the next model
   }
-  throw new Error("Couldn't generate with this key. " + (lastDetail ? "(" + lastDetail + ") " : "") + "Try the 🆓 Generate free button instead (no key, no quota), or check that image generation is enabled for your Google AI key (Generative Language API + billing).");
+  throw new Error("Couldn't generate with this key. " + (lastDetail ? "(" + lastDetail + ") " : "") + "Check that image generation is enabled for your Google AI key (Generative Language API + billing), or try again shortly.");
 }
 
 // Independent fact-check via Gemini, grounded with Google Search. Browser-direct
@@ -869,24 +893,6 @@ async function generateImageInApp(promptText, aspect) {
   throw new Error("NO_IMAGE_KEY");
 }
 
-// FREE image generation — Pollinations (Flux), no key, no signup. Loads as a
-// plain image URL (no fetch → no CORS). Preloads so the caller gets a ready
-// image and errors surface. This is what makes thumbnail generation free.
-async function generateImageFree(promptText, aspect) {
-  const processed = preprocessForImageGen(promptText) || promptText || '';
-  const [w, h] = aspect === '9:16' ? [720, 1280] : aspect === '1:1' ? [1024, 1024] : [1280, 720];
-  const seed = Math.floor(Math.random() * 1e7);
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(processed).slice(0, 900))}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}`;
-  await new Promise((resolve, reject) => {
-    const im = new Image();
-    const to = setTimeout(() => reject(new Error('Free generator timed out — try again, or use a key for faster results.')), 60000);
-    im.onload = () => { clearTimeout(to); resolve(); };
-    im.onerror = () => { clearTimeout(to); reject(new Error('Free generator is busy — try again in a moment.')); };
-    im.src = url;
-  });
-  return url;
-}
-
 // Image editing -- uses the source image to drive Gemini's in-context edit.
 // Falls back to text-to-image if no Google key / proxy.
 async function editThumbnailInApp(promptText, sourceImage, aspect) {
@@ -894,6 +900,22 @@ async function editThumbnailInApp(promptText, sourceImage, aspect) {
   const proxy = getProxyUrl();
   if (gKey && sourceImage) return await generateThumbnail({ instruction: promptText, image: sourceImage, aspect });
   return await generateImageInApp(promptText, aspect); // fall back to text-to-image
+}
+
+// Generate with an actual STYLE-REFERENCE image and/or a real person photo fed
+// directly into the model (not just described in words). This is the fix for
+// "the reference thumbnail only ever got summarised as text" -- Gemini can see
+// the real reference pixels and match its layout/palette/energy far more
+// faithfully than a text description ever could, while keeping the person's
+// real likeness from their own photo. Falls back to text-to-image with no key.
+async function generateThumbnailWithRefs({ instruction, styleRef, personPhoto, aspect }) {
+  const gKey = getGoogleKey();
+  const proxy = getProxyUrl();
+  const refs = [];
+  if (styleRef && styleRef.data) refs.push({ image: styleRef, role: "STYLE REFERENCE ONLY -- match its layout, colour palette, mood and energy for the NEW thumbnail below. Do not copy its subject, people or exact text." });
+  if (personPhoto && personPhoto.data) refs.push({ image: personPhoto, role: "THE CREATOR'S REAL FACE -- use this exact person's likeness, face and identity in the new thumbnail. Never invent a different face." });
+  if ((gKey || proxy) && refs.length) return await generateThumbnail({ instruction, images: refs, aspect });
+  return await generateImageInApp(instruction, aspect); // no refs or no key -> plain text-to-image
 }
 
 // Image-gen handoff: copy the prompt + open the tool in a new tab. The user
@@ -1407,30 +1429,16 @@ function GenPromptCard({ block, mood }) {
     }
   }
 
-  async function generateFree() {
-    if (genState === "loading") return;
-    setGenState("loading"); setGenImg(null); setGenErr("");
-    try {
-      const url = await generateImageFree(block.text);
-      setGenImg(url); setGenState("done");
-    } catch (e) { setGenErr(String(e && e.message || "Free generation failed — try again.")); setGenState("error"); }
-  }
-
   return (
     <div style={{ padding: "13px 14px", borderRadius: 12, background: "var(--inset)", border: "1px solid var(--stroke-1)" }}>
       {block.label && <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6, letterSpacing: "0.01em" }}>{block.label}</div>}
       <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{block.text}</div>
       <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap", alignItems: "center" }}>
-        <button className="ci-copybtn"
-          style={{ height: 32, padding: "0 13px", fontSize: 12, background: "#8FD86A22", borderColor: "#8FD86A55", color: "#8FD86A", fontWeight: 700, opacity: genState === "loading" ? 0.65 : 1 }}
-          onClick={generateFree} disabled={genState === "loading"} title="Generate free — no key, no signup">
-          {genState === "loading" ? "⏳ Generating…" : "🆓 Generate free"}
-        </button>
         {canGenerate && (
           <button className="ci-copybtn"
             style={{ height: 32, padding: "0 13px", fontSize: 12, background: `linear-gradient(135deg,${m.accentFrom}28,${m.accentFrom}12)`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === "loading" ? 0.65 : 1 }}
             onClick={generate} disabled={genState === "loading"}>
-            {genState === "loading" ? "⏳ Generating…" : "⚡ Generate (key)"}
+            {genState === "loading" ? "⏳ Generating…" : "⚡ Generate"}
           </button>
         )}
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInChatGPT(block.text)}>🎨 ChatGPT</button>
@@ -2666,6 +2674,6 @@ Object.assign(window, {
   openInChatGPT, openInGemini,
   getNvidiaKey, setNvidiaKeyLS, generateThumbnailFlux, getProxyUrl, setProxyUrlLS,
   getReveKey, setReveKeyLS, generateThumbnailReve,
-  getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp, generateImageFree,
+  getOpenAIKey, setOpenAIKeyLS, generateImageDalle, generateImageInApp, editThumbnailInApp, generateThumbnailWithRefs,
   preprocessForImageGen, geminiFactCheck, claudeFactCheck, groundThumbPrompt, packageScript,
 });
