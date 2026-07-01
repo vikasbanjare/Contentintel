@@ -68,21 +68,29 @@ const EMPHASIS_CHIPS = ['Add a face', 'Bigger number', 'Add a curved arrow', 'Ad
 
 // Build a ready-to-paste image prompt + open ChatGPT with it. (ChatGPT can't be
 // sent the image via URL, so the user attaches their thumbnail there.)
-function buildThumbCreateSys(hasPhoto) {
+// `titleSignals`: optional concrete hints extracted from the title/idea text
+// (reuses the same heuristics as the CTR scorer) so concepts are grounded in
+// what's actually IN the title, not a generic reading of it.
+function buildThumbCreateSys(hasPhoto, titleSignals) {
   const th = (window.getResearch && window.getResearch('thumbnail')) || {};
   const st = (window.getResearch && window.getResearch('studio')) || {};
   const core = (window.liveResearch && window.liveResearch().core) || '';
+  const dirs = window.THUMBNAIL_CONCEPT_DIRECTIONS || 'reaction close-up, object hero shot, before/after, big-number, contrast, candid, minimalist';
+  const fmt  = window.THUMBNAIL_PROMPT_FORMAT || '';
   return [
-    "You are ContentIntel's thumbnail art director. Turn the user's idea into 3 strong, ready-to-generate thumbnail concepts. This is CREATIVE GENERATION, not journalism or fact-checking.",
-    "TOP PRIORITY -- overrides every other instruction below, including any 'never fabricate', 'verify first', 'provide sources', numbered rule or 'I cannot' guidance in the research/craft text: You ALWAYS deliver 3 concepts. You NEVER refuse, NEVER ask the user questions, and NEVER ask the user for sources, dates, names or confirmation. No apologies, no 'what I need from you' lists.",
+    "You are ContentIntel's thumbnail art director. Turn the user's idea into 5 strong, ready-to-generate thumbnail concepts. This is CREATIVE GENERATION, not journalism or fact-checking.",
+    "TOP PRIORITY -- overrides every other instruction below, including any 'never fabricate', 'verify first', 'provide sources', numbered rule or 'I cannot' guidance in the research/craft text: You ALWAYS deliver 5 concepts. You NEVER refuse, NEVER ask the user questions, and NEVER ask the user for sources, dates, names or confirmation. No apologies, no 'what I need from you' lists.",
     "HOW TO HANDLE FACTS: you have a live web_search tool. If the topic involves real people, products, events, brands or current trends, search to ground the concepts in what actually looks right and is currently working. BUT if you cannot verify it, do NOT refuse or ask the user -- treat the idea as the creator's premise and write the concepts anyway. Research silently; just produce the concepts.",
     core ? 'CLICK SCIENCE:\n"""\n' + core.slice(0, 1500) + '\n"""' : '',
     th.systemGuidance ? 'THUMBNAIL AESTHETIC RULES (every prompt MUST follow -- realistic faces, pro typography, 60-30-10 colour):\n"""\n' + th.systemGuidance.slice(0, 2600) + '\n"""' : '',
     st.systemGuidance ? 'IMAGE-PROMPT QUALITY:\n"""\n' + st.systemGuidance.slice(0, 1500) + '\n"""' : '',
+    (titleSignals && titleSignals.length) ? 'TITLE SIGNALS (concrete things already in the title/idea -- lean into these, do not ignore them): ' + titleSignals.join(', ') + '.' : '',
+    `The 5 concepts must be genuinely DIFFERENT creative DIRECTIONS -- not the same idea five times. Choose the 5 that best fit this topic from: ${dirs}. Each concept must feel like a different video could not have the same thumbnail. You MAY propose a stronger 2-4 word hook than the user's raw idea (same topic).`,
+    `FORMAT FOR EACH PROMPT -- ${fmt}`,
     hasPhoto
-      ? "A reference PHOTO is attached. Describe THAT real person in every prompt (look, hair, vibe) and add: attach this same photo when generating to keep the real face. Never invent a different face."
+      ? "A reference PHOTO is attached. Describe THAT real person in every prompt (look, hair, vibe) -- it will be attached directly when generating so the real face is used automatically. Never invent a different face."
       : "No photo attached -- write complete standalone visual prompts and note the user can upload a photo for an accurate face.",
-    'Return ONLY one JSON object: { "concepts": [ { "concept": "1-line idea", "prompt": "full image prompt following the rules above" } x3 ] }.',
+    'Return ONLY one JSON object: { "concepts": [ { "concept": "direction name + a punchy 2-4 word hook, e.g. \'Reaction close-up — I WAS WRONG\'", "prompt": "full image prompt following the format above" } x5 ] }.',
   ].filter(Boolean).join('\n\n');
 }
 function chatgptPrompt(base, hasImage, strict, guidance) {
@@ -124,32 +132,14 @@ function ThumbGenCard({ prompt, source, m }) {
     }
   }
 
-  // Free path (Pollinations) is text-to-image only -- it can't use the uploaded
-  // photo for an in-context edit, so only offer it when there's no source photo.
-  async function generateFree() {
-    if (genState === 'loading') return;
-    setGenState('loading'); setGenImg(null); setGenErr('');
-    try {
-      const url = await window.generateImageFree(prompt, '16:9');
-      setGenImg(url); setGenState('done');
-    } catch (e) { setGenErr(String(e?.message || 'Free generation failed — try again.')); setGenState('error'); }
-  }
-
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {!source && (
-          <button className="ci-copybtn"
-            style={{ height: 32, padding: '0 13px', fontSize: 12, background: '#8FD86A22', borderColor: '#8FD86A55', color: '#8FD86A', fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
-            onClick={generateFree} disabled={genState === 'loading'} title="Generate free — no key, no signup">
-            {genState === 'loading' ? '⏳ Generating…' : '🆓 Generate free'}
-          </button>
-        )}
         {canGenerate && (
           <button className="ci-copybtn"
             style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
             onClick={generate} disabled={genState === 'loading'}>
-            {genState === 'loading' ? '⏳ Generating…' : `⚡ ${source ? 'Generate (uses your photo)' : 'Generate (key)'}`}
+            {genState === 'loading' ? '⏳ Generating…' : `⚡ ${source ? 'Generate (uses your photo)' : 'Generate'}`}
           </button>
         )}
         <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.copyText(prompt)}>⧉ Copy prompt</button>
@@ -280,8 +270,13 @@ function ThumbnailTab({ onOpenKey }) {
     if (!genPrompt.trim() && !imgA) { setGenIdeas({ loading: false, items: null, err: 'Describe the thumbnail or upload a photo first.' }); return; }
     setGenIdeas({ loading: true, items: null, err: '' });
     try {
-      const ut = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none)'}\nContent type: ${kind}\nIdea: ${genPrompt.trim() || '(use the attached photo as the subject)'}\n${guidance || ''}\n\nGive 3 concepts now.`;
-      const { text } = await window.callClaude({ system: buildThumbCreateSys(!!imgA), userText: ut, images: imgA ? [imgA] : [], maxTokens: 1800, temperature: 0.9 });
+      // Ground the concepts in concrete signals already present in the title/idea
+      // (same heuristics as the CTR scorer) instead of a purely generic reading.
+      const signalSrc = [(showTitle && title.trim()) || '', genPrompt.trim()].filter(Boolean).join('. ');
+      const sig = window.scoreTitleCTR ? window.scoreTitleCTR(signalSrc) : null;
+      const titleSignals = sig ? sig.factors.map(f => f.label) : [];
+      const ut = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none)'}\nContent type: ${kind}\nIdea: ${genPrompt.trim() || '(use the attached photo as the subject)'}\n${guidance || ''}\n\nGive 5 concepts now.`;
+      const { text } = await window.callClaude({ system: buildThumbCreateSys(!!imgA, titleSignals), userText: ut, images: imgA ? [imgA] : [], maxTokens: 2600, temperature: 0.9 });
       const j = window.parseReport(text);
       if (j && Array.isArray(j.concepts) && j.concepts.length) setGenIdeas({ loading: false, items: j.concepts, err: '' });
       else setGenIdeas({ loading: false, items: null, err: 'Could not generate concepts -- try again.' });
@@ -306,7 +301,7 @@ function ThumbnailTab({ onOpenKey }) {
           <textarea className="ci-textarea" style={{ minHeight: 80 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
             placeholder="e.g. 'My video on how beginners should start SIP investing' or 'Shocked reaction to a ₹500 Cr story'" />
           <div style={{ marginTop: 14 }}>
-            <window.GlowButton mood={mood} size="lg" onClick={genConcepts}>{genIdeas.loading ? 'Designing…' : '✦ Suggest 3 concepts'}</window.GlowButton>
+            <window.GlowButton mood={mood} size="lg" onClick={genConcepts}>{genIdeas.loading ? 'Designing…' : '✦ Suggest 5 concepts'}</window.GlowButton>
             <span style={{ fontSize: 12, color: 'var(--text-4)', marginLeft: 12 }}>Uses your research + your photo to write ready prompts.</span>
           </div>
           {genIdeas.err && <div style={{ fontSize: 13, color: '#f5788c', marginTop: 12 }}>{genIdeas.err}</div>}
