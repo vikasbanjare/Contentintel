@@ -66,9 +66,14 @@ export default {
 
     // 2. Load profile (plan + usage), resetting the monthly window if needed
     const svc = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'content-type': 'application/json' };
-    const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start`, { headers: svc });
+    const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start,usd_limit`, { headers: svc });
     const rows = await pRes.json();
-    let { plan = 'free', period_start } = rows[0] || {};
+    let { plan = 'free', period_start, usd_limit } = rows[0] || {};
+    // Owner/custom override: usd_limit is settable ONLY via the service role
+    // (RLS + column grant block users), so it's a safe per-account override that
+    // grants a custom credit ceiling and unlocks all engines + vision. This is
+    // how an "unlimited" account works — set a high usd_limit on your profile.
+    const hasOverride = usd_limit != null && usd_limit !== '' && !isNaN(Number(usd_limit));
     const monthAgo = Date.now() - 30 * 864e5;
     if (!period_start || new Date(period_start).getTime() < monthAgo) {
       await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`, {
@@ -77,14 +82,14 @@ export default {
       });
     }
 
-    // 3. Resolve the requested engine, enforce plan
+    // 3. Resolve the requested engine, enforce plan (override unlocks everything)
     const wanted = String(body.engine || (String(body.model || '').includes('haiku') ? 'quick' : String(body.model || '').includes('opus') ? 'max' : 'smart'));
-    const allowed = PLAN_ENGINES[plan] || PLAN_ENGINES.free;
+    const allowed = hasOverride ? ['quick', 'smart', 'max'] : (PLAN_ENGINES[plan] || PLAN_ENGINES.free);
     const tier = allowed.includes(wanted) ? wanted : allowed[allowed.length - 1];
     const engine = ENGINES[tier];
-    const limit = PLAN_CREDITS[plan] ?? PLAN_CREDITS.free;
+    const limit = hasOverride ? Math.max(0, Math.round(Number(usd_limit) * 130)) : (PLAN_CREDITS[plan] ?? PLAN_CREDITS.free);
     const hasImages = JSON.stringify(body.messages || '').includes('"image"');
-    if (hasImages && !VISION_PLANS.includes(plan))
+    if (hasImages && !(hasOverride || VISION_PLANS.includes(plan)))
       return json({ error: 'Thumbnail vision needs Creator Pro. Upgrade to analyze images.', upgrade: true }, 402, cors);
 
     // 4. Atomically reserve credits (also enforces a per-user rate limit). This
