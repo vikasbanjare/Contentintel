@@ -45,7 +45,7 @@ const TABS = [
   { id: 'history',   label: 'History',   mood: 'burgundy', icon: 'history' },
 ];
 // Tools that live inside the "More" hub (kept, just not in the top bar).
-const MORE_TABS = ['builder', 'platform', 'playbook', 'caption', 'create', 'ideas', 'repurpose', 'comments', 'audit', 'competitor'];
+const MORE_TABS = ['builder', 'platform', 'playbook', 'caption', 'create', 'ideas', 'repurpose', 'comments', 'audit', 'competitor', 'intel'];
 window.CI_MORE_TABS = MORE_TABS;
 
 function CITabIcon({ name }) {
@@ -68,6 +68,7 @@ function CITabIcon({ name }) {
     case 'comments':   return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 3.5h11v7h-6l-3 2v-2h-2v-7z"/><path d="M5.5 7h5M5.5 5h3"/></svg>;
     case 'audit':      return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M5 8.5l2 2 4-4"/></svg>;
     case 'competitor': return <svg {...s} viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"/><circle cx="8" cy="8" r="2.5"/><path d="M8 2.5V1M8 15v-1.5M2.5 8H1M15 8h-1.5"/></svg>;
+    case 'intel':      return <svg {...s} viewBox="0 0 16 16"><path d="M8 8L12 4M8 8a5.5 5.5 0 105.5 5.5"/><path d="M8 8a5.5 5.5 0 015.5 5.5"/><circle cx="8" cy="8" r="1" fill="currentColor"/><path d="M8 2.5A5.5 5.5 0 002.5 8"/></svg>;
     case 'more':    return <svg {...s} viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/></svg>;
     case 'pricing': return <svg {...s} viewBox="0 0 16 16"><path d="M2.5 8.5V3.5a1 1 0 011-1h5l5 5a1 1 0 010 1.4l-4.6 4.6a1 1 0 01-1.4 0l-5-5z"/><circle cx="6" cy="6" r="1"/></svg>;
     default: return null;
@@ -466,6 +467,7 @@ const HUB_GROUPS = [
       { id: 'comments',   label: 'Comment Replies', icon: 'comments',   mood: 'cyan',   line: 'Paste comments — get on-brand replies that build community and boost engagement.' },
       { id: 'audit',      label: 'Channel Audit',   icon: 'audit',      mood: 'lime',   line: 'Paste your titles — get a scored audit, rewrites, and a 30-day action plan.' },
       { id: 'competitor', label: 'Competitor',       icon: 'competitor', mood: 'navy',   line: 'Analyse a competitor\'s title and thumbnail — see what works and how to beat it.' },
+      { id: 'intel',      label: 'Intelligence',     icon: 'intel',      mood: 'violet', line: 'Live web sweep of platform updates, viral patterns & new AI tools — what changed, why it matters, what to do.' },
     ],
   },
   {
