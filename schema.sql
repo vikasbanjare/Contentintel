@@ -80,3 +80,13 @@ create table if not exists public.intel_digests (
   results jsonb not null
 );
 alter table public.intel_digests enable row level security;
+
+-- Distilled live knowledge (single upserted row) — the self-improving loop:
+-- the Worker cron condenses recent digests into per-area guidance that the app
+-- injects into every tool prompt. Service-role only, same as intel_digests.
+create table if not exists public.intel_knowledge (
+  id int primary key,
+  updated_at timestamptz default now(),
+  knowledge jsonb not null
+);
+alter table public.intel_knowledge enable row level security;

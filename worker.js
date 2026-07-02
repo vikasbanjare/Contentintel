@@ -71,7 +71,12 @@ export default {
     if (body.intel === true) {
       const iRes = await fetch(`${env.SUPABASE_URL}/rest/v1/intel_digests?select=created_at,results&order=created_at.desc&limit=1`, { headers: svc });
       const iRows = await iRes.json().catch(() => []);
-      return json((Array.isArray(iRows) && iRows[0]) || { results: null }, 200, cors);
+      const out = (Array.isArray(iRows) && iRows[0]) || { results: null };
+      // Attach the distilled knowledge (feeds the app's live prompt injection).
+      const kRes = await fetch(`${env.SUPABASE_URL}/rest/v1/intel_knowledge?id=eq.1&select=updated_at,knowledge`, { headers: svc });
+      const kRows = await kRes.json().catch(() => []);
+      if (Array.isArray(kRows) && kRows[0]) { out.knowledge = kRows[0].knowledge; out.knowledge_updated_at = kRows[0].updated_at; }
+      return json(out, 200, cors);
     }
 
     // 2. Load profile (plan + usage), resetting the monthly window if needed
@@ -259,6 +264,77 @@ async function runIntelSweep(env) {
   await fetch(`${env.SUPABASE_URL}/rest/v1/intel_digests?created_at=lt.${encodeURIComponent(cutoff)}`, {
     method: 'DELETE', headers: svc,
   }).catch(() => {});
+  // Self-improving loop: distill the recent digests into compact per-area
+  // guidance that the app injects into every tool's prompt (thumbnail, title,
+  // platform). Failure here never breaks the sweep itself.
+  try { await distillKnowledge(env, svc); } catch (e) {}
+}
+
+// Distill 14 days of digests → durable, actionable guidance for prompt injection.
+const INTEL_DISTILL_SYS = [
+  'You distill content-intelligence digest items into compact guidance that will be injected into AI prompts for creator tools.',
+  'Only keep findings that are actionable and likely durable (weeks, not hours); drop one-off news, launches without workflow impact, and anything speculative. Merge duplicates across days.',
+  'Return ONLY one JSON object, no markdown:',
+  '{ "thumbnail": "2-4 sentences: current thumbnail best-practice updates", "title": "2-4 sentences: current title/CTR guidance", "platform": "2-4 sentences: cross-platform algorithm & posting guidance", "general": "1-3 sentences: the biggest current shift creators must know" }',
+  'Plain text values, each under 450 characters. Use "" for a field with nothing genuinely new.',
+].join('\n');
+
+async function distillKnowledge(env, svc) {
+  const since = new Date(Date.now() - 14 * 864e5).toISOString();
+  const r = await fetch(`${env.SUPABASE_URL}/rest/v1/intel_digests?select=created_at,results&created_at=gte.${encodeURIComponent(since)}&order=created_at.desc&limit=14`, { headers: svc });
+  const rows = await r.json();
+  if (!Array.isArray(rows) || !rows.length) return;
+  const lines = [];
+  for (const row of rows) {
+    const day = String(row.created_at || '').slice(0, 10);
+    for (const [dom, res] of Object.entries(row.results || {})) {
+      for (const it of ((res && res.items) || [])) {
+        lines.push(`${day} [${dom}] ${it.headline || ''} :: ${it.what || ''} :: ${it.action || ''}`);
+      }
+    }
+  }
+  if (!lines.length) return;
+  const corpus = 'DIGEST ITEMS (newest first):\n' + lines.join('\n').slice(0, 12000) + '\n\nDistil now.';
+  const text = env.GEMINI_KEY ? await geminiPlainText(env, INTEL_DISTILL_SYS, corpus) : await claudePlainText(env, INTEL_DISTILL_SYS, corpus);
+  const j = extractJson(text);
+  if (!j || typeof j !== 'object') return;
+  const knowledge = {
+    thumbnail: String(j.thumbnail || '').slice(0, 600),
+    title: String(j.title || '').slice(0, 600),
+    platform: String(j.platform || '').slice(0, 600),
+    general: String(j.general || '').slice(0, 400),
+  };
+  await fetch(`${env.SUPABASE_URL}/rest/v1/intel_knowledge`, {
+    method: 'POST',
+    headers: { ...svc, Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ id: 1, updated_at: new Date().toISOString(), knowledge }),
+  });
+}
+
+// Plain text generation (no search tools) — used by the distillation step.
+async function geminiPlainText(env, sys, user) {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_KEY },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: sys }] },
+      contents: [{ role: 'user', parts: [{ text: user }] }],
+      generationConfig: { maxOutputTokens: 900, temperature: 0.2 },
+    }),
+  });
+  if (!res.ok) throw new Error('gemini ' + res.status);
+  const data = await res.json();
+  return ((((data.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join('');
+}
+
+async function claudePlainText(env, sys, user) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 900, system: sys, messages: [{ role: 'user', content: user }] }),
+  });
+  if (!res.ok) throw new Error('anthropic ' + res.status);
+  const data = await res.json();
+  return (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
 }
 
 async function refund(env, svc, uid, amount) {

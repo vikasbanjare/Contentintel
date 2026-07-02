@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r52";
+window.CI_BUILD = "2026-06-20-r53";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -2866,6 +2866,36 @@ const THUMBNAIL_PROMPT_FORMAT =
 window.THUMBNAIL_CONCEPT_DIRECTIONS = THUMBNAIL_CONCEPT_DIRECTIONS;
 window.THUMBNAIL_PROMPT_FORMAT = THUMBNAIL_PROMPT_FORMAT;
 
+// ── Live intel: distilled current-platform knowledge from the intelligence
+// sweeps (Worker cron daily, or a manual sweep) — the self-improving loop.
+// Stored locally, auto-injected into every tool's prompt so the thumbnail
+// checker, title scorer, generators etc. reflect what's working NOW, not just
+// the baked-in research. Goes stale after 8 days (cron refreshes it daily).
+const LIVE_INTEL_KEY = "ci_live_intel";
+const LIVE_INTEL_MAX_AGE = 8 * 864e5;
+function getLiveIntel() {
+  try {
+    const j = JSON.parse(localStorage.getItem(LIVE_INTEL_KEY));
+    if (!j || !j.knowledge || (Date.now() - (j.ts || 0)) > LIVE_INTEL_MAX_AGE) return null;
+    return j;
+  } catch (e) { return null; }
+}
+function setLiveIntel(knowledge, ts) {
+  if (!knowledge || typeof knowledge !== "object") return;
+  try { localStorage.setItem(LIVE_INTEL_KEY, JSON.stringify({ ts: ts || Date.now(), knowledge })); } catch (e) {}
+}
+function liveIntelBlock(type) {
+  const li = getLiveIntel();
+  if (!li) return "";
+  const k = li.knowledge || {};
+  const area = /thumb|studio/i.test(type) ? k.thumbnail : /title/i.test(type) ? k.title : /platform|caption/i.test(type) ? k.platform : "";
+  const parts = [area, k.general].map(s => String(s || "").trim()).filter(Boolean);
+  if (!parts.length) return "";
+  return `CURRENT PLATFORM INTEL (from live web research, updated ${new Date(li.ts).toISOString().slice(0, 10)} — weigh alongside the research above; where it conflicts with older guidance, prefer this):\n"""\n${parts.join("\n")}\n"""`;
+}
+window.getLiveIntel = getLiveIntel;
+window.setLiveIntel = setLiveIntel;
+
 // The non-negotiable design rules every generated thumbnail must obey -- distilled
 // from the thumbnail research, plus an explicit anti-gibberish text rule (the #1
 // thing image models get wrong). Pulled into EVERY generation, edit or text-to-image.
@@ -2873,11 +2903,14 @@ function thumbDesignLaw() {
   const th = (getResearch("thumbnail") || {});
   const st = (getResearch("studio") || {});
   const dp = String(th.designPrinciples || st.designPrinciples || "").trim();
+  const li = getLiveIntel();
+  const liThumb = li && li.knowledge ? String(li.knowledge.thumbnail || "").trim() : "";
   return [
     "DESIGN LAW (follow strictly): exactly ONE dominant focal point on a rule-of-thirds line, with strong foreground/background separation. High contrast, a tight 60-30-10 colour palette, cinematic directional lighting. If a person is shown: a sharp, realistic, undistorted face with ONE clear emotion and correct eyes/hands. Bold enough to read at 120px.",
     "TEXT RULE: render ONLY the exact words specified, spelled correctly, in a heavy bold sans-serif with a strong outline or drop shadow; 3-5 BIG words maximum. Add NO other words, captions, logos, watermarks, or random/gibberish lettering.",
     "AVOID: clutter, muddy low-contrast colour, tiny text, plastic over-smoothed 'AI' skin, warped faces, extra fingers or limbs, stray symbols.",
     dp ? "Researched principles to apply where relevant: " + dp.slice(0, 600) : "",
+    liThumb ? "Current thumbnail intel (live research, recent): " + liThumb.slice(0, 450) : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -3361,6 +3394,7 @@ function buildSystem(type, opts = {}) {
     `Adapt to the content you are given: detect its region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country or niche.`,
     `WEB VERIFICATION: you have a live web_search tool. When the content makes a factual, statistical, dated, trending or claim-based assertion (numbers, names, events, prices, "the latest", "#1", records, etc.), search and cross-check it against multiple real sources before judging it. Flag anything you cannot verify or that is outdated/wrong as a credibility risk. Never ask the user to provide sources -- find and verify them yourself. If a claim checks out, you may note that briefly. Do NOT search for things that don't need it (pure style/wording judgements); keep it to what genuinely needs verifying.`,
     core ? `RESEARCH CONTEXT (principles -- apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
+    liveIntelBlock(type),
     `${r.label || type}-SPECIFIC METHODOLOGY -- use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     // Script craft always applies, even if server research overrides systemGuidance.
@@ -13446,6 +13480,47 @@ async function intelDomainSearch(domain) {
   return { items: Array.isArray(j.items) ? j.items : [], sources: srcs };
 }
 
+// Distil a fresh sweep into compact per-area guidance and store it so every
+// tool's prompt (thumbnail / title / platform) reflects this week's findings.
+// Same contract as the Worker's server-side distillation — one cheap call.
+const INTEL_DISTILL_SYS = [
+  'You distill content-intelligence digest items into compact guidance that will be injected into AI prompts for creator tools.',
+  'Only keep findings that are actionable and likely durable (weeks, not hours); drop one-off news and speculation. Merge duplicates.',
+  'Return ONLY one JSON object, no markdown:',
+  '{ "thumbnail": "2-4 sentences: current thumbnail best-practice updates", "title": "2-4 sentences: current title/CTR guidance", "platform": "2-4 sentences: cross-platform algorithm & posting guidance", "general": "1-3 sentences: the biggest current shift creators must know" }',
+  'Plain text values, each under 450 characters. Use "" for a field with nothing genuinely new.',
+].join('\n');
+
+async function intelDistillClient(out) {
+  const lines = [];
+  for (const d of INTEL_DOMAINS) {
+    const r = out[d.id];
+    for (const it of ((r && r.items) || [])) lines.push(`[${d.label}] ${it.headline || ''} :: ${it.what || ''} :: ${it.action || ''}`);
+  }
+  if (!lines.length) return;
+  const corpus = 'DIGEST ITEMS:\n' + lines.join('\n').slice(0, 11000) + '\n\nDistil now.';
+  let text = '';
+  const gKey = window.getGoogleKey && window.getGoogleKey();
+  if (gKey) {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': gKey },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: INTEL_DISTILL_SYS }] },
+        contents: [{ role: 'user', parts: [{ text: corpus }] }],
+        generationConfig: { maxOutputTokens: 900, temperature: 0.2 },
+      }),
+    });
+    if (!res.ok) throw new Error('distill failed');
+    const data = await res.json();
+    text = ((((data.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join('');
+  } else {
+    const r = await window.callClaude({ system: INTEL_DISTILL_SYS, userText: corpus, maxTokens: 900, temperature: 0.2 });
+    text = r.text || '';
+  }
+  const j = (window.parseReport || (() => null))(text);
+  if (j && typeof j === 'object' && window.setLiveIntel) window.setLiveIntel(j);
+}
+
 function intelLoadCache() {
   try { return JSON.parse(localStorage.getItem(INTEL_CACHE_KEY)) || null; } catch (e) { return null; }
 }
@@ -13487,6 +13562,81 @@ function IntelItemCard({ it, accent }) {
   );
 }
 
+// System health — surfaces problems BEFORE users hit them. Passive checks are
+// free (key presence, digest freshness); active tests make one real tiny call
+// each so "it says OK" means "it actually worked just now".
+function IntelHealthPanel({ m, serverFed, digestTs, liveIntel, onOpenKey }) {
+  const [tests, setTests] = React.useState({}); // id -> 'run' | 'ok' | error string
+  const gKey = window.getGoogleKey && window.getGoogleKey();
+  const imgReady = !!(gKey || (window.getOpenAIKey && window.getOpenAIKey()) || (window.getProxyUrl && window.getProxyUrl()));
+  const textReady = !!(window.canRun && window.canRun());
+  const digestFresh = digestTs && (Date.now() - digestTs) < 36 * 3600e3;
+
+  const setT = (id, v) => setTests(p => ({ ...p, [id]: v }));
+
+  async function testText() {
+    setT('text', 'run');
+    try {
+      const r = await window.callClaude({ system: 'Reply with exactly: OK', userText: 'ping', maxTokens: 8, temperature: 0 });
+      setT('text', /ok/i.test(r.text || '') ? 'ok' : 'Unexpected reply — engine may be degraded.');
+    } catch (e) { setT('text', String(e.message || 'failed')); }
+  }
+  async function testGemini() {
+    setT('gemini', 'run');
+    try {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1', { headers: { 'x-goog-api-key': gKey } });
+      setT('gemini', r.ok ? 'ok' : ('Key check failed (HTTP ' + r.status + ') — check the key in Settings.'));
+    } catch (e) { setT('gemini', String(e.message || 'failed')); }
+  }
+  async function testImage() {
+    setT('image', 'run');
+    try {
+      const url = await window.generateImageInApp('A single bold red circle centered on a plain white background. Sharp focus, high contrast, one clear focal point.', '1:1');
+      setT('image', url ? 'ok' : 'No image returned.');
+    } catch (e) { setT('image', String(e.message || 'failed')); }
+  }
+
+  const Row = ({ label, status, note, action, actionLabel }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--stroke-1)' }}>
+      <span style={{ fontSize: 14, width: 20, textAlign: 'center', flexShrink: 0 }}>
+        {status === 'ok' ? '✅' : status === 'warn' ? '⚠️' : status === 'bad' ? '❌' : status === 'run' ? '⏳' : '▫️'}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-1)' }}>{label}</div>
+        {note && <div style={{ fontSize: 11, color: status === 'bad' ? '#F06A7E' : 'var(--text-4)', marginTop: 1, lineHeight: 1.45 }}>{note}</div>}
+      </div>
+      {action && <button className="ci-copybtn" style={{ height: 26, padding: '0 10px', fontSize: 11, flexShrink: 0 }} onClick={action} disabled={status === 'run'}>{actionLabel}</button>}
+    </div>
+  );
+
+  const st = (id, readyFallback) => tests[id] === 'run' ? 'run' : tests[id] === 'ok' ? 'ok' : tests[id] ? 'bad' : readyFallback;
+
+  return (
+    <div className="ci-block" style={{ padding: 20, marginTop: 14 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-1)', marginBottom: 2 }}>🩺 System health</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 8 }}>Catch problems before they cost you a generation. Tests make one real (tiny) call each.</div>
+      <Row label="Daily auto-sweep (server cron)"
+        status={serverFed || digestFresh ? 'ok' : digestTs ? 'warn' : 'warn'}
+        note={digestTs ? ('Latest digest ' + intelAgo(digestTs) + (digestFresh ? ' — healthy.' : ' — older than 36h; check the Worker cron trigger.')) : 'No digest yet — the first cron tick (or a manual sweep) will create one.'} />
+      <Row label="Live intel → tools injection"
+        status={liveIntel ? 'ok' : 'warn'}
+        note={liveIntel ? ('Feeding all prompts · updated ' + intelAgo(liveIntel.ts)) : 'Not active yet — completes automatically after the next sweep (server or manual).'} />
+      <Row label="AI engine (analysis & scoring)"
+        status={st('text', textReady ? undefined : 'bad')}
+        note={tests.text && tests.text !== 'ok' && tests.text !== 'run' ? tests.text : textReady ? 'Configured.' : 'No engine — sign in or add a key in Settings.'}
+        action={textReady ? testText : onOpenKey} actionLabel={textReady ? (tests.text === 'run' ? '…' : 'Test') : 'Fix'} />
+      <Row label="Gemini key (search & images)"
+        status={st('gemini', gKey ? undefined : 'warn')}
+        note={tests.gemini && tests.gemini !== 'ok' && tests.gemini !== 'run' ? tests.gemini : gKey ? 'Key present.' : 'No Google key — sweeps fall back to Claude; image gen needs it.'}
+        action={gKey ? testGemini : onOpenKey} actionLabel={gKey ? (tests.gemini === 'run' ? '…' : 'Test') : 'Fix'} />
+      <Row label="Image generation"
+        status={st('image', imgReady ? undefined : 'bad')}
+        note={tests.image && tests.image !== 'ok' && tests.image !== 'run' ? tests.image : imgReady ? 'Configured. Test generates 1 tiny image (uses quota).' : 'No image key — add Google or OpenAI in Settings.'}
+        action={imgReady ? testImage : onOpenKey} actionLabel={imgReady ? (tests.image === 'run' ? '…' : 'Test (1 image)') : 'Fix'} />
+    </div>
+  );
+}
+
 function IntelTab({ onOpenKey }) {
   const mood = 'violet';
   const m = MOODS[mood] || MOODS.burgundy;
@@ -13496,6 +13646,7 @@ function IntelTab({ onOpenKey }) {
   const [running, setRunning] = React.useState(false);
   const [phase, setPhase] = React.useState(''); // which domain is being searched
   const [serverFed, setServerFed] = React.useState(false); // digest came from the Worker cron
+  const [feedTick, setFeedTick] = React.useState(0); // re-render when live intel updates
   const liveRef = React.useRef(true);
   React.useEffect(() => () => { liveRef.current = false; }, []);
 
@@ -13522,10 +13673,17 @@ function IntelTab({ onOpenKey }) {
           setServerFed(true);
           try { localStorage.setItem(INTEL_CACHE_KEY, JSON.stringify({ ts: serverTs, results: data.results })); } catch (e) {}
         }
+        // Server-distilled knowledge -> feeds every tool's prompt automatically.
+        if (data.knowledge && window.setLiveIntel) {
+          const kTs = new Date(data.knowledge_updated_at || data.created_at || 0).getTime() || Date.now();
+          const cur = window.getLiveIntel && window.getLiveIntel();
+          if (!cur || kTs > cur.ts) { window.setLiveIntel(data.knowledge, kTs); setFeedTick(t => t + 1); }
+        }
       } catch (e) {}
     })();
     return () => { live = false; };
   }, []);
+  const liveIntel = (window.getLiveIntel && window.getLiveIntel()) || null;
 
   const gKey = window.getGoogleKey && window.getGoogleKey();
   const canRun = !!gKey || (window.canRun && window.canRun());
@@ -13550,6 +13708,11 @@ function IntelTab({ onOpenKey }) {
       setResults({ ...out });
       await new Promise(r => setTimeout(r, 1500));
     }
+    if (!liveRef.current) return;
+    // Close the loop: distil the fresh sweep into per-area guidance that every
+    // tool's prompt picks up automatically. Non-fatal if it fails.
+    setPhase('Distilling insights');
+    try { await intelDistillClient(out); setFeedTick(t => t + 1); } catch (e) {}
     if (!liveRef.current) return;
     setPhase('');
     setRunning(false);
@@ -13596,12 +13759,19 @@ function IntelTab({ onOpenKey }) {
             <button className="ci-copybtn" style={{ height: 26, padding: '0 10px', fontSize: 11.5, marginLeft: 6 }} onClick={onOpenKey}>Open Settings</button>
           </div>
         )}
+        {liveIntel && (
+          <div data-feedtick={feedTick} style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(143,216,106,0.08)', border: '1px solid rgba(143,216,106,0.3)', fontSize: 12.5, color: 'var(--text-2)', lineHeight: 1.55 }}>
+            <b style={{ color: '#8FD86A' }}>🧠 Live intel is feeding your tools</b> — the thumbnail checker, title scorer, generators and platform advice now include these findings automatically (updated {intelAgo(liveIntel.ts)}).
+          </div>
+        )}
         <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-5)', lineHeight: 1.5 }}>
           {serverFed
             ? 'This digest was generated automatically by the daily server sweep — you can still run a fresh manual sweep any time.'
             : 'This sweep runs when you ask (and caches for a day). Signed-in users on the hosted app get a server digest refreshed automatically every day.'}
         </div>
       </div>
+
+      <IntelHealthPanel m={m} serverFed={serverFed} digestTs={ts} liveIntel={liveIntel} onOpenKey={onOpenKey} />
 
       {INTEL_DOMAINS.map(d => {
         const r = results[d.id];
