@@ -229,6 +229,17 @@ async function intelViaClaude(env, d) {
 
 async function runIntelSweep(env) {
   const svc = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'content-type': 'application/json' };
+  // Freshness guard: the cron can safely fire hourly (or any schedule) — a real
+  // sweep only runs when the newest digest is older than INTEL_MIN_HOURS
+  // (default 20h). Otherwise the tick exits immediately and burns zero AI quota.
+  // The digest looks back 30 days, so more than ~daily adds cost, not insight.
+  const minHours = parseFloat(env.INTEL_MIN_HOURS || '20');
+  try {
+    const lRes = await fetch(`${env.SUPABASE_URL}/rest/v1/intel_digests?select=created_at&order=created_at.desc&limit=1`, { headers: svc });
+    const lRows = await lRes.json();
+    const last = Array.isArray(lRows) && lRows[0] && new Date(lRows[0].created_at).getTime();
+    if (last && (Date.now() - last) < minHours * 3600e3) return;
+  } catch (e) {}
   const results = {};
   for (const d of INTEL_DOMAINS) {
     try {
