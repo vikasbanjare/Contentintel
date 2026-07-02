@@ -64,8 +64,17 @@ export default {
     if (raw.length > MAX_BODY_BYTES) return json({ error: 'Request too large.' }, 413, cors);
     let body; try { body = JSON.parse(raw); } catch (e) { return json({ error: 'Bad request.' }, 400, cors); }
 
-    // 2. Load profile (plan + usage), resetting the monthly window if needed
     const svc = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'content-type': 'application/json' };
+
+    // Intelligence digest fetch: return the latest cron-generated digest for any
+    // signed-in user (cheap read; no credits consumed).
+    if (body.intel === true) {
+      const iRes = await fetch(`${env.SUPABASE_URL}/rest/v1/intel_digests?select=created_at,results&order=created_at.desc&limit=1`, { headers: svc });
+      const iRows = await iRes.json().catch(() => []);
+      return json((Array.isArray(iRows) && iRows[0]) || { results: null }, 200, cors);
+    }
+
+    // 2. Load profile (plan + usage), resetting the monthly window if needed
     const pRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}&select=plan,checks_used,period_start,usd_limit`, { headers: svc });
     const rows = await pRes.json();
     let { plan = 'free', period_start, usd_limit } = rows[0] || {};
@@ -130,7 +139,116 @@ export default {
 
     return new Response(out, { status: aRes.status, headers: { ...cors, 'content-type': 'application/json' } });
   },
+
+  // ── Daily intelligence sweep ────────────────────────────────────────────────
+  // Fires on the Cron Trigger you add in the Cloudflare dashboard
+  // (Worker → Settings → Triggers → Cron Triggers → e.g. "0 6 * * *").
+  // Runs the 4-domain web-research sweep server-side and stores the digest in
+  // Supabase (intel_digests) so the app shows fresh intelligence with zero
+  // clicks — and the accumulated history becomes trend-analysis data later.
+  // Engine: GEMINI_KEY secret (free tier, Google Search grounding) if set,
+  // else falls back to ANTHROPIC_KEY + web_search (a few cents per day).
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runIntelSweep(env));
+  },
 };
+
+const INTEL_SYS = [
+  'You are a content-intelligence analyst. Use web search to find REAL, RECENT developments for the requested domain, then produce an actionable digest for a content creator.',
+  'Rules: only include things actually found via search from credible sources; prefer the last 30 days; never invent updates, dates, numbers or names; fewer items over padding.',
+  'Return ONLY one JSON object, no markdown fences:',
+  '{ "items": [ { "headline": "short specific headline", "what": "1-2 sentences: what changed/was found", "why": "1 sentence: why it matters to a creator", "action": "1 sentence: the concrete thing to do now", "impact": "high|medium|low" } ] }',
+  'Return 3-6 items, most important first.',
+].join('\n');
+
+// Keep these domain queries in sync with src-v2/ci-intel.jsx (client sweep).
+const INTEL_DOMAINS = [
+  { id: 'platforms', label: 'Platform Updates', query: 'Search for social media platform updates from the LAST 30 DAYS: algorithm changes, reach/engagement ranking changes, new features, monetization and creator-program updates, AI-content policies — across Instagram, TikTok, YouTube, Facebook, LinkedIn, X/Twitter, Reddit, Threads, Pinterest, Snapchat. Prioritise official announcements and credible industry reporting.' },
+  { id: 'youtube', label: 'YouTube Deep-Dive', query: 'Search for YouTube-specific changes and findings from the LAST 30 DAYS: algorithm/recommendation updates, Creator Insider announcements, thumbnail and title CTR findings, retention/watch-time research, Shorts changes, search/SEO changes, monetization and policy updates.' },
+  { id: 'viral', label: 'Viral Patterns & Formats', query: 'Search for CURRENT viral content patterns (last 30 days): emerging short-form and long-form formats, hook formulas creators are using, storytelling and retention techniques, thumbnail and title trends, editing styles. Name real creators/examples where possible.' },
+  { id: 'ai', label: 'AI Tools & Research', query: 'Search for NEW AI tools, models and credible research from the LAST 30 DAYS relevant to content creators: script/writing models, image and video generation, voice synthesis, AI agents/automation, and notable studies. For each: what changed and should a creator adopt now or wait.' },
+];
+
+function extractJson(text) {
+  try { const m = String(text || '').match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch (e) { return null; }
+}
+
+async function intelViaGemini(env, d) {
+  const payload = {
+    systemInstruction: { parts: [{ text: INTEL_SYS }] },
+    contents: [{ role: 'user', parts: [{ text: 'DOMAIN: ' + d.label + '\n' + d.query + '\n\nReturn the JSON digest now.' }] }],
+    tools: [{ google_search: {} }],
+    generationConfig: { maxOutputTokens: 1600, temperature: 0.3 },
+  };
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_KEY }, body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('gemini ' + res.status);
+  const data = await res.json();
+  const cand = (data.candidates || [])[0] || {};
+  const text = (((cand.content || {}).parts) || []).map(p => p.text || '').join('');
+  const j = extractJson(text) || {};
+  const gm = cand.groundingMetadata || cand.grounding_metadata || {};
+  const sources = []; const seen = new Set();
+  for (const c of (gm.groundingChunks || gm.grounding_chunks || [])) {
+    const w = (c && (c.web || c.retrievedContext)) || {};
+    const u = w.uri || w.url;
+    if (u && !seen.has(u)) { seen.add(u); sources.push({ title: (w.title || u).slice(0, 120), url: u }); }
+  }
+  return { items: Array.isArray(j.items) ? j.items : [], sources };
+}
+
+async function intelViaClaude(env, d) {
+  // Sonnet, not Haiku — Haiku doesn't support the web_search tool.
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6', max_tokens: 1600, system: INTEL_SYS,
+      messages: [{ role: 'user', content: 'DOMAIN: ' + d.label + '\n' + d.query + '\n\nReturn the JSON digest now.' }],
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+    }),
+  });
+  if (!res.ok) throw new Error('anthropic ' + res.status);
+  const data = await res.json();
+  const blocks = data.content || [];
+  const text = blocks.filter(b => b.type === 'text').map(b => b.text).join('');
+  const j = extractJson(text) || {};
+  const sources = []; const seen = new Set();
+  for (const b of blocks) {
+    if (b.type === 'web_search_tool_result' && Array.isArray(b.content)) {
+      for (const r of b.content) {
+        if (r && r.type === 'web_search_result' && r.url && !seen.has(r.url)) {
+          seen.add(r.url); sources.push({ title: (r.title || r.url).slice(0, 120), url: r.url });
+        }
+      }
+    }
+  }
+  return { items: Array.isArray(j.items) ? j.items : [], sources };
+}
+
+async function runIntelSweep(env) {
+  const svc = { apikey: env.SUPABASE_SERVICE_KEY, Authorization: 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'content-type': 'application/json' };
+  const results = {};
+  for (const d of INTEL_DOMAINS) {
+    try {
+      results[d.id] = env.GEMINI_KEY ? await intelViaGemini(env, d) : await intelViaClaude(env, d);
+      results[d.id].err = '';
+    } catch (e) {
+      results[d.id] = { items: [], sources: [], err: String((e && e.message) || e) };
+    }
+    await new Promise(r => setTimeout(r, 1500)); // gentle pacing
+  }
+  // Store the digest (history accumulates -> future trend analysis data).
+  await fetch(`${env.SUPABASE_URL}/rest/v1/intel_digests`, {
+    method: 'POST', headers: { ...svc, Prefer: 'return=minimal' }, body: JSON.stringify({ results }),
+  });
+  // Prune digests older than 90 days to keep the table bounded.
+  const cutoff = new Date(Date.now() - 90 * 864e5).toISOString();
+  await fetch(`${env.SUPABASE_URL}/rest/v1/intel_digests?created_at=lt.${encodeURIComponent(cutoff)}`, {
+    method: 'DELETE', headers: svc,
+  }).catch(() => {});
+}
 
 async function refund(env, svc, uid, amount) {
   try {
