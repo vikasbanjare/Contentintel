@@ -70,3 +70,13 @@ create or replace function public.increment_usage(uid uuid, amount int default 1
 returns void language sql security definer as $$
   update public.profiles set checks_used = checks_used + amount where id = uid;
 $$;
+
+-- Daily intelligence digests written by the Worker cron (trend monitoring).
+-- RLS enabled with NO user policies: only the service role (the Worker) can
+-- read/write. The app fetches digests through the Worker, never directly.
+create table if not exists public.intel_digests (
+  id bigint generated always as identity primary key,
+  created_at timestamptz default now(),
+  results jsonb not null
+);
+alter table public.intel_digests enable row level security;

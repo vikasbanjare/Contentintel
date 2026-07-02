@@ -132,8 +132,37 @@ function IntelTab({ onOpenKey }) {
   const [ts, setTs] = React.useState(() => (cached && cached.ts) || null);
   const [running, setRunning] = React.useState(false);
   const [phase, setPhase] = React.useState(''); // which domain is being searched
+  const [serverFed, setServerFed] = React.useState(false); // digest came from the Worker cron
   const liveRef = React.useRef(true);
   React.useEffect(() => () => { liveRef.current = false; }, []);
+
+  // Hosted mode: pull the server's daily auto-digest (Worker cron) when it's
+  // newer than anything cached locally — fresh intelligence with zero clicks.
+  React.useEffect(() => {
+    const saas = (typeof window !== 'undefined' && window.CI_SAAS) || {};
+    if (!(saas.workerUrl && window.CI_SESSION)) return;
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch(saas.workerUrl, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + window.CI_SESSION },
+          body: JSON.stringify({ intel: true }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!live || !res.ok || !data || !data.results) return;
+        const serverTs = new Date(data.created_at || 0).getTime() || 0;
+        const local = intelLoadCache();
+        if (serverTs && (!local || serverTs > local.ts)) {
+          setResults(data.results);
+          setTs(serverTs);
+          setServerFed(true);
+          try { localStorage.setItem(INTEL_CACHE_KEY, JSON.stringify({ ts: serverTs, results: data.results })); } catch (e) {}
+        }
+      } catch (e) {}
+    })();
+    return () => { live = false; };
+  }, []);
 
   const gKey = window.getGoogleKey && window.getGoogleKey();
   const canRun = !!gKey || (window.canRun && window.canRun());
@@ -186,7 +215,7 @@ function IntelTab({ onOpenKey }) {
               {ts ? (stale ? 'Digest is stale — run a fresh sweep' : 'Digest up to date') : 'No digest yet — run your first sweep'}
             </div>
             <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 3 }}>
-              {ts ? `Last updated ${intelAgo(ts)} · ` : ''}Engine: {engine} · 4 focused searches · results cached for 24h on this device
+              {ts ? `Last updated ${intelAgo(ts)} · ` : ''}{serverFed ? 'Auto-updated daily by the server · ' : ''}Engine: {engine} · 4 focused searches · cached 24h
             </div>
           </div>
           <GlowButton mood={mood} onClick={sweep} style={{ opacity: (running || !canRun) ? 0.6 : 1 }}>
@@ -205,7 +234,9 @@ function IntelTab({ onOpenKey }) {
           </div>
         )}
         <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-5)', lineHeight: 1.5 }}>
-          Honest scope: this sweep runs when you ask (and caches for a day) — it is real, sourced research, not a 24/7 background monitor.
+          {serverFed
+            ? 'This digest was generated automatically by the daily server sweep — you can still run a fresh manual sweep any time.'
+            : 'This sweep runs when you ask (and caches for a day). Signed-in users on the hosted app get a server digest refreshed automatically every day.'}
         </div>
       </div>
 
