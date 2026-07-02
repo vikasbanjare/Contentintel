@@ -122,6 +122,7 @@ function CIApp() {
   else if (tab === 'comments')   View = <CommentsTab onOpenKey={openKey} />;
   else if (tab === 'audit')      View = <AuditTab onOpenKey={openKey} />;
   else if (tab === 'competitor') View = <CompetitorTab onOpenKey={openKey} />;
+  else if (tab === 'intel')      View = <IntelTab onOpenKey={openKey} />;
   else if (tab === 'research') View = admin ? <ResearchTab onClose={exitResearch} onNav={nav} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
   else if (tab === 'train') View = admin ? <TrainTab onClose={exitResearch} onNav={nav} onOpenKey={openKey} /> : <HomeView onNav={nav} onOpenKey={openKey} hasKey={hasKey} />;
 
