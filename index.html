@@ -2275,7 +2275,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r53";
+window.CI_BUILD = "2026-06-20-r54";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -3737,13 +3737,13 @@ function GenPromptCard({ block, mood }) {
       {block.label && <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6, letterSpacing: "0.01em" }}>{block.label}</div>}
       <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{block.text}</div>
       <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap", alignItems: "center" }}>
-        {canGenerate && (
-          <button className="ci-copybtn"
-            style={{ height: 32, padding: "0 13px", fontSize: 12, background: `linear-gradient(135deg,${m.accentFrom}28,${m.accentFrom}12)`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === "loading" ? 0.65 : 1 }}
-            onClick={generate} disabled={genState === "loading"}>
-            {genState === "loading" ? "⏳ Generating…" : "⚡ Generate"}
-          </button>
-        )}
+        {/* Always visible — hiding it without a key made generation look broken;
+            clicking without a key explains exactly what to add in Settings. */}
+        <button className="ci-copybtn"
+          style={{ height: 32, padding: "0 13px", fontSize: 12, background: `linear-gradient(135deg,${m.accentFrom}28,${m.accentFrom}12)`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: (genState === "loading" || !canGenerate) ? 0.65 : 1 }}
+          onClick={generate} disabled={genState === "loading"}>
+          {genState === "loading" ? "⏳ Generating…" : "⚡ Generate"}
+        </button>
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInChatGPT(block.text)}>🎨 ChatGPT</button>
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInGemini(block.text)}>✨ Gemini</button>
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={copy}>{done ? "✓ Copied" : "⧉ Copy"}</button>
@@ -7157,13 +7157,13 @@ function ThumbGenCard({ prompt, source, m }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {canGenerate && (
-          <button className="ci-copybtn"
-            style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
-            onClick={generate} disabled={genState === 'loading'}>
-            {genState === 'loading' ? '⏳ Generating…' : `⚡ ${source ? 'Generate (uses your photo)' : 'Generate'}`}
-          </button>
-        )}
+        {/* Always visible: hiding it when no key is set made generation look
+            broken. Without a key, clicking explains exactly what to add. */}
+        <button className="ci-copybtn"
+          style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: (genState === 'loading' || !canGenerate) ? 0.65 : 1 }}
+          onClick={generate} disabled={genState === 'loading'}>
+          {genState === 'loading' ? '⏳ Generating…' : `⚡ ${source ? 'Generate (uses your photo)' : 'Generate'}`}
+        </button>
         <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.copyText(prompt)}>⧉ Copy prompt</button>
         <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInChatGPT(prompt)}>🎨 ChatGPT</button>
         <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInGemini(prompt)}>✨ Gemini</button>
@@ -7191,6 +7191,58 @@ function ThumbGenCard({ prompt, source, m }) {
           {window.ThumbnailSizePreview && <window.ThumbnailSizePreview src={genImg} />}
         </div>
       )}
+    </div>
+  );
+}
+
+// One generated concept: the prompt is EDITABLE (✏️) and re-rollable (↻ writes a
+// fresh, different prompt for the same concept direction) — the same tooling the
+// Check tab's upgrade cards give, so both modes work identically.
+function ConceptCard({ t, imgA, strict, guidance, title, kind, m }) {
+  const [p, setP] = React.useState(t.prompt || '');
+  const [editing, setEditing] = React.useState(false);
+  const [rw, setRw] = React.useState(false);
+  const [rwErr, setRwErr] = React.useState('');
+  const canWrite = !!(window.canRun && window.canRun());
+
+  async function newPrompt() {
+    if (rw || !canWrite) return;
+    setRw(true); setRwErr('');
+    try {
+      const fmt = window.THUMBNAIL_PROMPT_FORMAT || 'Describe the finished scene, subject first, in 2-4 tight sentences.';
+      const sys = 'You write image-generation prompts for YouTube thumbnails. ' + fmt + ' Return ONLY the prompt text — no preamble, no quotes, no markdown.';
+      const ut = `Concept direction: ${t.concept || '(none)'}\nVideo title: ${title || '(none)'}\nContent type: ${kind || ''}\n${guidance || ''}\nCurrent prompt:\n${p}\n\nWrite ONE fresh prompt for the SAME concept direction but a noticeably DIFFERENT take — different scene, pose, background and colour scheme.`;
+      const { text } = await window.callClaude({ system: sys, userText: ut, maxTokens: 420, temperature: 0.95 });
+      const np = String(text || '').trim().replace(/^["'`]+|["'`]+$/g, '');
+      if (np.length > 30) setP(np);
+      else setRwErr('Got an empty prompt — try again.');
+    } catch (e) {
+      setRwErr(String(e?.message) === 'NO_KEY' ? 'Sign in (or add a Claude key in Settings) to rewrite prompts.' : (e?.message || 'Rewrite failed — try again.'));
+    }
+    setRw(false);
+  }
+
+  return (
+    <div style={{ padding: 14, borderRadius: 12, border: '1px solid var(--stroke-1)', background: 'var(--surface-1)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', flex: 1, minWidth: 160 }}>{t.concept}</div>
+        <button className="ci-copybtn" style={{ height: 26, padding: '0 10px', fontSize: 11 }} onClick={() => setEditing(e => !e)}>{editing ? '✓ Done' : '✏️ Edit'}</button>
+        {canWrite && (
+          <button className="ci-copybtn" style={{ height: 26, padding: '0 10px', fontSize: 11, opacity: rw ? 0.6 : 1 }} onClick={newPrompt} disabled={rw}>
+            {rw ? '⏳ Writing…' : '↻ New prompt'}
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <textarea className="ci-textarea" style={{ minHeight: 90, fontSize: 12.5, marginTop: 8, lineHeight: 1.55 }}
+          value={p} onChange={e => setP(e.target.value)} />
+      ) : (
+        <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{p}</div>
+      )}
+      {rwErr && <div style={{ fontSize: 12, color: '#F06A7E', marginTop: 6 }}>{rwErr}</div>}
+      <div style={{ marginTop: 10 }}>
+        <ThumbGenCard prompt={chatgptPrompt(p, !!imgA, strict, guidance)} source={imgA || null} m={m} />
+      </div>
     </div>
   );
 }
@@ -7333,13 +7385,8 @@ function ThumbnailTab({ onOpenKey }) {
           <TB title="Thumbnail concepts" desc={imgA ? 'Built around your photo — attach it again when generating' : 'Upload your photo above for an accurate likeness'} mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {genIdeas.items.map((t, i) => (
-                <div key={i} style={{ padding: 14, borderRadius: 12, border: '1px solid var(--stroke-1)', background: 'var(--surface-1)' }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{t.concept}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>{t.prompt}</div>
-                  <div style={{ marginTop: 10 }}>
-                    <ThumbGenCard prompt={chatgptPrompt(t.prompt, !!imgA, strict, guidance)} source={imgA || null} m={m} />
-                  </div>
-                </div>
+                <ConceptCard key={i} t={t} imgA={imgA} strict={strict} guidance={guidance}
+                  title={(showTitle && title.trim()) || ''} kind={kind} m={m} />
               ))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 12, lineHeight: 1.5 }}>
