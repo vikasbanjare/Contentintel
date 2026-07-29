@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r54";
+window.CI_BUILD = "2026-06-20-r55";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -377,8 +377,20 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
     });
     const dataS = await resS.json().catch(() => ({}));
     if (!resS.ok) {
-      if (resS.status === 401) { window.CI_SESSION = null; throw new Error(dataS.error || "Session expired — sign in again."); }
-      throw new Error(dataS.error || ("Request failed (" + resS.status + ")."));
+      // The worker forwards Anthropic error bodies verbatim, so dataS.error can
+      // be a string OR the {type, message} error object — new Error(object)
+      // renders as "[object Object]" and hides the real cause. Dig the text out.
+      const errText = (e) => {
+        if (!e) return "";
+        if (typeof e === "string") return e;
+        if (typeof e.message === "string") return e.message;
+        try { return JSON.stringify(e).slice(0, 300); } catch (x) { return ""; }
+      };
+      const msg = errText(dataS.error) || errText(dataS);
+      if (resS.status === 401) { window.CI_SESSION = null; throw new Error(msg || "Session expired — sign in again."); }
+      if (resS.status === 429) throw new Error(msg || "The service is busy right now — wait a moment and try again.");
+      if (resS.status === 529 || resS.status === 503) throw new Error("The AI service is temporarily overloaded — try again in a minute.");
+      throw new Error(msg || ("Request failed (" + resS.status + ")."));
     }
     const reportBlockS = forceJson ? (dataS.content || []).find(b => b.type === "tool_use" && b.name === "submit_report") : null;
     const textS = reportBlockS
