@@ -2266,6 +2266,155 @@ Object.assign(window, {
 });
 </script>
 <script type="text/babel" data-presets="react">
+/* ===== ci-free.jsx ===== */
+// ContentIntel — FREE local engine.
+// Real, useful output computed entirely in the browser: no API key, no sign-in,
+// no cost, no network. These power the "always works" layer of every tool and
+// double as the automatic fallback when an AI call fails or quota runs out.
+// Rules of the road: never fabricate facts, never claim AI wrote it, and label
+// the output so users know it's the instant/free tier.
+
+// ── Text utilities ──────────────────────────────────────────────────────────
+const FREE_STOP = new Set(('a an the and or but if then than that this these those of in on at to for with from by is are was were be been being it its as your you my me we our their his her he she they i do does did how why what when who which will can could should would about into over under more most best worst new now just very really).').split(/[\s)]+/).filter(Boolean));
+
+function freeWords(s) {
+  return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(w => w.length > 2 && !FREE_STOP.has(w));
+}
+// Topic keywords by frequency, longest-first tiebreak — the backbone of every
+// local generator (keeps output about the user's actual subject).
+function freeKeywords(text, n) {
+  const freq = {};
+  for (const w of freeWords(text)) freq[w] = (freq[w] || 0) + 1;
+  return Object.keys(freq).sort((a, b) => (freq[b] - freq[a]) || (b.length - a.length)).slice(0, n || 6);
+}
+function freeTitleCase(s) {
+  return String(s || '').split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+}
+// The subject phrase, cleaned of hook scaffolding so it can slot into templates.
+function freeSubject(text) {
+  let t = String(text || '').trim().replace(/\s+/g, ' ');
+  t = t.replace(/^(how to|how i|why|what|the|a|an|my|this is|here is|top \d+|\d+)\s+/i, '');
+  t = t.replace(/[?!.]+$/, '');
+  return t.slice(0, 72) || 'this topic';
+}
+function freeNumber(text) {
+  const m = String(text || '').match(/[₹$€]?\s?\d[\d,.]*\s*(lakh|crore|cr|k|m|%|x|days?|weeks?|months?|years?|hours?|mins?|minutes?)?/i);
+  return m ? m[0].trim() : '';
+}
+
+// ── Title rewrites (10 angles, no AI) ───────────────────────────────────────
+// Each angle is a documented CTR pattern; the local scorer then ranks them so
+// the user sees the strongest first — that ranking is the real value here.
+function freeTitleIdeas(title, opts) {
+  const o = opts || {};
+  const subj = freeSubject(title);
+  const subjT = freeTitleCase(subj);
+  const num = freeNumber(title) || (o.about ? freeNumber(o.about) : '');
+  const kw = freeKeywords(title + ' ' + (o.about || ''), 3);
+  const topic = freeTitleCase(kw[0] || subj.split(' ')[0] || 'This');
+  const year = new Date().getFullYear();
+  const out = [
+    { angle: 'Curiosity gap', text: `The Truth About ${subjT} Nobody Tells You` },
+    { angle: 'Mistake / negative', text: `${num ? num + ' ' : '5 '}${topic} Mistakes That Cost You Money` },
+    { angle: 'How-to (clear promise)', text: `How To ${subjT} — Step By Step` },
+    { angle: 'Question hook', text: `Are You Making These ${topic} Mistakes?` },
+    { angle: 'Beginner framing', text: `${subjT}: The Beginner's Guide (${year})` },
+    { angle: 'Social proof', text: `Why 90% Of People Get ${topic} Wrong` },
+    { angle: 'Before / after', text: `I Tried ${subjT} — Here's What Happened` },
+    { angle: 'Urgency', text: `Stop Doing This With ${topic} (Fix It Today)` },
+    { angle: 'Listicle + qualifier', text: `${num ? num : '7'} ${topic} Tips [With Real Examples]` },
+    { angle: 'Contrarian', text: `${subjT} Is Not What You Think` },
+  ];
+  // Rank by the same local CTR heuristics the app already uses.
+  const score = (t) => (window.scoreTitleCTR && (window.scoreTitleCTR(t) || {}).score) || 50;
+  return out.map(x => ({ ...x, score: score(x.text) })).sort((a, b) => b.score - a.score);
+}
+
+// ── Hashtags + description (no AI) ──────────────────────────────────────────
+function freeHashtags(text, platform) {
+  const kw = freeKeywords(text, 8);
+  const base = kw.map(w => '#' + w.replace(/[^a-z0-9]/g, ''));
+  const generic = {
+    YouTube: ['#youtube', '#youtuber', '#tutorial'],
+    Instagram: ['#reels', '#explore', '#instagood', '#trending'],
+    TikTok: ['#fyp', '#foryou', '#viral', '#learnontiktok'],
+    LinkedIn: ['#learning', '#career', '#growth'],
+    X: ['#thread', '#tips'],
+  }[platform] || ['#tips', '#howto'];
+  const seen = new Set(); const all = [];
+  for (const h of [...base, ...generic]) { const k = h.toLowerCase(); if (h.length > 2 && !seen.has(k)) { seen.add(k); all.push(h); } }
+  return all.slice(0, platform === 'Instagram' || platform === 'TikTok' ? 12 : 8);
+}
+function freeDescription(title, about, platform) {
+  const subj = freeSubject(title);
+  const body = (about || '').trim();
+  const lines = [
+    `${freeTitleCase(subj)} — everything you need to know.`,
+    body ? body.slice(0, 300) : `In this video we break down ${subj} step by step, with practical examples you can apply right away.`,
+    '',
+    'Timestamps:',
+    '0:00 Intro',
+    '0:30 The main idea',
+    '2:00 Walkthrough',
+    '5:00 Key takeaways',
+    '',
+    freeHashtags(title + ' ' + body, platform).join(' '),
+  ];
+  return lines.join('\n');
+}
+
+// ── Local thumbnail scorecard (no AI, no vision) ────────────────────────────
+// Uses the measurements the app already computes in-browser (palette, contrast,
+// brightness, saturation, face size) and turns them into concrete, honest
+// advice. It never guesses at content it cannot see.
+function freeThumbScore(q, faceInfo) {
+  if (!q) return null;
+  const items = []; let score = 50;
+  const add = (ok, warn, pts, label, tip) => { score += ok ? pts : -pts; items.push({ ok, label, tip: ok ? '' : tip, warn }); };
+  add(q.contrastScore === 'green', q.contrastScore === 'yellow', 12, `Contrast ${q.contrast}%`,
+    'Low contrast disappears at small sizes — deepen shadows and brighten the subject.');
+  add(q.brightScore === 'green', q.brightScore === 'yellow', 8, `Brightness ${q.brightness}%`,
+    q.brightness < 40 ? 'Too dark for mobile feeds — lift exposure on the subject.' : 'Slightly blown out — pull highlights back.');
+  add(q.satScore === 'green', q.satScore === 'yellow', 8, `Saturation ${q.saturation}%`,
+    q.saturation < 35 ? 'Muted colour reads as low-energy — boost vibrance.' : 'Oversaturated can look cheap — ease it back.');
+  if (faceInfo) {
+    const big = faceInfo.count > 0 && faceInfo.largestPct >= 18;
+    add(big, faceInfo.count > 0, 12, faceInfo.count === 0 ? 'No face detected' : `${faceInfo.count} face · ${faceInfo.largestPct}% of frame`,
+      faceInfo.count === 0 ? 'Thumbnails with a clear human face and one strong emotion typically win more clicks.'
+        : 'Face is small — crop tighter so the expression reads at 120px.');
+  }
+  return { score: Math.max(10, Math.min(96, Math.round(score))), items };
+}
+
+// ── Script outline (no AI) ──────────────────────────────────────────────────
+// A retention-shaped skeleton the creator fills in — structure is the part a
+// template genuinely can provide; the words still need a human or AI.
+function freeScriptOutline(topic, seconds) {
+  const s = Math.max(30, Math.min(1800, parseInt(seconds, 10) || 480));
+  const subj = freeSubject(topic);
+  const pct = (p) => { const t = Math.round(s * p); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+  return [
+    { at: '0:00', beat: 'Hook (first 5 seconds)', note: `Open on the single most surprising thing about ${subj}. No intro, no "welcome back" — state the payoff or the problem immediately.` },
+    { at: pct(0.04), beat: 'Promise', note: 'One sentence on exactly what the viewer will be able to do by the end. Be specific and concrete.' },
+    { at: pct(0.10), beat: 'Context / stakes', note: 'Why this matters now, and what it costs to get it wrong. Keep it under 20 seconds.' },
+    { at: pct(0.20), beat: 'Point 1', note: 'Your strongest point first — never save the best for last on short-form-trained audiences.' },
+    { at: pct(0.42), beat: 'Point 2 + example', note: 'Add a concrete example, number, or demo here. Visual change resets attention.' },
+    { at: pct(0.62), beat: 'Pattern break', note: 'Change something: location, B-roll, a question to camera, a graphic. This is where most drop-off happens.' },
+    { at: pct(0.75), beat: 'Point 3 / the twist', note: 'The insight most people miss — this is what makes the video worth sharing.' },
+    { at: pct(0.90), beat: 'Recap + one action', note: 'Three-line recap, then ONE clear next step. Multiple CTAs kill conversion.' },
+    { at: pct(0.97), beat: 'Next-video hook', note: 'Point at the specific next video, not a generic "subscribe".' },
+  ];
+}
+
+window.freeKeywords = freeKeywords;
+window.freeTitleIdeas = freeTitleIdeas;
+window.freeHashtags = freeHashtags;
+window.freeDescription = freeDescription;
+window.freeThumbScore = freeThumbScore;
+window.freeScriptOutline = freeScriptOutline;
+window.freeSubject = freeSubject;
+</script>
+<script type="text/babel" data-presets="react">
 /* ===== ci-engine.jsx ===== */
 // ContentIntel -- engine: BYO-key auth, real Claude calls, token estimate,
 // generic report renderer, analysis hook. (Client-side, no backend.)
@@ -2275,7 +2424,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r55";
+window.CI_BUILD = "2026-06-20-r57";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -7352,8 +7501,31 @@ function ThumbnailTab({ onOpenKey }) {
   const slotsReady = Array.from({ length: count }).every((_, i) => imgsAll[i] || descsAll[i].trim().length >= 12);
   function check() { if (!slotsReady) return; run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
+  // Zero-AI concepts: proven direction templates filled from the title/idea.
+  // Instant and completely free — used when no AI engine is available, and as
+  // the automatic fallback when the AI call fails. AI (when present) still
+  // writes richer, more specific concepts.
+  function templateConcepts() {
+    const rawTopic = ((showTitle && title.trim()) || genPrompt.trim() || 'your video').replace(/["\n]+/g, ' ').trim().slice(0, 90);
+    const num = (String(((showTitle && title) || '') + ' ' + genPrompt).match(/[₹$€]?\s?[\d,.]+\s*(lakh|crore|cr|k|%|x|days?|hours?|rs)?/i) || [])[0];
+    const q = /\?/.test(((showTitle && title) || '') + genPrompt);
+    return [
+      { concept: 'Reaction close-up — shock', prompt: `Extreme close-up of a creator with a genuinely shocked expression — wide eyes, hand near the face — reacting to ${rawTopic}. Deep red-to-black gradient background, strong key light from the left, subject filling the right two-thirds of the frame facing the camera. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+      { concept: 'Object hero shot', prompt: `The single most important object from "${rawTopic}" shown huge and centered like a premium product shot, dramatic spotlight from above, shallow depth of field, subtle glow behind it. Dark teal background, nothing else in frame. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+      { concept: 'Before → after split', prompt: `A vertical split-screen about ${rawTopic}: the left half shows the "before" state in dull, desaturated grey-blue tones; the right half shows the "after" in bright, vivid warm colour. A thin diagonal white divider separates them. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+      num
+        ? { concept: `Big number — ${num.trim()}`, prompt: `A confident creator pointing directly at the camera, standing in the left third of the frame, about ${rawTopic}. Bold yellow-on-navy colour scheme with strong rim lighting, and a large clean empty area on the right (space for the number ${num.trim()} as overlay text). Sharp focus, high contrast, one clear focal point, photorealistic.` }
+        : { concept: 'X vs Y contrast', prompt: `Two contrasting choices from "${rawTopic}" facing off — one on the left lit warm orange, one on the right lit cool blue — on a clean dark background with a subtle lightning-style divider. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+      q
+        ? { concept: 'The big question', prompt: `A thoughtful creator looking up at a large glowing question mark, about ${rawTopic}. Moody violet-and-black palette, cinematic side lighting, creator in the lower-left third. Sharp focus, high contrast, one clear focal point, photorealistic.` }
+        : { concept: 'Caught in the moment', prompt: `A candid mid-action shot of a person genuinely doing ${rawTopic} — real movement, real environment, framing like a paused video frame. One strong orange accent against muted surroundings. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+    ];
+  }
+
   async function genConcepts() {
     if (!genPrompt.trim() && !imgA) { setGenIdeas({ loading: false, items: null, err: 'Describe the thumbnail or upload a photo first.' }); return; }
+    // No AI engine? Instant template concepts — free, no key, no sign-in.
+    if (!(window.canRun && window.canRun())) { setGenIdeas({ loading: false, items: templateConcepts(), err: '', local: true }); return; }
     setGenIdeas({ loading: true, items: null, err: '' });
     try {
       // Ground the concepts in concrete signals already present in the title/idea
@@ -7365,9 +7537,10 @@ function ThumbnailTab({ onOpenKey }) {
       const { text } = await window.callClaude({ system: buildThumbCreateSys(!!imgA, titleSignals), userText: ut, images: imgA ? [imgA] : [], maxTokens: 2600, temperature: 0.9 });
       const j = window.parseReport(text);
       if (j && Array.isArray(j.concepts) && j.concepts.length) setGenIdeas({ loading: false, items: j.concepts, err: '' });
-      else setGenIdeas({ loading: false, items: null, err: 'Could not generate concepts -- try again.' });
+      else setGenIdeas({ loading: false, items: templateConcepts(), err: '', local: true });
     } catch (e) {
-      setGenIdeas({ loading: false, items: null, err: String(e.message) === 'NO_KEY' ? 'Add your Anthropic (Claude) API key in Settings to write concepts.' : (e.message || 'Could not generate.') });
+      // AI failed (quota, outage, whatever) → still deliver: template concepts.
+      setGenIdeas({ loading: false, items: templateConcepts(), err: '', local: true });
     }
   }
   return (
@@ -7394,7 +7567,7 @@ function ThumbnailTab({ onOpenKey }) {
         </TB>
 
         {genIdeas.items && genIdeas.items.length > 0 && (
-          <TB title="Thumbnail concepts" desc={imgA ? 'Built around your photo — attach it again when generating' : 'Upload your photo above for an accurate likeness'} mood={mood}>
+          <TB title="Thumbnail concepts" desc={(genIdeas.local ? 'Instant concepts (no AI used — 100% free). Sign in or add a key for AI-written ones. ' : '') + (imgA ? 'Built around your photo — attach it again when generating' : 'Upload your photo above for an accurate likeness')} mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {genIdeas.items.map((t, i) => (
                 <ConceptCard key={i} t={t} imgA={imgA} strict={strict} guidance={guidance}
@@ -7818,6 +7991,14 @@ function TitleTab({ onOpenKey }) {
   const titleReady = title.trim().length >= 4 && (!compare || titleB.trim().length >= 4);
   function check() { if (!titleReady) return; run({ userText, maxTokens: 2800 }); }
 
+  // FREE instant rewrites — computed in-browser, no key, no sign-in, no cost.
+  // Always available; the AI check adds depth on top when the user wants it.
+  const [freeIdeas, setFreeIdeas] = React.useState(null);
+  function makeFreeIdeas() {
+    if (!title.trim()) return;
+    setFreeIdeas(window.freeTitleIdeas ? window.freeTitleIdeas(title, { about }) : null);
+  }
+
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
     ['Fear', 'Stop! In 5 SIP Mistakes Se Paisa Doob Raha Hai'],
@@ -7859,6 +8040,37 @@ function TitleTab({ onOpenKey }) {
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2800} label="Check my title"
           disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
         <LocalCTRPredictor title={title} mood={mood} />
+
+        {/* FREE instant rewrites — no key, no sign-in, no cost. */}
+        <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 11, background: 'rgba(143,216,106,0.06)', border: '1px solid rgba(143,216,106,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-1)' }}>✨ 10 instant rewrites <span style={{ color: '#8FD86A' }}>· free</span></div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 2 }}>Proven angles, scored and ranked in your browser — no AI, no key, no cost.</div>
+            </div>
+            <button className="ci-copybtn" style={{ height: 30, padding: '0 13px', fontSize: 12, fontWeight: 700, background: '#8FD86A22', borderColor: '#8FD86A55', color: '#8FD86A' }}
+              onClick={makeFreeIdeas} disabled={!title.trim()}>{freeIdeas ? '↻ Regenerate' : 'Get 10 rewrites'}</button>
+          </div>
+          {freeIdeas && freeIdeas.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 11 }}>
+              {freeIdeas.map((it, i) => {
+                const col = it.score >= 70 ? '#8FD86A' : it.score >= 55 ? '#F0C85A' : '#F06A7E';
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 10px', borderRadius: 9, background: 'var(--surface-1)', border: '1px solid var(--stroke-1)' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: col, minWidth: 26, textAlign: 'center' }}>{it.score}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, color: 'var(--text-1)', lineHeight: 1.45 }}>{it.text}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 1 }}>{it.angle}</div>
+                    </div>
+                    <button className="ci-copybtn" style={{ height: 25, padding: '0 9px', fontSize: 11, flexShrink: 0 }}
+                      onClick={() => window.copyText && window.copyText(it.text)}>⧉</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <BatchTitleRanker mood={mood} />
       </TB>
 
