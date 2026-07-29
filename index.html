@@ -2424,7 +2424,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r58";
+window.CI_BUILD = "2026-06-20-r59";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -7297,6 +7297,7 @@ const THUMB_SCHEMES = [
   { id: 'green',   label: 'Green / Black', hexes: ['#00C853', '#101418', '#FFFFFF'] },
   { id: 'mono',    label: 'Bold Mono',     hexes: ['#111111', '#FFFFFF', '#E10600'] },
   { id: 'brand',   label: 'My brand kit',  hexes: [] },
+  { id: 'custom',  label: 'My own colours', hexes: [] },
 ];
 const THUMB_LAYOUTS = [
   { id: 'auto',   label: 'Let AI choose' },
@@ -7305,8 +7306,10 @@ const THUMB_LAYOUTS = [
   { id: 'center', label: 'Centred close-up' },
   { id: 'split',  label: 'Split screen' },
   { id: 'object', label: 'Object hero' },
+  { id: 'custom', label: 'Custom…' },
 ];
-const GEN_DESIGN_DEFAULT = { titleText: '', scheme: 'auto', layout: 'auto', expression: 'none', elements: [], noText: false };
+const GEN_DESIGN_DEFAULT = { titleText: '', scheme: 'auto', layout: 'auto', expression: 'none', elements: [], noText: false,
+  customColors: ['#E10600', '#0B0B0D', '#FFFFFF'], customLayout: '', customExpression: '', customNote: '' };
 
 // Turn the panel's choices into an explicit, unambiguous instruction block. Only
 // non-default choices are emitted so "Let AI choose" really means hands-off.
@@ -7322,9 +7325,15 @@ function designDirective(d) {
     L.push(`COLOUR (use these exact colours in a 60-30-10 split): dominant ${sc.hexes[0]}, secondary ${sc.hexes[1]}${sc.hexes[2] ? `, accent ${sc.hexes[2]}` : ''}. Do not substitute other colours.`);
   } else if (d.scheme === 'brand' && d.brandHexes && d.brandHexes.length) {
     L.push(`COLOUR (mandatory brand palette, 60-30-10): ${d.brandHexes.join(', ')}. Do not substitute.`);
+  } else if (d.scheme === 'custom') {
+    const cc = (d.customColors || []).filter(Boolean);
+    if (cc.length) L.push(`COLOUR (use these exact colours in a 60-30-10 split): dominant ${cc[0]}${cc[1] ? `, secondary ${cc[1]}` : ''}${cc[2] ? `, accent ${cc[2]}` : ''}. Do not substitute other colours.`);
+  }
+  if (d.layout === 'custom' && (d.customLayout || '').trim()) {
+    L.push('COMPOSITION: ' + d.customLayout.trim());
   }
   const lay = THUMB_LAYOUTS.find(x => x.id === d.layout);
-  if (lay && lay.id !== 'auto') {
+  if (lay && lay.id !== 'auto' && lay.id !== 'custom') {
     const map = {
       left: 'Subject occupies the LEFT third facing camera; keep the right two-thirds clean for text.',
       right: 'Subject occupies the RIGHT third facing camera; keep the left two-thirds clean for text.',
@@ -7334,11 +7343,14 @@ function designDirective(d) {
     };
     L.push('COMPOSITION: ' + map[lay.id]);
   }
-  if (d.expression && d.expression !== 'none') {
+  if (d.expression === 'custom' && (d.customExpression || '').trim()) {
+    L.push(`FACE: ${d.customExpression.trim()} — sharp, realistic, undistorted, eyes looking at the camera.`);
+  } else if (d.expression && d.expression !== 'none' && d.expression !== 'custom') {
     const ex = BUILDER_EXPRESSIONS.find(e => e.id === d.expression);
     if (ex) L.push(`FACE: one clear, believable ${ex.label.toLowerCase()} expression — sharp, realistic, undistorted, eyes looking at the camera.`);
   }
   if (d.elements && d.elements.length) L.push(`INCLUDE these elements: ${d.elements.join('; ')}.`);
+  if ((d.customNote || '').trim()) L.push('CREATOR\'S OWN DIRECTION (follow this closely): ' + d.customNote.trim());
   return L.join('\n');
 }
 
@@ -7413,10 +7425,36 @@ function ThumbDesignPanel({ d, setD, m, brand }) {
             ))}
           </div>
 
+          {d.scheme === 'custom' && (
+            <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 10, background: 'var(--surface-1)', border: '1px solid var(--stroke-1)' }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 8 }}>Pick your exact colours — dominant, secondary, accent (60-30-10).</div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {['Dominant', 'Secondary', 'Accent'].map((lbl, i) => (
+                  <div key={lbl} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <span style={{ fontSize: 10.5, color: 'var(--text-4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em' }}>{lbl}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input type="color" value={(d.customColors || [])[i] || '#000000'}
+                        onChange={e => { const cc = [...(d.customColors || ['', '', ''])]; cc[i] = e.target.value.toUpperCase(); set('customColors', cc); }}
+                        style={{ width: 34, height: 30, padding: 0, border: '1px solid var(--stroke-1)', borderRadius: 7, background: 'none', cursor: 'pointer' }} />
+                      <input className="ci-input" value={(d.customColors || [])[i] || ''}
+                        onChange={e => { const cc = [...(d.customColors || ['', '', ''])]; cc[i] = e.target.value; set('customColors', cc); }}
+                        placeholder="#RRGGBB" style={{ height: 30, width: 92, fontSize: 11.5, fontFamily: 'var(--font-mono)' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="ci-label" style={{ marginTop: 14 }}>Layout</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {THUMB_LAYOUTS.map(l => <div key={l.id} onClick={() => set('layout', l.id)} style={chip(d.layout === l.id)}>{l.label}</div>)}
           </div>
+          {d.layout === 'custom' && (
+            <input className="ci-input" style={{ marginTop: 8, fontSize: 12.5 }} value={d.customLayout || ''}
+              onChange={e => set('customLayout', e.target.value)}
+              placeholder="Describe the composition — e.g. 'subject bottom-left, big city skyline behind, text across the top'" />
+          )}
 
           <div className="ci-label" style={{ marginTop: 14 }}>Face expression</div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -7425,7 +7463,13 @@ function ThumbDesignPanel({ d, setD, m, brand }) {
                 {e.emoji !== '--' ? e.emoji + ' ' : ''}{e.id === 'none' ? 'Let AI choose' : e.label}
               </div>
             ))}
+            <div onClick={() => set('expression', 'custom')} style={chip(d.expression === 'custom')}>✏️ Custom…</div>
           </div>
+          {d.expression === 'custom' && (
+            <input className="ci-input" style={{ marginTop: 8, fontSize: 12.5 }} value={d.customExpression || ''}
+              onChange={e => set('customExpression', e.target.value)}
+              placeholder="Describe the face — e.g. 'smug half-smile, one eyebrow raised, arms crossed'" />
+          )}
 
           <div className="ci-label" style={{ marginTop: 14 }}>Elements <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— click to add or remove</span></div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -7434,6 +7478,11 @@ function ThumbDesignPanel({ d, setD, m, brand }) {
               return <div key={el} onClick={() => toggleEl(el)} style={chip(on)}>{on ? '✓ ' : '+ '}{el}</div>;
             })}
           </div>
+
+          <div className="ci-label" style={{ marginTop: 14 }}>Anything else — describe it in your own words</div>
+          <textarea className="ci-textarea" style={{ minHeight: 62, fontSize: 12.5 }} value={d.customNote || ''}
+            onChange={e => set('customNote', e.target.value)}
+            placeholder="e.g. 'rainy night street, neon reflections, shot on 35mm, my logo small in the bottom-right corner'" />
 
           <div style={{ display: 'flex', gap: 7, marginTop: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <input className="ci-input" value={presetName} onChange={e => setPresetName(e.target.value)}
