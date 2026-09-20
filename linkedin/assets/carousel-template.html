@@ -1,0 +1,111 @@
+<!doctype html>
+<!--
+  LinkedIn carousel template — 1080x1350, ContentIntel dark.
+  Copy to linkedin/daily/YYYY-MM-DD/carousel.html, replace the copy, then:
+    python3 scripts/render-carousel.py linkedin/daily/YYYY-MM-DD/carousel.html --png
+  Rules live in linkedin/brand.md. Read them before changing the design.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Carousel</title>
+<link rel="stylesheet" href="../../assets/fonts.css">
+<style>
+  @page { size: 1080px 1350px; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #07090E; }
+
+  .page {
+    width: 1080px; height: 1350px;
+    break-after: page; overflow: hidden;
+    padding: 80px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    background: #07090E; color: #F2F4FA;
+    font-family: 'Manrope', system-ui, sans-serif;
+    position: relative;
+  }
+  .page:last-child { break-after: auto; }
+
+  /* Bottom-right is reserved for LinkedIn's page counter — keep it clear. */
+  .page::after {
+    content: ''; position: absolute; right: 0; bottom: 0;
+    width: 160px; height: 80px;
+  }
+
+  .kicker {
+    font-size: 22px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .08em; color: rgba(242,244,250,.55); margin-bottom: 28px;
+  }
+  h1, h2 {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-weight: 700; line-height: 1.05; letter-spacing: -0.02em;
+  }
+  h1 { font-size: 112px; }
+  h2 { font-size: 72px; }
+  .sub {
+    font-size: 36px; line-height: 1.45; color: rgba(242,244,250,.72);
+    margin-top: 32px; max-width: 820px;
+  }
+  .metric {
+    font-family: 'JetBrains Mono', monospace; font-weight: 600;
+    font-size: 72px; color: #4D7CFE;
+  }
+  .rule {
+    height: 4px; width: 120px; margin-bottom: 40px;
+    background: linear-gradient(90deg, #4D7CFE, #FF4D8D);
+  }
+  .list { margin-top: 40px; display: flex; flex-direction: column; gap: 26px; }
+  .list div { font-size: 34px; line-height: 1.35; color: rgba(242,244,250,.82); }
+  .list b { color: #F2F4FA; font-weight: 800; }
+  .who { font-size: 30px; color: rgba(242,244,250,.55); }
+</style>
+</head>
+<body>
+
+<!-- 1. The promise. 6 words max. This is the thumbnail — 80% of the result. -->
+<section class="page">
+  <div class="rule"></div>
+  <h1>The promise, six words</h1>
+</section>
+
+<!-- 2. The problem, concretely. -->
+<section class="page">
+  <div class="kicker">The problem</div>
+  <h2>State it plainly.</h2>
+  <p class="sub">One supporting line. Specific, not general.</p>
+</section>
+
+<!-- 3-8. One idea per page. -->
+<section class="page">
+  <div class="kicker">01</div>
+  <h2>One idea.</h2>
+  <p class="sub">One line that earns it.</p>
+</section>
+
+<!-- A number page, when you have a real one. -->
+<section class="page">
+  <div class="kicker">What it cost</div>
+  <p class="metric">21 days</p>
+  <p class="sub">What the number actually means.</p>
+</section>
+
+<!-- 9. Summary — everything on one page, so people screenshot it. -->
+<section class="page">
+  <div class="kicker">All of it</div>
+  <h2>The short version</h2>
+  <div class="list">
+    <div><b>01</b> &nbsp;First point, compressed.</div>
+    <div><b>02</b> &nbsp;Second point.</div>
+    <div><b>03</b> &nbsp;Third point.</div>
+  </div>
+</section>
+
+<!-- 10. Who you are. Soft. No hard CTA. -->
+<section class="page">
+  <div class="rule"></div>
+  <h2>Vikas</h2>
+  <p class="who">Building ContentIntel — pre-publish checks for creators.</p>
+</section>
+
+</body>
+</html>
