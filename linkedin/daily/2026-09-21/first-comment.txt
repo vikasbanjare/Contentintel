@@ -1,0 +1,6 @@
+Sources, since links in the body cost reach:
+
+Apple's iPhone Duo announcement — apple.com/newsroom/2026/09/apple-unveils-iphone-duo/
+Google Flow — flow.google.com
+
+Someone rebuilt the Duo's unfold animation on a Galaxy Z Fold 8, and it's worth watching next to the original. Isolating the effect from the hardware shows you which part of it is actually doing the work.

@@ -1,0 +1,15 @@
+Google Flow's logo and Apple's iPhone Duo unfold animation are the same idea.
+
+Not similar. The same.
+
+A flat plane, translucent, folding through space so you can still see what sits behind it while it moves.
+
+Apple's is literal. The Duo's cover screen holds its position as the hinge opens, and the content blends into the inner display. It reads as one continuous sheet of glass rather than two screens handing off.
+
+Google's is metaphorical. [NEEDS: what the Flow mark actually does, in your own words. You looked at it, I haven't.]
+
+I don't think anybody copied anybody. Translucency and depth blur have been around for years. Running them per frame across moving hinge geometry is newer, and a technique tends to show up everywhere at once the moment it stops being expensive.
+
+The annoying part is what that costs. A metaphor stops being ownable the moment two teams this strong arrive at it separately.
+
+#design #ai #productdesign

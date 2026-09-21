@@ -1,0 +1,13 @@
+Google Flow's logo and Apple's iPhone Duo unfold animation are the same gesture.
+
+Two ways to read that. I keep going back and forth.
+
+Reading one is convergence. Both teams needed to show a surface transforming, both reached for a translucent plane folding through space, and neither knew what the other was doing.
+
+Reading two is material. Layered translucent glass has been Apple's design language since iOS 7, and it got much louder with visionOS. On that reading this isn't two teams meeting in the middle. It's one team working in the other's material.
+
+I lean towards the first, mostly because they solve different problems. Apple's fold is literal hardware. Google's is a metaphor for a tool that transforms your footage.
+
+But I hold it loosely, and the second reading is the one I'd want argued at me.
+
+#design #ai #productdesign
