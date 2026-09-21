@@ -54,6 +54,8 @@ did badly but said the right thing still rates high — track both.
 
 1. Create `linkedin/log/posts.jsonl` if it doesn't exist. **Append only** — never
    rewrite or reorder existing lines.
+1b. Mark the source idea in `linkedin/ideas.md` as `used <date>`, moving it to the
+   Used section. This is what stops the same idea being drafted twice a month.
 2. Validate the line parses as JSON before writing. If a metric is unknown, use
    `null`, not a guess.
 3. If this is an update to an existing post's metrics (e.g. 72h numbers on

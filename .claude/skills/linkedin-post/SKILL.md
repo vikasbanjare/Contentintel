@@ -26,6 +26,14 @@ Read, in this order:
 5. `linkedin/log/posts.jsonl` — last ~15 entries. What's actually worked for them
    beats every general rule. If the log shows a format consistently underperforming,
    don't propose it.
+6. `linkedin/ideas.md` — check whether this thought is already in the bank (merge
+   into that entry rather than duplicating), and whether it was already `used`.
+7. `linkedin/weeks/` — if this week has a plan and today has a slot, use it.
+
+**If the user arrives with nothing** — an empty `/li-daily`, or "I don't know what
+to post" — don't ask them to think harder. Read `linkedin/ideas.md`, offer the 3
+strongest `ready` entries in one line each, and let them pick. If the bank is empty
+too, suggest `/li-mine` rather than manufacturing a topic.
 
 ## Step 2 — Interrogate the thought (in your head, fast)
 

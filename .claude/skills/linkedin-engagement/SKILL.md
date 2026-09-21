@@ -10,8 +10,29 @@ Two modes. Detect which from what the user pasted:
 - **Feed mode** — posts by other people. Triage and draft comments. (`/li-engage`)
 - **Inbox mode** — comments on the user's own post. Draft replies. (`/li-reply`)
 
-Always read `linkedin/engagement-rules.md` and `linkedin/voice.md` first. The rules
-file is the decision authority; this skill is how to apply it well.
+Always read `linkedin/engagement-rules.md`, `linkedin/voice.md` and
+`linkedin/people.md` first. The rules file is the decision authority; this skill is
+how to apply it well.
+
+**`people.md` changes the job.** Before drafting anything, check whether you've
+dealt with this person before. If you have:
+
+- **Reference the history, specifically.** "You mentioned you'd hit this at scale —
+  did the queue approach hold up?" beats any cold comment ever written.
+- **Pay off anything in `open`.** If the user owes them a detail or an answer, that's
+  the comment. Nothing else competes with it.
+- **Respect `avoid`.** If a topic went badly before, don't reopen it.
+- **Never repeat a point** already in their `history`. Check before drafting.
+
+A second exchange with someone you've already talked to is worth more than five
+first contacts. When triaging, weight a `warm` or `known` person's post above a
+stranger's, even if the stranger's post is more on-topic.
+
+**After drafting, update `people.md`:** append to `history` (one line, dated, what
+was actually said), set or clear `open`, and move them between sections if the
+temperature changed. Add a new entry for anyone worth tracking — but only if there
+was a real exchange, not because they exist. Keep the file under ~40 people; prune
+anyone cold for three months with nothing open.
 
 **The comment must sound like the user, not like a helpful assistant.** Same voice
 rules as a post: plain words, first-hand, no generic praise, no enthusiasm inflation.
@@ -82,6 +103,11 @@ Work top to bottom. Stop at 20 minutes.
 
 ## Not in the queue but worth it
 {If a post deserves a DM instead of a comment, or a follow, say so here.}
+
+## Owed
+{From people.md — anyone with an `open` item, whether or not they posted today.
+"You still owe Priya the retry-logic detail from 2 Sept." A stale `open` is the
+cheapest engagement win available and the easiest to forget.}
 ```
 
 Then in chat: the count, the top 3 to do first, and the file path. Nothing more.

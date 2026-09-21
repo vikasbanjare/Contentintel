@@ -21,6 +21,9 @@ An agentic harness that turns one raw opinion a day into a reviewed LinkedIn pos
 plus a daily engagement queue. Start at `linkedin/README.md`.
 
 ```
+/li-idea <thought>    two-second capture into linkedin/ideas.md
+/li-mine [7d]         mine git history for post angles; writes to ideas.md
+/li-week              plan the week's 3-5 posts from the bank, balanced
 /li-daily <thought>   raw idea → review pack (3 variants, hooks, critique, risk check)
 /li-engage            paste feed posts → REPLY/SKIP triage + drafted comments
 /li-reply             your post's comments → drafted replies
@@ -28,8 +31,15 @@ plus a daily engagement queue. Start at `linkedin/README.md`.
 /li-prompt            post → paste-ready design prompts for claude.ai / ChatGPT
 /li-image check <p>   check a design made elsewhere before it goes out
 /li-log               record what you posted + numbers (feeds the learning loop)
+/li-repurpose         a post that worked → carousel, thread, newsletter
+/li-profile           one-time pass on headline, About, featured, banner
 /li-voice             recalibrate voice.md from real posts
 ```
+
+State files: `ideas.md` (the bank), `people.md` (relationship memory),
+`log/posts.jsonl` (append-only outcomes), `weeks/` (plans).
+`/li-engage` reads and updates `people.md` — a reply that references real history
+beats any cold comment, and the `open` field is what makes that possible.
 
 Skills: `linkedin-post`, `linkedin-engagement`, `linkedin-visual`.
 Adversarial reviewer subagent: `li-critic`.
