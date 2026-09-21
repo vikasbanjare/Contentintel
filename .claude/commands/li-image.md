@@ -1,6 +1,6 @@
 ---
 description: Build the visual for today's post — image, PDF carousel, chart, or diagram
-argument-hint: [carousel|image|chart|diagram] [or describe what you want]
+argument-hint: [carousel|image|chart|diagram] | check <path> | [describe what you want]
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Skill, Agent
 ---
 
@@ -11,6 +11,14 @@ $ARGUMENTS
 </request>
 
 Run the **`linkedin-visual`** skill.
+
+**If `<request>` starts with `check`**, the user is bringing back a design they made
+in Claude or ChatGPT. Skip to the bring-back checks in the skill: render it if it's
+HTML, then run the thumbnail test, text integrity, and counter-zone checks, and diff
+the copy against the chosen variant in `review.md` to catch silent rewrites. Report
+what's wrong and fix it if it's a layout or font issue. Then stop.
+
+Otherwise, build it:
 
 1. Find today's post. Look in `linkedin/daily/<today>/` for `review.md` and the
    variant the user picked. If there's no pack and `<request>` doesn't describe

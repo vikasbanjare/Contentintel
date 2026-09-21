@@ -38,7 +38,9 @@ so the drafts sound more like you and less like a language model.
 | `/li-daily <your thought>` | The main one. Raw idea → full review pack. |
 | `/li-engage` | Paste feed posts → reply/skip triage + drafted replies. |
 | `/li-reply` | Your own post's comments → replies that extend the thread. |
-| `/li-image` | Post text → image, carousel, or diagram. |
+| `/li-image` | Post text → image, carousel, or diagram, built here. |
+| `/li-prompt` | Paste-ready design prompts for claude.ai and ChatGPT. |
+| `/li-image check <path>` | Check a design you made elsewhere before posting it. |
 | `/li-log` | Record what you posted and its numbers. Feeds the learning loop. |
 | `/li-voice` | Recalibrate `voice.md` from your real posts. |
 
@@ -63,6 +65,7 @@ Subagent `li-critic` runs an adversarial pass on every draft before it reaches y
 | `engagement-rules.md` | Who you reply to, who you ignore. | You reply to something you regret. |
 | `playbook.md` | LinkedIn mechanics and operating assumptions. | You learn something new about reach. |
 | `formats.md` | Post shapes that work (story, teardown, list…). | You find a format you like. |
+| `design-prompts.md` | Routing + prompt templates for designing in Claude/ChatGPT. | A prompt keeps producing the wrong thing. |
 
 `log/posts.jsonl` is append-only machine memory — don't hand-edit it.
 `daily/` is scratch space, one folder per day.

@@ -1,6 +1,6 @@
 ---
 name: linkedin-visual
-description: Create the visual for a LinkedIn post — a single image, a swipeable PDF carousel, a diagram, or a screenshot treatment. Decides whether a visual helps at all, then builds it at the right dimensions. Use when the user invokes /li-image, asks for an image or carousel for a post, or when a drafted post needs a visual.
+description: Create the visual for a LinkedIn post — a single image, a swipeable PDF carousel, a diagram, or a screenshot treatment. Decides whether a visual helps at all, then builds it locally or emits paste-ready prompts for Claude and ChatGPT. Use when the user invokes /li-image or /li-prompt, asks for an image or carousel for a post, brings back a design made elsewhere, or when a drafted post needs a visual.
 ---
 
 # LinkedIn Visual
@@ -22,6 +22,39 @@ a person's opinion.
 
 If the answer is none, say so in one line and stop. That's a successful run of this
 skill. Do not talk yourself into a stock-photo-shaped image.
+
+---
+
+## Where to build it
+
+Once you know a visual helps, pick where it gets made. `linkedin/design-prompts.md`
+holds the full routing table and the prompt templates.
+
+| | Route |
+|---|---|
+| **Local** (`/li-image`) | Default. HTML + `scripts/render-carousel.py`. Fastest, brand-exact, reproducible. |
+| **Claude, outside the repo** (`/li-prompt`) | When the user wants to design in claude.ai. Emit a full HTML build spec with the copy locked inline. |
+| **ChatGPT image** (`/li-prompt`) | Art only — background plates, photoreal objects, editorial illustration. |
+| **Bring-back** (`/li-image check <path>`) | A design made elsewhere. Run the three checks below. |
+
+**The split never changes: words are set in HTML, art comes from an image model.**
+Never emit a prompt asking an image model to render a headline, quote, stat, or
+label. It will come back *nearly* right — a dropped letter, a doubled word — and
+the user won't catch it because they already know what it says.
+
+When a design needs both, the image model makes a plate with **no text in it** and
+the type goes on top in HTML.
+
+### Checking a design brought back from elsewhere
+
+1. **Thumbnail test** — open slide 1 at 25%. Headline unreadable means too small.
+2. **Text integrity** — if an image model touched anything with words, read every
+   character. This is where the failure hides.
+3. **Counter zone** — bottom-right 160×80px of each slide clear.
+
+Also check the copy wasn't silently rewritten. External models "improve" locked
+copy into generic marketing language given any opening; diff it against the
+variant in `review.md`.
 
 ---
 

@@ -24,7 +24,9 @@ plus a daily engagement queue. Start at `linkedin/README.md`.
 /li-daily <thought>   raw idea → review pack (3 variants, hooks, critique, risk check)
 /li-engage            paste feed posts → REPLY/SKIP triage + drafted comments
 /li-reply             your post's comments → drafted replies
-/li-image             post → image, PDF carousel, chart or diagram
+/li-image             post → image, PDF carousel, chart or diagram, built here
+/li-prompt            post → paste-ready design prompts for claude.ai / ChatGPT
+/li-image check <p>   check a design made elsewhere before it goes out
 /li-log               record what you posted + numbers (feeds the learning loop)
 /li-voice             recalibrate voice.md from real posts
 ```
@@ -44,6 +46,11 @@ Adversarial reviewer subagent: `li-critic`.
 - Carousels: build HTML from `linkedin/assets/carousel-template.html`, render with
   `python3 scripts/render-carousel.py <file.html> --png`, then **look at the PNG**
   before calling it done.
+- **Words are set in HTML; art comes from an image model.** Never emit a prompt
+  asking an image model to render a headline, quote, stat or label — it returns
+  *nearly* right text and the error survives to the feed. Needs both → image model
+  makes a plate with no text, type goes on top in HTML. Routing and templates live
+  in `linkedin/design-prompts.md`.
 - Fonts must come from `linkedin/assets/fonts.css` (base64-embedded). Headless
   Chromium here does not reliably fetch Google Fonts and silently falls back.
   Regenerate with `python3 scripts/fetch-fonts.py`.
