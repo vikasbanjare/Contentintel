@@ -1,0 +1,13 @@
+Google Flow's logo and Apple's iPhone Duo unfold animation use the same gesture.
+
+A translucent plane, folding through space.
+
+[NEEDS: a third example if you've seen one. Three makes it a pattern. Two is a coincidence, and someone will say exactly that in the comments.]
+
+I build an AI product. Every visual cue that's supposed to signal "this transforms your work" is now the cue everybody else is using. Which means it signals nothing. It just says "AI product", the way a blue gradient used to say "SaaS".
+
+I don't have a clean answer. The honest version is that I keep reaching for the same frosted glass and catching myself doing it.
+
+What I'm fairly sure of: the products that still look like themselves in two years will be the ones that took their metaphor from their own problem instead of from the air.
+
+#design #ai #buildinginpublic
