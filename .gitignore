@@ -6,3 +6,9 @@ project/thumbnail-research/
 # The .html source in each day folder is the thing worth keeping.
 linkedin/daily/**/*.pdf
 linkedin/daily/**/*.png
+
+# API keys for the vendored instagram-marketing skill bundle (Publora,
+# Apify, Pixfaro). The .env.example is committed; a real .env never is.
+.env
+.env.local
+.claude/skills/instagram-marketing/.env

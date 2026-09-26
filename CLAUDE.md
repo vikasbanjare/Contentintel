@@ -65,7 +65,29 @@ Adversarial reviewer subagent: `li-critic`.
   Chromium here does not reliably fetch Google Fonts and silently falls back.
   Regenerate with `python3 scripts/fetch-fonts.py`.
 
+## 3. Instagram — `.claude/skills/instagram-marketing/`
+
+Vendored third-party bundle from https://github.com/sergebulaev/instagram-skills
+(MIT). Nine sub-skills behind one router skill, `instagram-marketing`: caption
+writing, carousel planning, hook extraction, hashtag sizing, AI-tell removal,
+weekly planning, repurposing, profile audit, audience insights.
+
+- **Do not hand-edit it.** Re-clone upstream to update. See `VENDORED.md` in that
+  directory for provenance, what was excluded, and the pre-install review.
+- **It works with no API keys** (Tier 0: drafts only, you post in the app).
+- **It CAN publish** if `PUBLORA_API_KEY` is set — unlike `linkedin/`, which never
+  posts. Every publish is gated behind `lib/approval.py`, but the capability is
+  real. `.env` is gitignored; never commit a key.
+- `ig-repurposer` takes a LinkedIn post and adapts it into a native Instagram
+  carousel or caption, so it pairs directly with `/li-repurpose` and the packs in
+  `linkedin/daily/`.
+- Its `references/voice-profile.md` and `voice-rules.md` are the bundle's own and
+  are Instagram-specific. For anything that will carry Vikas's name,
+  `linkedin/voice.md` still wins on register, banned phrases and hard rules.
+
 ## Conventions
 
 - No build system beyond the two Python scripts. No npm, no bundler. Keep it that way.
-- Python 3 standard library only — no pip installs for the render scripts.
+- Python 3 standard library only for **our** scripts in `scripts/` — no pip installs.
+  The vendored `instagram-marketing` bundle is exempt: it needs `requests` and
+  `python-dotenv`, and only when you actually enable a backend. Tier 0 needs neither.
