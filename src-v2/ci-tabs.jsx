@@ -93,11 +93,224 @@ function buildThumbCreateSys(hasPhoto, titleSignals) {
     'Return ONLY one JSON object: { "concepts": [ { "concept": "direction name + a punchy 2-4 word hook, e.g. \'Reaction close-up — I WAS WRONG\'", "prompt": "full image prompt following the format above" } x5 ] }.',
   ].filter(Boolean).join('\n\n');
 }
-function chatgptPrompt(base, hasImage, strict, guidance) {
+function chatgptPrompt(base, hasImage, strict, guidance, design) {
   const head = hasImage
     ? `Edit the attached YouTube thumbnail into an improved 16:9 version. ${strict ? 'KEEP the same person(s), the exact text, fonts and overall palette -- change ONLY what I describe below.' : 'A bolder redesign is fine, but keep the same person(s), topic and exact text.'}`
     : `Create a bold, high click-through 16:9 YouTube thumbnail.`;
-  return `${head}\n\n${(base || '').trim()}${guidance ? '\n\n' + guidance : ''}`;
+  const dir = design ? designDirective(design) : '';
+  return `${head}\n\n${(base || '').trim()}${dir ? '\n\n' + dir : ''}${guidance ? '\n\n' + guidance : ''}`;
+}
+
+// ── Generate-mode design controls ───────────────────────────────────────────
+// Colour schemes are the researched high-CTR combinations (60-30-10 ready), not
+// arbitrary swatches — each carries real hex values so the image model gets an
+// exact palette instead of a vague colour word.
+const THUMB_SCHEMES = [
+  { id: 'auto',    label: 'Let AI choose', hexes: [] },
+  { id: 'redblk',  label: 'Red / Black',   hexes: ['#E10600', '#0B0B0D', '#FFFFFF'] },
+  { id: 'yelblu',  label: 'Yellow / Navy', hexes: ['#FFC400', '#0A2540', '#FFFFFF'] },
+  { id: 'tealorg', label: 'Teal / Orange', hexes: ['#0E7C7B', '#FF6B1A', '#F2F2F2'] },
+  { id: 'purple',  label: 'Purple / Cyan', hexes: ['#6C2BD9', '#00E5FF', '#FFFFFF'] },
+  { id: 'green',   label: 'Green / Black', hexes: ['#00C853', '#101418', '#FFFFFF'] },
+  { id: 'mono',    label: 'Bold Mono',     hexes: ['#111111', '#FFFFFF', '#E10600'] },
+  { id: 'brand',   label: 'My brand kit',  hexes: [] },
+  { id: 'custom',  label: 'My own colours', hexes: [] },
+];
+const THUMB_LAYOUTS = [
+  { id: 'auto',   label: 'Let AI choose' },
+  { id: 'left',   label: 'Face left / text right' },
+  { id: 'right',  label: 'Face right / text left' },
+  { id: 'center', label: 'Centred close-up' },
+  { id: 'split',  label: 'Split screen' },
+  { id: 'object', label: 'Object hero' },
+  { id: 'custom', label: 'Custom…' },
+];
+const GEN_DESIGN_DEFAULT = { titleText: '', scheme: 'auto', layout: 'auto', expression: 'none', elements: [], noText: false,
+  customColors: ['#E10600', '#0B0B0D', '#FFFFFF'], customLayout: '', customExpression: '', customNote: '' };
+
+// Turn the panel's choices into an explicit, unambiguous instruction block. Only
+// non-default choices are emitted so "Let AI choose" really means hands-off.
+function designDirective(d) {
+  if (!d) return '';
+  const L = [];
+  if (d.titleText && d.titleText.trim() && !d.noText) {
+    L.push(`ON-IMAGE TEXT: render exactly these words and nothing else — "${d.titleText.trim()}". Heavy bold sans-serif, very large, with a strong outline or drop shadow so it reads at 120px. Spell it exactly; add no other words or letters.`);
+  }
+  if (d.noText) L.push('ON-IMAGE TEXT: render NO text, letters, numbers, captions or watermarks anywhere in the image.');
+  const sc = THUMB_SCHEMES.find(s => s.id === d.scheme);
+  if (sc && sc.hexes.length) {
+    L.push(`COLOUR (use these exact colours in a 60-30-10 split): dominant ${sc.hexes[0]}, secondary ${sc.hexes[1]}${sc.hexes[2] ? `, accent ${sc.hexes[2]}` : ''}. Do not substitute other colours.`);
+  } else if (d.scheme === 'brand' && d.brandHexes && d.brandHexes.length) {
+    L.push(`COLOUR (mandatory brand palette, 60-30-10): ${d.brandHexes.join(', ')}. Do not substitute.`);
+  } else if (d.scheme === 'custom') {
+    const cc = (d.customColors || []).filter(Boolean);
+    if (cc.length) L.push(`COLOUR (use these exact colours in a 60-30-10 split): dominant ${cc[0]}${cc[1] ? `, secondary ${cc[1]}` : ''}${cc[2] ? `, accent ${cc[2]}` : ''}. Do not substitute other colours.`);
+  }
+  if (d.layout === 'custom' && (d.customLayout || '').trim()) {
+    L.push('COMPOSITION: ' + d.customLayout.trim());
+  }
+  const lay = THUMB_LAYOUTS.find(x => x.id === d.layout);
+  if (lay && lay.id !== 'auto' && lay.id !== 'custom') {
+    const map = {
+      left: 'Subject occupies the LEFT third facing camera; keep the right two-thirds clean for text.',
+      right: 'Subject occupies the RIGHT third facing camera; keep the left two-thirds clean for text.',
+      center: 'Tight centred close-up of the face filling most of the frame.',
+      split: 'Vertical split-screen composition with a clear divider down the middle.',
+      object: 'The hero object centred and dominant, shot like a premium product photo.',
+    };
+    L.push('COMPOSITION: ' + map[lay.id]);
+  }
+  if (d.expression === 'custom' && (d.customExpression || '').trim()) {
+    L.push(`FACE: ${d.customExpression.trim()} — sharp, realistic, undistorted, eyes looking at the camera.`);
+  } else if (d.expression && d.expression !== 'none' && d.expression !== 'custom') {
+    const ex = BUILDER_EXPRESSIONS.find(e => e.id === d.expression);
+    if (ex) L.push(`FACE: one clear, believable ${ex.label.toLowerCase()} expression — sharp, realistic, undistorted, eyes looking at the camera.`);
+  }
+  if (d.elements && d.elements.length) L.push(`INCLUDE these elements: ${d.elements.join('; ')}.`);
+  if ((d.customNote || '').trim()) L.push('CREATOR\'S OWN DIRECTION (follow this closely): ' + d.customNote.trim());
+  return L.join('\n');
+}
+
+function loadGenPresets() { try { return JSON.parse(localStorage.getItem('ci_thumb_presets')) || []; } catch (e) { return []; } }
+function saveGenPresets(p) { try { localStorage.setItem('ci_thumb_presets', JSON.stringify(p.slice(0, 20))); } catch (e) {} }
+
+// The Generate-mode control panel: title text, colour scheme, layout, facial
+// expression, elements (toggle on/off), plus named presets so a creator sets
+// their look once and reuses it in one click.
+function ThumbDesignPanel({ d, setD, m, brand }) {
+  const [presets, setPresets] = React.useState(loadGenPresets);
+  const [presetName, setPresetName] = React.useState('');
+  const [open, setOpen] = React.useState(true);
+  const set = (k, v) => setD({ ...d, [k]: v });
+  const toggleEl = (el) => set('elements', (d.elements || []).includes(el) ? d.elements.filter(x => x !== el) : [...(d.elements || []), el]);
+
+  function savePreset() {
+    const name = (presetName || '').trim();
+    if (!name) return;
+    const next = [{ name, design: { ...d, brandHexes: brand } }, ...presets.filter(p => p.name !== name)];
+    setPresets(next); saveGenPresets(next); setPresetName('');
+  }
+  function applyPreset(p) { setD({ ...GEN_DESIGN_DEFAULT, ...p.design }); }
+  function delPreset(name) { const next = presets.filter(p => p.name !== name); setPresets(next); saveGenPresets(next); }
+
+  const chip = (active) => ({
+    height: 30, padding: '0 11px', fontSize: 11.5, borderRadius: 8, cursor: 'pointer',
+    border: `1px solid ${active ? m.accentGlow : 'var(--stroke-1)'}`,
+    background: active ? `${m.accentFrom}22` : 'var(--surface-1)',
+    color: active ? m.accentFrom : 'var(--text-2)', fontWeight: active ? 700 : 500,
+  });
+
+  return (
+    <div style={{ marginTop: 16, borderRadius: 12, border: '1px solid var(--stroke-1)', background: 'var(--inset)', overflow: 'hidden' }}>
+      <div onClick={() => setOpen(o => !o)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 14px', cursor: 'pointer' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-1)' }}>🎨 Design controls <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— colours, layout, expression, text</span></div>
+        <span style={{ fontSize: 11.5, color: 'var(--text-4)' }}>{open ? 'hide ▴' : 'show ▾'}</span>
+      </div>
+      {open && (
+        <div style={{ padding: '0 14px 14px' }}>
+          {presets.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div className="ci-label" style={{ marginBottom: 6 }}>Your presets</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {presets.map(p => (
+                  <span key={p.name} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, ...chip(false), height: 28 }}>
+                    <span onClick={() => applyPreset(p)} style={{ cursor: 'pointer' }}>⭐ {p.name}</span>
+                    <span onClick={() => delPreset(p.name)} title="Delete preset" style={{ cursor: 'pointer', opacity: 0.5, fontSize: 13 }}>×</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="ci-label">Text on the thumbnail <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— 3-5 big words work best</span></div>
+          <input className="ci-input" value={d.titleText} disabled={d.noText}
+            onChange={e => set('titleText', e.target.value)} placeholder="e.g. I WAS WRONG" style={{ opacity: d.noText ? 0.5 : 1 }} />
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 7, fontSize: 12, color: 'var(--text-3)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!d.noText} onChange={e => set('noText', e.target.checked)} />
+            No text at all (add your own later)
+          </label>
+
+          <div className="ci-label" style={{ marginTop: 14 }}>Colour scheme</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {THUMB_SCHEMES.filter(s => s.id !== 'brand' || (brand && brand.length)).map(s => (
+              <div key={s.id} onClick={() => set('scheme', s.id)} style={{ ...chip(d.scheme === s.id), display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {(s.id === 'brand' ? brand : s.hexes).slice(0, 3).map((h, i) => (
+                  <span key={i} style={{ width: 11, height: 11, borderRadius: 3, background: h, border: '1px solid rgba(255,255,255,.25)' }} />
+                ))}
+                {s.label}
+              </div>
+            ))}
+          </div>
+
+          {d.scheme === 'custom' && (
+            <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 10, background: 'var(--surface-1)', border: '1px solid var(--stroke-1)' }}>
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginBottom: 8 }}>Pick your exact colours — dominant, secondary, accent (60-30-10).</div>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                {['Dominant', 'Secondary', 'Accent'].map((lbl, i) => (
+                  <div key={lbl} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <span style={{ fontSize: 10.5, color: 'var(--text-4)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em' }}>{lbl}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input type="color" value={(d.customColors || [])[i] || '#000000'}
+                        onChange={e => { const cc = [...(d.customColors || ['', '', ''])]; cc[i] = e.target.value.toUpperCase(); set('customColors', cc); }}
+                        style={{ width: 34, height: 30, padding: 0, border: '1px solid var(--stroke-1)', borderRadius: 7, background: 'none', cursor: 'pointer' }} />
+                      <input className="ci-input" value={(d.customColors || [])[i] || ''}
+                        onChange={e => { const cc = [...(d.customColors || ['', '', ''])]; cc[i] = e.target.value; set('customColors', cc); }}
+                        placeholder="#RRGGBB" style={{ height: 30, width: 92, fontSize: 11.5, fontFamily: 'var(--font-mono)' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="ci-label" style={{ marginTop: 14 }}>Layout</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {THUMB_LAYOUTS.map(l => <div key={l.id} onClick={() => set('layout', l.id)} style={chip(d.layout === l.id)}>{l.label}</div>)}
+          </div>
+          {d.layout === 'custom' && (
+            <input className="ci-input" style={{ marginTop: 8, fontSize: 12.5 }} value={d.customLayout || ''}
+              onChange={e => set('customLayout', e.target.value)}
+              placeholder="Describe the composition — e.g. 'subject bottom-left, big city skyline behind, text across the top'" />
+          )}
+
+          <div className="ci-label" style={{ marginTop: 14 }}>Face expression</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {BUILDER_EXPRESSIONS.map(e => (
+              <div key={e.id} onClick={() => set('expression', e.id)} style={chip(d.expression === e.id)}>
+                {e.emoji !== '--' ? e.emoji + ' ' : ''}{e.id === 'none' ? 'Let AI choose' : e.label}
+              </div>
+            ))}
+            <div onClick={() => set('expression', 'custom')} style={chip(d.expression === 'custom')}>✏️ Custom…</div>
+          </div>
+          {d.expression === 'custom' && (
+            <input className="ci-input" style={{ marginTop: 8, fontSize: 12.5 }} value={d.customExpression || ''}
+              onChange={e => set('customExpression', e.target.value)}
+              placeholder="Describe the face — e.g. 'smug half-smile, one eyebrow raised, arms crossed'" />
+          )}
+
+          <div className="ci-label" style={{ marginTop: 14 }}>Elements <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>— click to add or remove</span></div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {BUILDER_ELEMENTS.map(el => {
+              const on = (d.elements || []).includes(el);
+              return <div key={el} onClick={() => toggleEl(el)} style={chip(on)}>{on ? '✓ ' : '+ '}{el}</div>;
+            })}
+          </div>
+
+          <div className="ci-label" style={{ marginTop: 14 }}>Anything else — describe it in your own words</div>
+          <textarea className="ci-textarea" style={{ minHeight: 62, fontSize: 12.5 }} value={d.customNote || ''}
+            onChange={e => set('customNote', e.target.value)}
+            placeholder="e.g. 'rainy night street, neon reflections, shot on 35mm, my logo small in the bottom-right corner'" />
+
+          <div style={{ display: 'flex', gap: 7, marginTop: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input className="ci-input" value={presetName} onChange={e => setPresetName(e.target.value)}
+              placeholder="Name this look…" style={{ height: 32, fontSize: 12, maxWidth: 190 }} />
+            <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }} onClick={savePreset} disabled={!presetName.trim()}>⭐ Save as preset</button>
+            <button className="ci-copybtn" style={{ height: 32, padding: '0 12px', fontSize: 12 }} onClick={() => setD({ ...GEN_DESIGN_DEFAULT })}>↺ Reset</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 // Image generation has two routes: (1) in-app via the user's own Google
 // (Gemini/Imagen) or OpenAI image key -- creates the picture right here; and
@@ -135,13 +348,13 @@ function ThumbGenCard({ prompt, source, m }) {
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {canGenerate && (
-          <button className="ci-copybtn"
-            style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === 'loading' ? 0.65 : 1 }}
-            onClick={generate} disabled={genState === 'loading'}>
-            {genState === 'loading' ? '⏳ Generating…' : `⚡ ${source ? 'Generate (uses your photo)' : 'Generate'}`}
-          </button>
-        )}
+        {/* Always visible: hiding it when no key is set made generation look
+            broken. Without a key, clicking explains exactly what to add. */}
+        <button className="ci-copybtn"
+          style={{ height: 32, padding: '0 13px', fontSize: 12, background: `${m.accentFrom}28`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: (genState === 'loading' || !canGenerate) ? 0.65 : 1 }}
+          onClick={generate} disabled={genState === 'loading'}>
+          {genState === 'loading' ? '⏳ Generating…' : `⚡ ${source ? 'Generate (uses your photo)' : 'Generate'}`}
+        </button>
         <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.copyText(prompt)}>⧉ Copy prompt</button>
         <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInChatGPT(prompt)}>🎨 ChatGPT</button>
         <button className="ci-copybtn" style={{ height: 32 }} onClick={() => window.openInGemini(prompt)}>✨ Gemini</button>
@@ -169,6 +382,58 @@ function ThumbGenCard({ prompt, source, m }) {
           {window.ThumbnailSizePreview && <window.ThumbnailSizePreview src={genImg} />}
         </div>
       )}
+    </div>
+  );
+}
+
+// One generated concept: the prompt is EDITABLE (✏️) and re-rollable (↻ writes a
+// fresh, different prompt for the same concept direction) — the same tooling the
+// Check tab's upgrade cards give, so both modes work identically.
+function ConceptCard({ t, imgA, strict, guidance, title, kind, m, design }) {
+  const [p, setP] = React.useState(t.prompt || '');
+  const [editing, setEditing] = React.useState(false);
+  const [rw, setRw] = React.useState(false);
+  const [rwErr, setRwErr] = React.useState('');
+  const canWrite = !!(window.canRun && window.canRun());
+
+  async function newPrompt() {
+    if (rw || !canWrite) return;
+    setRw(true); setRwErr('');
+    try {
+      const fmt = window.THUMBNAIL_PROMPT_FORMAT || 'Describe the finished scene, subject first, in 2-4 tight sentences.';
+      const sys = 'You write image-generation prompts for YouTube thumbnails. ' + fmt + ' Return ONLY the prompt text — no preamble, no quotes, no markdown.';
+      const ut = `Concept direction: ${t.concept || '(none)'}\nVideo title: ${title || '(none)'}\nContent type: ${kind || ''}\n${guidance || ''}\nCurrent prompt:\n${p}\n\nWrite ONE fresh prompt for the SAME concept direction but a noticeably DIFFERENT take — different scene, pose, background and colour scheme.`;
+      const { text } = await window.callClaude({ system: sys, userText: ut, maxTokens: 420, temperature: 0.95 });
+      const np = String(text || '').trim().replace(/^["'`]+|["'`]+$/g, '');
+      if (np.length > 30) setP(np);
+      else setRwErr('Got an empty prompt — try again.');
+    } catch (e) {
+      setRwErr(String(e?.message) === 'NO_KEY' ? 'Sign in (or add a Claude key in Settings) to rewrite prompts.' : (e?.message || 'Rewrite failed — try again.'));
+    }
+    setRw(false);
+  }
+
+  return (
+    <div style={{ padding: 14, borderRadius: 12, border: '1px solid var(--stroke-1)', background: 'var(--surface-1)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)', flex: 1, minWidth: 160 }}>{t.concept}</div>
+        <button className="ci-copybtn" style={{ height: 26, padding: '0 10px', fontSize: 11 }} onClick={() => setEditing(e => !e)}>{editing ? '✓ Done' : '✏️ Edit'}</button>
+        {canWrite && (
+          <button className="ci-copybtn" style={{ height: 26, padding: '0 10px', fontSize: 11, opacity: rw ? 0.6 : 1 }} onClick={newPrompt} disabled={rw}>
+            {rw ? '⏳ Writing…' : '↻ New prompt'}
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <textarea className="ci-textarea" style={{ minHeight: 90, fontSize: 12.5, marginTop: 8, lineHeight: 1.55 }}
+          value={p} onChange={e => setP(e.target.value)} />
+      ) : (
+        <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{p}</div>
+      )}
+      {rwErr && <div style={{ fontSize: 12, color: '#F06A7E', marginTop: 6 }}>{rwErr}</div>}
+      <div style={{ marginTop: 10 }}>
+        <ThumbGenCard prompt={chatgptPrompt(p, !!imgA, strict, guidance, design)} source={imgA || null} m={m} />
+      </div>
     </div>
   );
 }
@@ -259,6 +524,11 @@ function ThumbnailTab({ onOpenKey }) {
   // Generate mode: describe-from-scratch prompt (no analysis, no tokens).
   const [genPrompt, setGenPrompt] = React.useState('');
   const [genIdeas, setGenIdeas] = React.useState({ loading: false, items: null, err: '' });
+  // Generate-mode design controls (colours, layout, expression, elements, text)
+  // + the brand palette so "My brand kit" resolves to real hex values.
+  const [genDesign, setGenDesign] = React.useState({ ...GEN_DESIGN_DEFAULT });
+  const brandHexes = React.useMemo(() => (loadBrandKit().colors || []).slice(0, 3), []);
+  const design = React.useMemo(() => ({ ...genDesign, brandHexes }), [genDesign, brandHexes]);
   // Output headroom: A/B/C produces 3 full analyses + a winner, so it needs more
   // room or the JSON truncates and the report comes back broken/empty.
   // Every compared slot needs an image or a written description — otherwise
@@ -266,8 +536,31 @@ function ThumbnailTab({ onOpenKey }) {
   const slotsReady = Array.from({ length: count }).every((_, i) => imgsAll[i] || descsAll[i].trim().length >= 12);
   function check() { if (!slotsReady) return; run({ userText: fullUserText, images: imgs, maxTokens: count === 3 ? 5500 : count === 2 ? 4500 : 3200, system }); }
 
+  // Zero-AI concepts: proven direction templates filled from the title/idea.
+  // Instant and completely free — used when no AI engine is available, and as
+  // the automatic fallback when the AI call fails. AI (when present) still
+  // writes richer, more specific concepts.
+  function templateConcepts() {
+    const rawTopic = (genDesign.titleText.trim() || (showTitle && title.trim()) || genPrompt.trim() || 'your video').replace(/["\n]+/g, ' ').trim().slice(0, 90);
+    const num = (String(((showTitle && title) || '') + ' ' + genPrompt).match(/[₹$€]?\s?[\d,.]+\s*(lakh|crore|cr|k|%|x|days?|hours?|rs)?/i) || [])[0];
+    const q = /\?/.test(((showTitle && title) || '') + genPrompt);
+    return [
+      { concept: 'Reaction close-up — shock', prompt: `Extreme close-up of a creator with a genuinely shocked expression — wide eyes, hand near the face — reacting to ${rawTopic}. Deep red-to-black gradient background, strong key light from the left, subject filling the right two-thirds of the frame facing the camera. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+      { concept: 'Object hero shot', prompt: `The single most important object from "${rawTopic}" shown huge and centered like a premium product shot, dramatic spotlight from above, shallow depth of field, subtle glow behind it. Dark teal background, nothing else in frame. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+      { concept: 'Before → after split', prompt: `A vertical split-screen about ${rawTopic}: the left half shows the "before" state in dull, desaturated grey-blue tones; the right half shows the "after" in bright, vivid warm colour. A thin diagonal white divider separates them. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+      num
+        ? { concept: `Big number — ${num.trim()}`, prompt: `A confident creator pointing directly at the camera, standing in the left third of the frame, about ${rawTopic}. Bold yellow-on-navy colour scheme with strong rim lighting, and a large clean empty area on the right (space for the number ${num.trim()} as overlay text). Sharp focus, high contrast, one clear focal point, photorealistic.` }
+        : { concept: 'X vs Y contrast', prompt: `Two contrasting choices from "${rawTopic}" facing off — one on the left lit warm orange, one on the right lit cool blue — on a clean dark background with a subtle lightning-style divider. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+      q
+        ? { concept: 'The big question', prompt: `A thoughtful creator looking up at a large glowing question mark, about ${rawTopic}. Moody violet-and-black palette, cinematic side lighting, creator in the lower-left third. Sharp focus, high contrast, one clear focal point, photorealistic.` }
+        : { concept: 'Caught in the moment', prompt: `A candid mid-action shot of a person genuinely doing ${rawTopic} — real movement, real environment, framing like a paused video frame. One strong orange accent against muted surroundings. Sharp focus, high contrast, one clear focal point, photorealistic.` },
+    ];
+  }
+
   async function genConcepts() {
     if (!genPrompt.trim() && !imgA) { setGenIdeas({ loading: false, items: null, err: 'Describe the thumbnail or upload a photo first.' }); return; }
+    // No AI engine? Instant template concepts — free, no key, no sign-in.
+    if (!(window.canRun && window.canRun())) { setGenIdeas({ loading: false, items: templateConcepts(), err: '', local: true }); return; }
     setGenIdeas({ loading: true, items: null, err: '' });
     try {
       // Ground the concepts in concrete signals already present in the title/idea
@@ -275,13 +568,17 @@ function ThumbnailTab({ onOpenKey }) {
       const signalSrc = [(showTitle && title.trim()) || '', genPrompt.trim()].filter(Boolean).join('. ');
       const sig = window.scoreTitleCTR ? window.scoreTitleCTR(signalSrc) : null;
       const titleSignals = sig ? sig.factors.map(f => f.label) : [];
-      const ut = `Video title: ${(showTitle && title.trim()) ? title.trim() : '(none)'}\nContent type: ${kind}\nIdea: ${genPrompt.trim() || '(use the attached photo as the subject)'}\n${guidance || ''}\n\nGive 5 concepts now.`;
+      const dir = designDirective(design);
+      const ut = `Video title: ${(genDesign.titleText.trim() || (showTitle && title.trim())) || '(none)'}\nContent type: ${kind}\nIdea: ${genPrompt.trim() || '(use the attached photo as the subject)'}\n${guidance || ''}` +
+        (dir ? `\n\nTHE CREATOR HAS LOCKED THESE DESIGN CHOICES — every concept must follow them exactly:\n${dir}` : '') +
+        '\n\nGive 5 concepts now.';
       const { text } = await window.callClaude({ system: buildThumbCreateSys(!!imgA, titleSignals), userText: ut, images: imgA ? [imgA] : [], maxTokens: 2600, temperature: 0.9 });
       const j = window.parseReport(text);
       if (j && Array.isArray(j.concepts) && j.concepts.length) setGenIdeas({ loading: false, items: j.concepts, err: '' });
-      else setGenIdeas({ loading: false, items: null, err: 'Could not generate concepts -- try again.' });
+      else setGenIdeas({ loading: false, items: templateConcepts(), err: '', local: true });
     } catch (e) {
-      setGenIdeas({ loading: false, items: null, err: String(e.message) === 'NO_KEY' ? 'Add your Anthropic (Claude) API key in Settings to write concepts.' : (e.message || 'Could not generate.') });
+      // AI failed (quota, outage, whatever) → still deliver: template concepts.
+      setGenIdeas({ loading: false, items: templateConcepts(), err: '', local: true });
     }
   }
   return (
@@ -300,6 +597,7 @@ function ThumbnailTab({ onOpenKey }) {
           <label className="ci-label" style={{ marginTop: 16 }}>What's the thumbnail for? <span style={{ fontWeight: 400, color: 'var(--text-4)' }}>-- a topic or a rough idea</span></label>
           <textarea className="ci-textarea" style={{ minHeight: 80 }} value={genPrompt} onChange={e => setGenPrompt(e.target.value)}
             placeholder="e.g. 'My video on how beginners should start SIP investing' or 'Shocked reaction to a ₹500 Cr story'" />
+          <ThumbDesignPanel d={genDesign} setD={setGenDesign} m={m} brand={brandHexes} />
           <div style={{ marginTop: 14 }}>
             <window.GlowButton mood={mood} size="lg" onClick={genConcepts}>{genIdeas.loading ? 'Designing…' : '✦ Suggest 5 concepts'}</window.GlowButton>
             <span style={{ fontSize: 12, color: 'var(--text-4)', marginLeft: 12 }}>Uses your research + your photo to write ready prompts.</span>
@@ -308,16 +606,11 @@ function ThumbnailTab({ onOpenKey }) {
         </TB>
 
         {genIdeas.items && genIdeas.items.length > 0 && (
-          <TB title="Thumbnail concepts" desc={imgA ? 'Built around your photo — attach it again when generating' : 'Upload your photo above for an accurate likeness'} mood={mood}>
+          <TB title="Thumbnail concepts" desc={(genIdeas.local ? 'Instant concepts (no AI used — 100% free). Sign in or add a key for AI-written ones. ' : '') + (imgA ? 'Built around your photo — attach it again when generating' : 'Upload your photo above for an accurate likeness')} mood={mood}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {genIdeas.items.map((t, i) => (
-                <div key={i} style={{ padding: 14, borderRadius: 12, border: '1px solid var(--stroke-1)', background: 'var(--surface-1)' }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-1)' }}>{t.concept}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 6, lineHeight: 1.55 }}>{t.prompt}</div>
-                  <div style={{ marginTop: 10 }}>
-                    <ThumbGenCard prompt={chatgptPrompt(t.prompt, !!imgA, strict, guidance)} source={imgA || null} m={m} />
-                  </div>
-                </div>
+                <ConceptCard key={i} t={t} imgA={imgA} strict={strict} guidance={guidance} design={design}
+                  title={genDesign.titleText.trim() || (showTitle && title.trim()) || ''} kind={kind} m={m} />
               ))}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 12, lineHeight: 1.5 }}>
@@ -328,7 +621,7 @@ function ThumbnailTab({ onOpenKey }) {
 
         <TB mood={mood}>
           <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 10 }}>Already have your own prompt? Generate it here, or send it to an image tool:</div>
-          <ThumbGenCard prompt={chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance)} source={imgA || null} m={m} />
+          <ThumbGenCard prompt={chatgptPrompt(genPrompt.trim() || 'A bold, high click-through YouTube thumbnail.', !!imgA, strict, guidance, design)} source={imgA || null} m={m} />
         </TB>
       </>)}
 
@@ -737,6 +1030,14 @@ function TitleTab({ onOpenKey }) {
   const titleReady = title.trim().length >= 4 && (!compare || titleB.trim().length >= 4);
   function check() { if (!titleReady) return; run({ userText, maxTokens: 2800 }); }
 
+  // FREE instant rewrites — computed in-browser, no key, no sign-in, no cost.
+  // Always available; the AI check adds depth on top when the user wants it.
+  const [freeIdeas, setFreeIdeas] = React.useState(null);
+  function makeFreeIdeas() {
+    if (!title.trim()) return;
+    setFreeIdeas(window.freeTitleIdeas ? window.freeTitleIdeas(title, { about }) : null);
+  }
+
   const alts = [
     ['Curiosity', 'SIP Mein Yeh 5 Galtiyan? 90% Log Karte Hain'],
     ['Fear', 'Stop! In 5 SIP Mistakes Se Paisa Doob Raha Hai'],
@@ -778,6 +1079,37 @@ function TitleTab({ onOpenKey }) {
         <div style={{ marginTop: 16 }}><window.AnalyzeButton mood={mood} onClick={check} loading={state === 'loading'} estIn={estIn} estOut={2800} label="Check my title"
           disabled={!titleReady} disabledHint={compare && title.trim() ? 'Type the second title too (or turn off compare).' : 'Type your title first — nothing to check yet.'} /></div>
         <LocalCTRPredictor title={title} mood={mood} />
+
+        {/* FREE instant rewrites — no key, no sign-in, no cost. */}
+        <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 11, background: 'rgba(143,216,106,0.06)', border: '1px solid rgba(143,216,106,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-1)' }}>✨ 10 instant rewrites <span style={{ color: '#8FD86A' }}>· free</span></div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginTop: 2 }}>Proven angles, scored and ranked in your browser — no AI, no key, no cost.</div>
+            </div>
+            <button className="ci-copybtn" style={{ height: 30, padding: '0 13px', fontSize: 12, fontWeight: 700, background: '#8FD86A22', borderColor: '#8FD86A55', color: '#8FD86A' }}
+              onClick={makeFreeIdeas} disabled={!title.trim()}>{freeIdeas ? '↻ Regenerate' : 'Get 10 rewrites'}</button>
+          </div>
+          {freeIdeas && freeIdeas.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 11 }}>
+              {freeIdeas.map((it, i) => {
+                const col = it.score >= 70 ? '#8FD86A' : it.score >= 55 ? '#F0C85A' : '#F06A7E';
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '7px 10px', borderRadius: 9, background: 'var(--surface-1)', border: '1px solid var(--stroke-1)' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: col, minWidth: 26, textAlign: 'center' }}>{it.score}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, color: 'var(--text-1)', lineHeight: 1.45 }}>{it.text}</div>
+                      <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 1 }}>{it.angle}</div>
+                    </div>
+                    <button className="ci-copybtn" style={{ height: 25, padding: '0 9px', fontSize: 11, flexShrink: 0 }}
+                      onClick={() => window.copyText && window.copyText(it.text)}>⧉</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <BatchTitleRanker mood={mood} />
       </TB>
 

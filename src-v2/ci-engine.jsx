@@ -6,7 +6,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r52";
+window.CI_BUILD = "2026-06-20-r63";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -346,7 +346,16 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
   // SaaS mode: signed-in users run through the ContentIntel worker (owner's
   // key, plan limits enforced server-side) — no personal key needed.
   const saas = (typeof window !== 'undefined' && window.CI_SAAS) || {};
-  if (saas.workerUrl && window.CI_SESSION) {
+  // BRING-YOUR-OWN-KEY PRIORITY. If the visitor has their own Anthropic key in
+  // Settings, use it even while signed in: it is their own AI allowance, it
+  // costs the host nothing and it isn't subject to plan credit limits.
+  // Previously the signed-in branch returned before getKey() was reached, so a
+  // user's own key was silently ignored, every call burned the host's pooled
+  // credits, and everything failed outright when that account had no balance.
+  // (Only an Anthropic key can bypass here — this function talks to Anthropic
+  // directly; other providers are routed upstream by canRunAnalysis().)
+  const hasOwnAnthropicKey = !!getKey();
+  if (saas.workerUrl && window.CI_SESSION && !hasOwnAnthropicKey) {
     const contentS = imgs.length
       ? [
           ...imgs.flatMap((im, i) => [
@@ -377,8 +386,20 @@ async function callClaudeOnce({ system, userText, image, images, model, maxToken
     });
     const dataS = await resS.json().catch(() => ({}));
     if (!resS.ok) {
-      if (resS.status === 401) { window.CI_SESSION = null; throw new Error(dataS.error || "Session expired — sign in again."); }
-      throw new Error(dataS.error || ("Request failed (" + resS.status + ")."));
+      // The worker forwards Anthropic error bodies verbatim, so dataS.error can
+      // be a string OR the {type, message} error object — new Error(object)
+      // renders as "[object Object]" and hides the real cause. Dig the text out.
+      const errText = (e) => {
+        if (!e) return "";
+        if (typeof e === "string") return e;
+        if (typeof e.message === "string") return e.message;
+        try { return JSON.stringify(e).slice(0, 300); } catch (x) { return ""; }
+      };
+      const msg = errText(dataS.error) || errText(dataS);
+      if (resS.status === 401) { window.CI_SESSION = null; throw new Error(msg || "Session expired — sign in again."); }
+      if (resS.status === 429) throw new Error(msg || "The service is busy right now — wait a moment and try again.");
+      if (resS.status === 529 || resS.status === 503) throw new Error("The AI service is temporarily overloaded — try again in a minute.");
+      throw new Error(msg || ("Request failed (" + resS.status + ")."));
     }
     const reportBlockS = forceJson ? (dataS.content || []).find(b => b.type === "tool_use" && b.name === "submit_report") : null;
     const textS = reportBlockS
@@ -521,10 +542,16 @@ function preprocessForImageGen(raw) {
     const change = (changeM ? changeM[1] : "").replace(/\n+/g, "; ").replace(/;\s*;/g, ";").trim();
     p = [keep && `Visual context: ${keep}`, change && `Improvements to apply: ${change}`].filter(Boolean).join(". ");
   }
-  // Subject-first, ONE short quality clause. No meta jargon ("high-CTR",
-  // "1280x720") and no duplicated adjective piles — those bury the actual
-  // subject and weaken image-model adherence.
-  return p ? `${p} Sharp focus, high contrast, dramatic lighting, one clear focal point, photorealistic.` : p;
+  // Image models need the MEDIUM/STYLE framing up front — it selects the whole
+  // rendering mode. Dropping "YouTube thumbnail / commercial photography" makes
+  // the model render a generic photo instead of a punchy thumbnail, and dropping
+  // "vibrant saturated colours" flattens it. Short lead, subject, tech suffix.
+  if (!p) return p;
+  return [
+    "Professional high-CTR YouTube thumbnail, 16:9, commercial photography quality.",
+    p,
+    "Ultra-sharp focus, vibrant saturated colours, high contrast, dramatic professional lighting, bold composition with one dominant focal point that still reads at 120px, photorealistic.",
+  ].join(" ");
 }
 
 // From a finished SCRIPT, produce platform-tuned packaging -- 3 title options each
@@ -581,7 +608,7 @@ async function groundThumbPrompt(brief, opts = {}) {
     (th.layouts && th.layouts.length) ? "LAYOUT ARCHETYPES (pick ONE that fits):\n" + cat(th.layouts) : "",
     (th.colorSchemes && th.colorSchemes.length) ? "COLOUR SCHEMES (pick ONE that fits):\n" + cat(th.colorSchemes) : "",
     st.systemGuidance ? "IMAGE-PROMPT QUALITY SCIENCE:\n" + st.systemGuidance.slice(0, 2600) : "",
-    `OUTPUT: 2-4 tight sentences describing the FINISHED thumbnail, SUBJECT FIRST -- [subject: who, position, exact expression/emotion, clothing]. [background + the chosen colour scheme]. [composition using the chosen layout + lighting]. If the brief has a short 2-4 word text, add it simply as: the words "X" in bold sans-serif, <colour>, <corner>. Keep the whole prompt concrete and short. End with only: sharp focus, high contrast, one clear focal point, photorealistic. Do NOT include meta words like "1280x720", "high-CTR", "YouTube thumbnail" or "legible at 120px". Output ONLY the prompt text -- no preamble, no markdown.`,
+    `OUTPUT: a tight paragraph describing the FINISHED thumbnail (${ratio}) in this order -- [subject: who, position, exact expression/emotion, clothing]. [exact on-image text: the words, weight, colour, placement]. [background + the chosen colour scheme]. [composition using the chosen layout + lighting]. End with: ultra-sharp, vibrant saturated colours, high contrast, cinematic professional lighting, one dominant focal point, legible at 120px; render ONLY the specified words, spelled exactly, with no gibberish lettering. Output ONLY the prompt text -- no preamble, no explanation, no markdown.`,
   ].filter(Boolean).join("\n\n");
   const { text } = await callClaude({ system: sys, userText: "CREATOR BRIEF:\n" + brief, maxTokens: 700, temperature: 0.7 });
   return (text || "").trim();
@@ -593,9 +620,39 @@ async function groundThumbPrompt(brief, opts = {}) {
 const THUMBNAIL_CONCEPT_DIRECTIONS =
   "reaction close-up (huge emotive face), object/result hero shot, before→after split, big-number/stat, contrast or \"X vs Y\", caught-in-the-moment candid, bold minimalist";
 const THUMBNAIL_PROMPT_FORMAT =
-  "Describe the finished SCENE only, SUBJECT FIRST, tight (2-4 sentences): [subject: who or the hero object -- position, exact expression/emotion, clothing]. [background + ONE bold colour scheme]. [composition + lighting]. End with only: sharp focus, high contrast, one clear focal point, photorealistic. NEVER include meta words like \"1280x720\", \"high-CTR\", \"YouTube thumbnail\", \"legible at 120px\", \"KEEP:\", \"preserve\".";
+  "Describe the FINISHED thumbnail in this order: [Subject: who or the hero object is in the frame, their position, exact expression/emotion, clothing]. [Text on thumbnail: the exact words, font weight, colour, placement]. [Background and colour scheme]. [Composition and lighting]. Photo quality: ultra-sharp, vibrant saturated colours, high contrast, cinematic professional lighting, commercial photography quality, one dominant focal point that reads at 120px. Render ONLY the specified words, spelled exactly -- no gibberish lettering, no extra captions or watermarks.";
 window.THUMBNAIL_CONCEPT_DIRECTIONS = THUMBNAIL_CONCEPT_DIRECTIONS;
 window.THUMBNAIL_PROMPT_FORMAT = THUMBNAIL_PROMPT_FORMAT;
+
+// ── Live intel: distilled current-platform knowledge from the intelligence
+// sweeps (Worker cron daily, or a manual sweep) — the self-improving loop.
+// Stored locally, auto-injected into every tool's prompt so the thumbnail
+// checker, title scorer, generators etc. reflect what's working NOW, not just
+// the baked-in research. Goes stale after 8 days (cron refreshes it daily).
+const LIVE_INTEL_KEY = "ci_live_intel";
+const LIVE_INTEL_MAX_AGE = 8 * 864e5;
+function getLiveIntel() {
+  try {
+    const j = JSON.parse(localStorage.getItem(LIVE_INTEL_KEY));
+    if (!j || !j.knowledge || (Date.now() - (j.ts || 0)) > LIVE_INTEL_MAX_AGE) return null;
+    return j;
+  } catch (e) { return null; }
+}
+function setLiveIntel(knowledge, ts) {
+  if (!knowledge || typeof knowledge !== "object") return;
+  try { localStorage.setItem(LIVE_INTEL_KEY, JSON.stringify({ ts: ts || Date.now(), knowledge })); } catch (e) {}
+}
+function liveIntelBlock(type) {
+  const li = getLiveIntel();
+  if (!li) return "";
+  const k = li.knowledge || {};
+  const area = /thumb|studio/i.test(type) ? k.thumbnail : /title/i.test(type) ? k.title : /platform|caption/i.test(type) ? k.platform : "";
+  const parts = [area, k.general].map(s => String(s || "").trim()).filter(Boolean);
+  if (!parts.length) return "";
+  return `CURRENT PLATFORM INTEL (from live web research, updated ${new Date(li.ts).toISOString().slice(0, 10)} — weigh alongside the research above; where it conflicts with older guidance, prefer this):\n"""\n${parts.join("\n")}\n"""`;
+}
+window.getLiveIntel = getLiveIntel;
+window.setLiveIntel = setLiveIntel;
 
 // The non-negotiable design rules every generated thumbnail must obey -- distilled
 // from the thumbnail research, plus an explicit anti-gibberish text rule (the #1
@@ -604,11 +661,14 @@ function thumbDesignLaw() {
   const th = (getResearch("thumbnail") || {});
   const st = (getResearch("studio") || {});
   const dp = String(th.designPrinciples || st.designPrinciples || "").trim();
+  const li = getLiveIntel();
+  const liThumb = li && li.knowledge ? String(li.knowledge.thumbnail || "").trim() : "";
   return [
     "DESIGN LAW (follow strictly): exactly ONE dominant focal point on a rule-of-thirds line, with strong foreground/background separation. High contrast, a tight 60-30-10 colour palette, cinematic directional lighting. If a person is shown: a sharp, realistic, undistorted face with ONE clear emotion and correct eyes/hands. Bold enough to read at 120px.",
     "TEXT RULE: render ONLY the exact words specified, spelled correctly, in a heavy bold sans-serif with a strong outline or drop shadow; 3-5 BIG words maximum. Add NO other words, captions, logos, watermarks, or random/gibberish lettering.",
     "AVOID: clutter, muddy low-contrast colour, tiny text, plastic over-smoothed 'AI' skin, warped faces, extra fingers or limbs, stray symbols.",
     dp ? "Researched principles to apply where relevant: " + dp.slice(0, 600) : "",
+    liThumb ? "Current thumbnail intel (live research, recent): " + liThumb.slice(0, 450) : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -1092,6 +1152,7 @@ function buildSystem(type, opts = {}) {
     `Adapt to the content you are given: detect its region, audience, platform and topic, and judge it by what actually works for THAT context. Never assume a fixed country or niche.`,
     `WEB VERIFICATION: you have a live web_search tool. When the content makes a factual, statistical, dated, trending or claim-based assertion (numbers, names, events, prices, "the latest", "#1", records, etc.), search and cross-check it against multiple real sources before judging it. Flag anything you cannot verify or that is outdated/wrong as a credibility risk. Never ask the user to provide sources -- find and verify them yourself. If a claim checks out, you may note that briefly. Do NOT search for things that don't need it (pure style/wording judgements); keep it to what genuinely needs verifying.`,
     core ? `RESEARCH CONTEXT (principles -- apply what's relevant, ignore what isn't):\n"""\n${core}\n"""` : "",
+    liveIntelBlock(type),
     `${r.label || type}-SPECIFIC METHODOLOGY -- use this as your evaluation framework:`,
     `"""`, r.systemGuidance || "", `"""`,
     // Script craft always applies, even if server research overrides systemGuidance.
@@ -1434,13 +1495,13 @@ function GenPromptCard({ block, mood }) {
       {block.label && <div style={{ fontSize: 12, fontWeight: 800, color: m.accentFrom, marginBottom: 6, letterSpacing: "0.01em" }}>{block.label}</div>}
       <div style={{ fontSize: 13, color: "var(--text-2)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{block.text}</div>
       <div style={{ display: "flex", gap: 7, marginTop: 11, flexWrap: "wrap", alignItems: "center" }}>
-        {canGenerate && (
-          <button className="ci-copybtn"
-            style={{ height: 32, padding: "0 13px", fontSize: 12, background: `linear-gradient(135deg,${m.accentFrom}28,${m.accentFrom}12)`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: genState === "loading" ? 0.65 : 1 }}
-            onClick={generate} disabled={genState === "loading"}>
-            {genState === "loading" ? "⏳ Generating…" : "⚡ Generate"}
-          </button>
-        )}
+        {/* Always visible — hiding it without a key made generation look broken;
+            clicking without a key explains exactly what to add in Settings. */}
+        <button className="ci-copybtn"
+          style={{ height: 32, padding: "0 13px", fontSize: 12, background: `linear-gradient(135deg,${m.accentFrom}28,${m.accentFrom}12)`, borderColor: m.accentGlow, color: m.accentFrom, fontWeight: 700, opacity: (genState === "loading" || !canGenerate) ? 0.65 : 1 }}
+          onClick={generate} disabled={genState === "loading"}>
+          {genState === "loading" ? "⏳ Generating…" : "⚡ Generate"}
+        </button>
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInChatGPT(block.text)}>🎨 ChatGPT</button>
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={() => openInGemini(block.text)}>✨ Gemini</button>
         <button className="ci-copybtn" style={{ height: 32, padding: "0 12px", fontSize: 12 }} onClick={copy}>{done ? "✓ Copied" : "⧉ Copy"}</button>

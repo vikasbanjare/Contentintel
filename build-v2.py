@@ -20,6 +20,7 @@ NEW_SECTIONS = {
   "ci-comments.jsx":   "ci-app.jsx",
   "ci-audit.jsx":      "ci-app.jsx",
   "ci-competitor.jsx": "ci-app.jsx",
+  "ci-free.jsx":       "ci-engine.jsx",
   "ci-intel.jsx":      "ci-app.jsx",
 }
 
