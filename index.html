@@ -4,7 +4,20 @@
   <meta charset="utf-8" />
   <title>ContentIntel — Pre-publish checker</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="Pre-publish checker for creators — grade your script, thumbnail, title and ads before you hit publish. Runs free inside Claude (no API key), or on your own Anthropic key when self-hosted." />
+  <meta name="description" content="Pre-publish checker for creators. Grade your script, thumbnail, title and ads before you hit publish. Free inside Claude, no API key needed." />
+  <link rel="canonical" href="https://contentintel.in/" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+
+  <!-- Open Graph / social sharing -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://contentintel.in/" />
+  <meta property="og:site_name" content="ContentIntel" />
+  <meta property="og:title" content="ContentIntel — Pre-publish checker for creators" />
+  <meta property="og:description" content="Grade your script, thumbnail, title and ads before you hit publish. Free inside Claude, no API key needed." />
+  <meta property="og:locale" content="en_IN" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ContentIntel — Pre-publish checker for creators" />
+  <meta name="twitter:description" content="Grade your script, thumbnail, title and ads before you hit publish. Free inside Claude, no API key needed." />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23E8396B'/><text x='16' y='23' text-anchor='middle' font-size='20' fill='white' font-family='serif'>◈</text></svg>">
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23E8396B'/><text x='16' y='23' text-anchor='middle' font-size='20' fill='white' font-family='serif'>◈</text></svg>">
 
@@ -1197,7 +1210,23 @@ button:active { transform: scale(0.985); }
   </div>
   <style>@keyframes ci-spl{from{width:0}to{width:100%}}</style>
 
-  <div id="root"></div>
+  <div id="root">
+    <!-- Static fallback for crawlers and no-JS visitors. React replaces this on mount. -->
+    <div style="max-width:720px;margin:0 auto;padding:64px 24px;font-family:system-ui,sans-serif;color:#C4CBDC">
+      <h1 style="color:#F2F4FA;font-size:32px;line-height:1.2;margin:0 0 16px">ContentIntel — pre-publish checker for creators</h1>
+      <p style="font-size:17px;line-height:1.6;margin:0 0 12px">ContentIntel grades your content before you publish it, so you find the weak hook or the unreadable thumbnail while you can still fix it. It is built for Indian creators and finance teams, and it understands Hindi, Hinglish and English.</p>
+      <p style="font-size:17px;line-height:1.6;margin:0 0 28px">It runs free inside Claude with no API key, or on your own Anthropic key when self-hosted.</p>
+      <h2 style="color:#F2F4FA;font-size:22px;margin:0 0 12px">What it checks</h2>
+      <ul style="font-size:16px;line-height:1.8;padding-left:20px;margin:0 0 28px">
+        <li><strong style="color:#F2F4FA">Script analyzer</strong> — hook strength, retention drop-off, pacing and words per minute.</li>
+        <li><strong style="color:#F2F4FA">Thumbnail analyzer</strong> — readability at phone size, contrast, face and emotion, clutter, plus A/B comparison.</li>
+        <li><strong style="color:#F2F4FA">Title analyzer</strong> — click-through potential, curiosity gap, search wording and alternative titles.</li>
+        <li><strong style="color:#F2F4FA">Ad copy analyzer</strong> — scroll-stop strength for Meta and Google Ads, with SEBI and RBI compliance flags.</li>
+      </ul>
+      <p style="font-size:15px;line-height:1.6;color:#8B93A7;margin:0">Scoring is grounded in published neuroforecasting research and an audit of Indian creator and finance channels, not generic advice.</p>
+      <p style="font-size:15px;margin:24px 0 0"><a href="/privacy.html" style="color:#E8396B">Privacy</a> &nbsp;·&nbsp; <a href="/terms.html" style="color:#E8396B">Terms</a></p>
+    </div>
+  </div>
 
   <!-- RESEARCH DATA — external on purpose, additive & multi-file. -->
 
