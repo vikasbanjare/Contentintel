@@ -1,0 +1,27 @@
+# Cloudflare Workers Builds config — lets Cloudflare build and deploy this
+# Worker automatically on every push to main, so worker.js never has to be
+# pasted into the dashboard again.
+#
+# The name MUST match the Worker's name in the Cloudflare dashboard, or the
+# build fails.
+name = "contentintel-proxy"
+main = "worker.js"
+compatibility_date = "2026-11-05"
+
+# Keep the plain environment variables that were set in the dashboard (e.g.
+# ALLOWED_ORIGIN). Without this, Wrangler treats this file as the only source
+# of truth and WIPES dashboard-set vars on every deploy.
+keep_vars = true
+
+# Keep the *.workers.dev endpoint the app calls
+# (contentintel-proxy.vikas-banjare.workers.dev). Setting this to false would
+# switch that hostname off and take the whole app down.
+workers_dev = true
+
+# [triggers] is deliberately NOT defined. Cloudflare's rule: when `triggers`/
+# `crons` is undefined, the Cron Triggers already on the Worker are left in
+# place — so the hourly intelligence schedule set in the dashboard survives
+# every deploy. (Declaring an empty crons = [] here would delete it.)
+#
+# Secrets (ANTHROPIC_KEY, GEMINI_KEY, GROQ_KEY, SUPABASE_*) are never touched
+# by a deploy — Wrangler only removes a secret via `wrangler secret delete`.
