@@ -2453,7 +2453,7 @@ const { MOODS: EM } = window;
 // Build stamp -- so you can confirm which version is actually live. Open the
 // browser console (F12) and look for this line; if it's older than expected,
 // you're on a cached file -> hard-refresh (Ctrl/Cmd+Shift+R).
-window.CI_BUILD = "2026-06-20-r63";
+window.CI_BUILD = "2026-06-20-r64";
 try { console.log("%cContentIntel build " + window.CI_BUILD, "color:#8FD86A;font-weight:700"); } catch (e) {}
 
 // ── Config (editable) ────────────────────────────────────────────────────────
@@ -3560,6 +3560,20 @@ function nicheName(block) {
   const head = (nl === -1 ? block : block.slice(0, nl)).trim();
   return head.split(/\s+\(|\s+--|\s+-\s/)[0].trim();
 }
+// Does this playbook block belong to the niche the user picked? Exact name
+// first, then a whole-word mention anywhere in the block's header. Exact-only
+// matching silently returned ZERO playbooks for every dropdown choice —
+// including Finance — because headers read like "BUSINESS / STARTUP / FINANCE
+// CASE-STUDY EXPLAINER" while the picker sends "Finance". Tolerant matching
+// means a header never has to be spelled exactly like the picker again.
+function nicheMatches(block, niche) {
+  const n = String(niche || "").trim().toLowerCase();
+  if (!n) return false;
+  if (nicheName(block).toLowerCase() === n) return true;
+  const head = String(block.split("\n")[0] || "").toLowerCase();
+  const esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp("(^|[^a-z])" + esc + "([^a-z]|$)").test(head);
+}
 function nicheNames(type = "thumbnail") {
   return splitPlaybookBlocks((getResearch(type) || {}).provenPatterns).map(nicheName);
 }
@@ -3574,7 +3588,7 @@ function buildSystem(type, opts = {}) {
   const niche = opts.niche;
   if (provenText && niche && niche !== "Auto-detect") {
     if (niche === "None (universal)") provenText = "";
-    else provenText = splitPlaybookBlocks(provenText).filter(b => nicheName(b) === niche).join("\n\n");
+    else provenText = splitPlaybookBlocks(provenText).filter(b => nicheMatches(b, niche)).join("\n\n");
   } else if (provenText && opts.compactPlaybook && (!niche || niche === "Auto-detect")) {
     // Token saver: when auto-detecting, don't dump EVERY niche playbook. Send
     // just the niche names + a self-detect instruction (cuts input tokens a lot).

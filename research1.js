@@ -197,7 +197,7 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
     // The analyzer classifies each thumbnail against these, and the UI shows
     // them as Layout / Colour pickers. Edit freely — names here drive the UI.
     layouts: [
-      { name: "Founder + brand scene", what: "Real founder/CEO cut out on the right third (smiling, eye contact) over the company's real store/product/logo + a faint upward growth graph, big number bottom-left, a curved arrow to the subject. The workhorse of business/case-study thumbnails." },
+      { name: "Person + their real asset", what: "The real person cut out on one third (eye contact) over the real thing the story is about - a company store/product/logo, the reviewed device, the finished dish, the destination, the in-game moment - with the single strongest number or phrase on the opposite side. In business/finance this is the founder + brand + growth-graph + big-number variant; in other niches drop the graph and the currency and keep the structure. A curved arrow to the subject. The workhorse of business/case-study thumbnails." },
       { name: "Face + Text split", what: "Big emotive face on one side, 2–4 bold words on the other. The workhorse for talking-head / reaction content." },
       { name: "Full-bleed face", what: "A single close-up face fills the frame with an exaggerated expression; little or no text. Maximum emotion." },
       { name: "Subject + object/result", what: "Person reacting to or holding a clear object or end-result (the product, the money, the card, the dish). Shows the payoff." },
@@ -210,8 +210,10 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
       { name: "Before / after split", what: "Frame split into two contrasting states. Strong for transformations, comparisons, tutorials." },
       { name: "Text-dominant", what: "A large typographic statement is the hero; imagery is secondary. Good for ideas, news, finance, education." },
       { name: "Product / object hero", what: "The object centered on a clean or dramatic background (e.g. on a pile of cash). Good for tech, products, reviews — often no face." },
-      { name: "Number / list hero", what: "A big number is the focal point (e.g. '7', '₹160 CR'). Signals a listicle or a concrete stake." },
+      { name: "Number / list hero", what: "A big number is the focal point - a count ('7'), a money figure ('₹160 CR'), a timeframe ('30 DAYS'), a spec, a rank ('RANK 1') or a price. Signals a listicle or a concrete stake." },
       { name: "Annotated / arrow", what: "Hand-drawn circles, arrows or highlights direct the eye to the subject or a detail. Curiosity and 'look here' energy." },
+      { name: "Gameplay / screen moment + facecam", what: "The decisive on-screen moment (kill, build, boss, score, result) fills the frame with a small reacting face cut out in a corner at 20-30%, outlined or glowed to separate it from busy art. Game UI and chrome cropped out." },
+      { name: "Diagram / concept hero", what: "One clean diagram, cutaway or visual metaphor is the subject, with a small presenter or a pointing hand beside it and at most one arrow or circled element. Explainer and tutorial content; distinct from a data chart." },
       { name: "Scene / establishing", what: "A wide environmental shot (travel, vlog, cinematic). Sells place and mood; weak focal point unless composed well." },
     ],
     colorSchemes: [
@@ -233,11 +235,11 @@ OUTPUT EXPECTATIONS: a short "what the feed actually sees" description (from STE
 - One focal point that survives the squint test at ~120px; everything else is support.
 - Strong figure-ground separation (rim light, blur, cut-out outline) so the subject pops off the background.
 - ≤3 competing elements; negative space is a feature, not wasted room.
-- Lead with the strongest CONCRETE specific — for business stories that is a big money number (₹/Crore) as the LARGEST element.
+- Lead with the strongest CONCRETE specific and make it the LARGEST element. What counts as concrete depends on the niche: a money figure for business/finance, a price or a spec for tech, a timeframe or a weight for fitness, a dish name or a cost for food, a rank or a score for gaming, a destination or a trip cost for travel, the misconception being corrected for education, the decision or its cost for lifestyle, the reaction itself for comedy. Never substitute a money number into a niche where money is not the story.
 - Two-line text formula: an elegant serif-italic number/hook line + a bold-sans descriptor line. 3–5 words per block.
 - Authority/dominance power words where they fit (King, Empire, Kingdom, Masterplan).
 - A hand-drawn curved arrow from the number toward the subject/hero object both directs the eye and opens a curiosity gap ("who/what is this?").
-- Composite the REAL subject (founder) + the REAL brand asset (store/product/logo) for instant credibility and recognition; a faint upward graph signals growth/success.
+- Composite the REAL subject (the actual person in the story) with the REAL asset the story is about, for instant credibility and recognition: a founder with their store or product, a reviewer with the actual device, a cook with the finished dish, a traveller with the real place, a player with the real in-game moment, a coach with the real body change. Use a supporting motif only when it is true to the topic (an upward graph for growth, a timer for speed, a map for place) - never as decoration.
 - Text ≤3–4 big words on busy areas, high contrast with an outline/shadow, kept out of the bottom-right (timestamp) and right edge (Shorts UI); one accent-colour word for emphasis.
 - Faces: large, well-lit, eye contact. Match the expression to tone — confident/aspirational for business; shock/intense for drama, rivalry or news.
 - Palette should contrast with the platform UI and neighbouring thumbnails, or be deliberately brand-matched. Thumb + title form ONE promise with a curiosity gap; never repeat the title verbatim.
@@ -296,7 +298,67 @@ GENERAL INDIAN BUSINESS / SOCIAL-COMMENTARY EXPLAINER (cross-creator hooks, mixe
 - EMOTIONAL REGISTER is a deliberate choice: calm-confident (credible/business) vs SHOCKED/exaggerated (eyes wide, mouth open) for scams/shock/outrage topics — pick the one that matches the claim.
 - DEVICES: brand-product prop held/shown + logo; a yellow highlight box on the key word; a curved arrow.
 - A CINEMATIC EDITORIAL PORTRAIT (single serious face, dramatic light, minimal restrained type) is the premium/journalistic alternative to the loud look.
-Preserve the real subject/brand/claim shown; match the emotional register to the actual topic.`,
+Preserve the real subject/brand/claim shown; match the emotional register to the actual topic.
+
+Tech -- device reviews, unboxings, comparisons and spec explainers:
+1. LAYOUT: the DEVICE is the hero, 40-60% of frame, three-quarter angle with a hard rim light separating it from the background. The creator is secondary: a smaller cut-out on one third, reacting to the device rather than posing. For comparisons, two devices angled toward each other with a clear gap down the middle (the gap is where a VS or a number goes).
+2. TEXT: 2-4 words carrying a verdict or a price, not a description. Proven frames: the blunt verdict (DON'T BUY, IT IS BROKEN, FINALLY), the price anchor (a currency figure as the largest element), the comparison (A vs B with the winner's side brighter). Specs only as a single number with its unit.
+3. COLOUR: near-black or deep charcoal background with ONE saturated accent - cyan, electric blue, or the product's own brand colour. Mid-grey backgrounds are the most common failure: they flatten the product. Let the device keep the highest saturation in frame.
+4. FACE: skeptical, unimpressed or genuinely startled. A generic smile reads as sponsored and kills trust in this niche.
+5. AVOID: product floating on pure white, stacked lens flares, purple-to-blue gradients (the AI-slop signature), more than one spec number, and cables or boxes that add clutter without adding scale.
+
+Fitness -- workouts, transformations, form checks and diet explainers:
+1. LAYOUT: the BODY is the subject, not the face. Use a three-quarter body or a torso crop. For transformations, a hard vertical split with IDENTICAL framing, distance, lighting and posture on both sides - any mismatch reads as a lie and costs the click. For technique videos, one exercise frozen at peak contraction.
+2. TEXT: 2-3 words. Proven frames: the correction (STOP DOING THIS, YOU ARE DOING IT WRONG), the timeframe (a number plus DAYS or WEEKS as the largest element), the single outcome (LOST 20 KG). Never place text over the part of the body you are selling.
+3. COLOUR: either a dark gym with ONE hot accent (red or orange) or a clean bright gym with heavy black type. Keep skin tones natural - the orange-crush grade is the niche's most recognisable amateur tell.
+4. FACE AND BODY: visible effort mid-rep reads as authentic; a posed smile with relaxed muscles does not. Strain, grip and a flexed line beat a grin.
+5. AVOID: oversaturated skin, the same stock gym pose everyone uses, measuring tape unless there is a real before and after, and supplements in frame unless the video is about them.
+
+Food -- recipes, street food, restaurant reviews and cooking explainers:
+1. LAYOUT: the FINISHED DISH is the hero at 50-70% of frame, shot overhead or at 45 degrees, with motion frozen - a cheese pull, a pour, steam, a drip. Hands in frame imply action and scale. The creator face is optional and small; the food outranks it.
+2. TEXT: 2-4 words naming the dish or the shortcut (5 MIN PASTA, NO OVEN, a price figure). Keep every letter OFF the food - text over the dish is the single most common mistake in this niche.
+3. COLOUR: warm and natural, and let the food carry the saturation. Put it against a deep neutral - slate, charcoal, dark wood - so it pops. Cold white balance and any green cast make food look inedible at thumbnail size.
+4. FACE: if shown, use anticipation or the first bite, not a static smile.
+5. AVOID: a cluttered full table, blue or fluorescent light on food, four-dish collages, and raw ingredients scattered so widely that nothing is the subject.
+
+Lifestyle -- vlogs, day-in-the-life, personal stories and routines:
+1. LAYOUT: the creator IN a place that signals the story - the environment is half the hook. Mid-shot, not a tight headshot, with the creator on one third and the readable place on the other. The viewer should be able to name the setting at a glance.
+2. TEXT: 3-5 words with personal stakes. Proven frames: the decision (I QUIT MY JOB), the cost (a currency figure plus MISTAKE), the ending (LAST DAY, MOVING OUT). First person outperforms instructional phrasing here.
+3. COLOUR: a natural grade with slightly lifted blacks, plus ONE accent from wardrobe or a prop. Keep the grade consistent across the channel - in this niche recognisability beats novelty.
+4. FACE: candid mid-sentence beats posed. Vulnerability works here where it fails in tech and gaming.
+5. AVOID: the generic selfie in front of a landmark, over-smoothed skin, a background busier than the subject, and text that describes the video instead of staking a claim.
+
+Education -- explainers, tutorials, science, history and exam prep:
+1. LAYOUT: ONE diagram or visual metaphor is the hero, with a small presenter beside it - never a wall of text. Maximum two visual elements. A presenter pointing at a single clean graphic, or a single labelled cutaway, both work; competing panels do not.
+2. TEXT: 3-5 words posing the question or naming the misconception (WHY PLANES FLY, YOU LEARNED THIS WRONG). One arrow or one circled element directs the eye to the thing that matters.
+3. COLOUR: a clean light background or a deep navy, with ONE accent reserved for the key element. Chalk, paper and blueprint textures read instantly as educational. Rainbow colour-coding destroys hierarchy.
+4. FACE: curious and mid-explanation - eyebrows up, an open hand gesture. Authority without severity.
+5. AVOID: formula-dense blackboards, five small diagrams, clip-art, stock lightbulbs, and any text smaller than the main 3-5 words.
+
+Gaming -- gameplay, challenges, rankings and reaction content:
+1. LAYOUT: the in-game HERO MOMENT - the kill, the build, the boss, the final score - centre to centre-right, with the creator facecam cut out bottom-left at 20-30% of frame. Crop the game HUD out entirely; raw screenshots with UI read as low effort.
+2. TEXT: 2-3 words carrying stakes or absurdity (1 HP WIN, IMPOSSIBLE, RANK 1). Game art is busy, so every letter needs a heavy outline or a solid block behind it.
+3. COLOUR: take the accent from the game's own palette so it feels native, then add a bright outline or glow around the creator cut-out to separate them from the background. Dark subject on dark art is the usual failure.
+4. FACE: a peak exaggerated reaction is the norm and it works - shock, triumph, disbelief, mouth open. Subtlety underperforms badly in this niche specifically.
+5. AVOID: unedited screenshots, stacked logos and sponsor badges, more than one focal moment, and red or yellow arrows pointing at nothing in particular.
+
+Travel -- destinations, budget trips, solo travel and regional series:
+1. LAYOUT: the PLACE is the hero - one iconic, wide, well-lit frame. The creator is small, often at the edge or back-to-camera, and exists to give the scene SCALE. Never let the person cover the landmark that is doing the selling.
+2. TEXT: 2-4 words on cost, access or contrast (a currency figure plus TRIP, NOBODY GOES HERE, 7 DAYS ALONE). Place it in sky, water or any genuinely empty region, never across the landmark.
+3. COLOUR: rich but believable saturation, shot at golden or blue hour. One accent from clothing helps the eye find the human. The teal-and-orange overgrade now reads as a stock travel template.
+4. FACE: awe and scale beat a grin; no face at all is a legitimate choice in this niche when the place is strong enough.
+5. AVOID: a drone shot with no subject for scale, four-photo collages, heavy vignettes, map pins as decoration, and text over the view.
+
+Comedy -- sketches, reactions, pranks, commentary and relatable content:
+1. LAYOUT: the FACE at peak expression, cropped tight, filling 50-70% of frame - the expression IS the thumbnail. Optionally one second element that is being reacted to, clearly smaller. No wide shots; distance kills the joke.
+2. TEXT: 2-4 words that set up but never deliver the punchline (WHO DID THIS, MY DAD REPLIED). Giving away the joke removes the reason to click.
+3. COLOUR: bright, flat and saturated - primaries, especially yellow and red. Cinematic darkness suppresses clicks here; this is the one niche where a flat look outperforms a graded one.
+4. FACE: exaggerated but unmistakable at 120px. One emotion only, carried by the mouth and the eyes together. If you cannot name the emotion from a thumbnail-sized preview, reshoot it.
+5. AVOID: subtle expressions, long setups in text, moody grades, inside references a first-time viewer cannot decode, and more than one person pulling a face at once.
+
+UNIVERSAL FALLBACK -- when the content fits none of the playbooks above:
+1. Use the general design principles only. Do NOT borrow devices from a playbook that does not fit - a currency figure, a founder cut-out, a yellow highlight box or a facecam corner imported into the wrong niche reads as a template and costs trust.
+2. Identify the single most interesting thing in the content, make it the one dominant focal point, pick ONE emotional register that matches the topic honestly, and keep the text to 3-5 words that promise something the video actually delivers.`,
 
     // Steers EVERY regeneration prompt (admin-editable). The brand-colour and
     // "what to add" inputs from the UI are merged in on top of this at runtime.
